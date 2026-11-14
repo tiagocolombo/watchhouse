@@ -370,7 +370,8 @@ impl Application {
             g.closed_version = Some(case.version + 1);
             g
         } else {
-            if m.actor != "fake-verifier" || m.actor == case.owner {
+            let authored:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM run_control rc JOIN runs r ON r.id=rc.run_id JOIN assignments a ON a.id=r.assignment_id WHERE a.case_id=?1 AND rc.executor=?2)",params![case_id,m.actor],|r|r.get(0))?;
+            if m.actor != "fake-verifier" || m.actor == case.owner || authored {
                 return Err(Error::Invalid(
                     "separate fake verifier responsibility required".into(),
                 ));

@@ -8,11 +8,11 @@ Branch `dev/m2-independent-challenges`, based on main `a744d35`; first branch of
 
 Implemented strict challenge commands, exact contested event/version references, separate fake challenger/respondent/verifier responsibilities, acknowledgment/investigation/evidence-backed answer/independent resolution, durable dissent and uncertainty, deadline escalation, and deterministic blocking gates. New independent evidence is mandatory for arbitration. Result acceptance and qualification reject unresolved blocking challenges. Validation and assessment closure bind to the exact case version, exclude pending review obligations, and do not assert service recovery. CLI/API/web expose the same commands and persisted records.
 
-Verification on Linux: `cargo fmt --all -- --check`, `cargo clippy --locked --all-targets -- -D warnings`, `cargo test --locked` (45 passed), `cargo build --locked`, `npm run build --prefix web`, `npm test --prefix web` (4 Chromium scenarios), and `git diff --check` passed. New checks cover independent evidence, deadline/restart deduplication, competing commands, injected rollback, stale closure and browser command/reload. No live models, notifications, or production system was used.
+Verification on Linux: `cargo fmt --all -- --check`, `cargo clippy --locked --all-targets -- -D warnings`, `cargo test --locked` (46 passed), `cargo build --locked`, `npm run build --prefix web`, `npm test --prefix web` (4 Chromium scenarios), and `git diff --check` passed. New checks cover independent evidence, deadline/restart deduplication, competing commands, injected rollback, stale closure and browser command/reload. No live models, notifications, or production system was used.
 
 Next: trusted versioned timer and execution policy, then external escalation delivery, then Sentry intake and incident records. Real worker identity/isolation and production execution remain M4+ work. Local fake role labels are attribution under one trusted operator, not remote authentication.
 
-Final phase 1 review: overdue (due) review obligations continue blocking assessment closure; regression test added. The browser test now waits for persisted connection state before reload, addressing the CI race. All 45 Rust tests and four Chromium scenarios passed locally with the correction.
+Final phase 1 review: overdue (due) review obligations continue blocking assessment closure; regression test added. Reserved challenger/verifier identities cannot take investigator work, and any historical investigator attribution disqualifies self-validation. The browser test now waits for persisted connection state before reload, addressing the CI race. All 46 Rust tests and four Chromium scenarios passed locally with the correction.
 
 ## Baseline evidence and limits
 

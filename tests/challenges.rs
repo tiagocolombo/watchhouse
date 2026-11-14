@@ -288,3 +288,43 @@ fn overdue_review_obligations_still_prevent_assessment_closure() {
         .is_err()
     );
 }
+#[test]
+fn independent_roles_cannot_execute_or_validate_their_own_investigation() {
+    let (d, a, _t, id) = setup();
+    for who in ["fake-verifier", "fake-challenger"] {
+        assert!(
+            a.claim_work(ClaimWork {
+                meta: CommandMeta {
+                    schema_version: V1,
+                    idempotency_key: format!("role-{who}"),
+                    actor: "operator".into(),
+                    reason: "Role admission test".into()
+                },
+                executor: who.into()
+            })
+            .is_err()
+        );
+    }
+    a.run_fake_worker_once("fake-investigator", false).unwrap();
+    let proof = evidence(&a, &id, "separate-role-evidence", "fake-verifier");
+    // A legacy conflicting role record must also fail the validation gate, even though new admission rejects it.
+    let db = Store::open(d.path().join("test.db"))
+        .unwrap()
+        .connect()
+        .unwrap();
+    db.execute_batch(
+        "DROP TRIGGER run_briefing_immutable; UPDATE run_control SET executor='fake-verifier';",
+    )
+    .unwrap();
+    assert!(
+        a.record_gate(
+            &id,
+            GateCommand {
+                command: cmd(&a, &id, "self-validation", "fake-verifier"),
+                close: false,
+                evidence_refs: vec![proof]
+            }
+        )
+        .is_err()
+    );
+}

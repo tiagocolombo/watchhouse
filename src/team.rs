@@ -37,7 +37,8 @@ fn validate_meta(m: &CommandMeta) -> Result<()> {
 }
 fn identity(id: &str) -> Result<()> {
     text(id, "executor", 128)?;
-    if !id.starts_with("fake-")
+    if matches!(id, "fake-verifier" | "fake-challenger")
+        || !id.starts_with("fake-")
         || !id
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
