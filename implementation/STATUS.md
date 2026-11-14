@@ -8,7 +8,7 @@ Last updated: 2026-11-14.
 
 Manual case → atomic events/job → fake investigation → persisted evidence → operator qualification → owned review/monitoring/collection obligation → deadline/recurrence/reconsideration → reopened review, visible in CLI and web.
 
-Current development branch: `dev/m1-dispositions`, based on `3af6c21` from `dev/m0-m1-durable-slice`. This branch's implementation commit includes the updated contracts and handoff. M1 exit scenarios are covered for local sanitized/manual/fake cases; automated sources, real harnesses, independent verification, production actions, and M2–M8 are not implemented.
+Current development branch: `dev/m1-dispositions`, based on `3af6c21` from `dev/m0-m1-durable-slice`. Implementation commit: `f400e09`; the final documentation commit records its verified CI handoff. M1 exit scenarios are covered for local sanitized/manual/fake cases; automated sources, real harnesses, independent verification, production actions, and M2–M8 are not implemented.
 
 ## Implemented
 
@@ -51,7 +51,7 @@ New tests include schema-1 upgrade preservation/backfill; exact legacy CRLF chec
 
 The first browser pass exposed an inaccessible select label; explicit label associations fixed it, and the full browser suite passed afterward. Standard tests never invoke live models, subscriptions, production systems, or external message delivery.
 
-Prior baseline [CI 43625938174](https://github.com/tiagocolombo/watchhouse/actions/runs/43625938174) passed Linux/macOS/Windows at `c9553a2`. New branch CI is pending publication/verification; do not infer its cross-platform result from that older run. CI keeps Ubuntu 24.04 for pinned Playwright compatibility and checks all three platforms independently.
+Prior baseline [CI 43625938174](https://github.com/tiagocolombo/watchhouse/actions/runs/43625938174) passed Linux/macOS/Windows at `c9553a2`. **Current [CI 43629885681](https://github.com/tiagocolombo/watchhouse/actions/runs/43629885681) passed at `f400e09` on Linux (Ubuntu 24.04), macOS, and Windows: TypeScript, formatting, Clippy, all 25 Rust tests, and builds. Both Chromium scenarios passed on Linux.** CI keeps Ubuntu 24.04 for pinned Playwright compatibility and checks all three platforms independently.
 
 ## How to run
 
