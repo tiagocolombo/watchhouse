@@ -60,3 +60,17 @@ Define retention for raw evidence, transcripts, exported reports, and postmortem
 Test injected telemetry, a candidate modifying its own instructions, forged agent results, stale-worker writes, duplicate publishing, malicious imported knowledge, leaked credentials in logs, unsafe remote web access, and a compromised adapter.
 
 Pause new effects independently from monitoring and notifications. Emergency stop revokes applicable capabilities and cancels workers; reconcile potentially completed external operations before resuming.
+
+## Current authority in the first slice
+
+The only executable policy profile is local-fake-only-v1: manual intake, title updates, attributed operator evidence/qualification/reconsideration, deterministic review deadlines, and side-effect-free synthetic investigation. No selectable real harness, shell action, production mutation, publication, communication, policy update, or knowledge acceptance endpoint exists. A shared local bearer token represents one trusted operator; actor labels are attribution, not RBAC identities. Direct CLI authority is OS-level database access.
+
+Results require the matching assignment/run/case/current fence and an unexpired lease; late results cannot advance authoritative state. Completion means synthetic evidence recorded and operator review pending, never recovery or independent verification. General policy evaluation, pause/stop controls, subprocess containment, scoped external effects, and independence gates above remain required before operational automation.
+
+Expected/transient qualification requires operator-reported case evidence and explicit uncertainty/scope; it is not a source-suppression rule or an independent verification attestation. Recurrence and deadline processing only reopen an owned review obligation. New classifications cannot expand executor authority, create repairs, or declare recovery. All new writes preserve aggregate version/key checks and event history; current ownership is explicit.
+
+## First M2 fake authority
+
+Only local fake-* investigator identities with fixed side-effect-free behavior can claim/receive handoff. Run proof and current lease/progress/absolute deadlines fence worker updates; operator transfers use case version checks and require successor acceptance. No chat body, message type, actor label, or handoff expands real capabilities or acts as independent approval. The bearer operator can simulate local worker attribution; this is not worker authentication.
+
+Late known proofs create wrapped unaccepted evidence and an audit event, never an authoritative result. Proof/briefing contents are immutable. Block recovery retains original deadline/shared attempt budget. The fake boundary has no mutable external resources, so fencing makes it safe; real OS process stop/quarantine, credentials, isolation, and external-effect reconciliation are still absent and must precede any real adapter. Local escalations do not send notifications. See ADR 0006.

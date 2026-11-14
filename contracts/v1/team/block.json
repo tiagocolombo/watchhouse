@@ -1,0 +1,15 @@
+{
+  "run": {
+    "meta": {"schema_version": 1, "idempotency_key": "team-block-001", "actor": "fake-investigator", "reason": "Missing evidence prevents useful progress"},
+    "proof": {"run_id": "run_replace_from_claim", "fence": "fence_replace_from_claim"}
+  },
+  "details": {
+    "reason_code": "missing_evidence",
+    "work_attempted": "Read the bounded assignment and available sanitized records",
+    "last_useful_progress": "Objective understood; no service inspected",
+    "checkpoint": "No mutable workspace or external effects. Resume from the frozen briefing.",
+    "assistance_needed": "Another investigator needs to collect a sanitized failure trace",
+    "uncertainty": "Cause, impact, and recovery are unknown",
+    "evidence_refs": []
+  }
+}

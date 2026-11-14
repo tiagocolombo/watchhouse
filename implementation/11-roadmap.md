@@ -2,6 +2,10 @@
 
 Every milestone delivers a usable vertical slice with evidence and a STATUS.md update. A checked document is not an implemented feature.
 
+## Current delivery state (2026-11-14)
+
+M0 foundations are implemented, including the documented no-model protocol spike. The bounded M1 workflow now also includes operator-reported evidence, expected/transient/uncertain decisions, owned persisted deadlines, manual reconsideration, and recurrence/deadline reopening, with recovery/concurrency/browser evidence in [STATUS](STATUS.md). M1 exit scenarios are covered for local manual/fake fixtures; source automation and real execution are not implied. The first M2 communication/supervision/handoff slice is implemented for fake workers; full M2 and M3–M8 remain unfinished. Real runtime admission is still unverified; ADR 0004 records the bounded spike.
+
 ## M0 — Bootstrap and contracts
 
 Deliver repository scaffold, chosen language/runtime versions, formatting/CI, migrations framework, versioned contracts, fake clock/runtime/source, and ADRs for initial stack.
@@ -64,4 +68,4 @@ Do not defer all UI to M8. Every milestone has a visible operating surface. Do n
 
 ## First implementation task
 
-Implement M0 plus the smallest M1 slice: manual case creation -> persisted event -> queued fake assignment -> observed result -> web timeline. Start by deciding the stack and writing contracts/migration tests.
+Completed: M0 plus manual case creation -> persisted event -> queued fake assignment -> observed result -> web timeline. Completed: versioned disposition/reconsideration commands, case-bound evidence, configurable review/monitoring/collection deadlines, and deterministic reopening in CLI/web. Completed first M2 slice: durable directed messages, owned blockers/checkpoints, progress/heartbeat supervision, acknowledged fake-worker handoff, stale-result evidence, and a local escalation inbox. Next: independent challenge lifecycle and scoped validation gates; then complete trusted policy configuration and an explicitly configured human notification/fallback channel before real execution.

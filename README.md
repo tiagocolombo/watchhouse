@@ -10,7 +10,73 @@ Connect an observability tool such as Sentry or Datadog. Watchhouse assesses wha
 
 The team keeps the records a real incident organization needs: incident details, investigation logs, escalation and handoff records, change plans, recovery assessments, postmortems, corrective actions, and runbooks.
 
-**Status: design and implementation planning.** This repository currently contains the specification; the capabilities below describe the intended product. There is no released application or install command yet.
+**Status: M0/M1 and the first bounded M2 core coordination slice are implemented.** Manual intake → durable fake investigation → evidence → operator disposition → owned deadline/recurrence → reopened review works through CLI and web. The broader team described below remains the intended product; no real harness, production integration, or merge automation is implemented.
+
+## Run the local slice
+
+Prerequisites: Rust via rustup (the repository pins 1.90.0), Node.js 22+, and npm. No model account or subscription is needed.
+
+```sh
+npm ci --prefix web
+npm run build --prefix web
+cargo run --locked -- serve
+```
+
+Open `http://127.0.0.1:8787` and enter the operator token printed in your terminal. Create a case; the coordinator processes its fake assignment even if you close the browser. Reopen the case to inspect the persisted result and timeline. Investigator results are explicitly synthetic. Add operator-reported evidence, then record a scoped expected/transient/insufficient-evidence disposition with uncertainty, an owner, and a review deadline. Deadline or qualifying recurrence reopens review without implying recovery or repair.
+
+CLI uses the same services and database (default `.watchhouse/watchhouse.db`):
+
+```sh
+cargo run --locked -- case create --title "Checkout timeout" --key intake-001
+cargo run --locked -- worker --once
+cargo run --locked -- case list
+cargo run --locked -- case show CASE_ID
+```
+
+The key makes command retries safe. `worker --once` is useful without `serve`; `serve` already runs the worker. Use `--db PATH` to select another database, `migrate` to validate/apply migrations, and `serve --port PORT` for another loopback port. Set `WATCHHOUSE_TOKEN` (at least 32 bytes) for a stable local operator token; otherwise each server start generates one. Local CLI access relies on operating-system access to the database.
+
+```sh
+cargo fmt --all -- --check
+cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked
+cargo build --locked
+cd web
+npx playwright install chromium
+npm test
+```
+
+Browser tests use only a temporary local database and fake execution. Standard checks never invoke a live harness or production system. Linux was validated locally; CI also configures Rust checks on macOS and Windows. The fake-team slice now includes directed messages, stalled-worker supervision, checkpoints, acknowledged handoff, and a local escalation inbox. Independent challenges, real notification delivery, and real execution remain ahead. See [current status](implementation/STATUS.md) for evidence and the exact next task.
+
+## Qualification commands
+
+After investigation completes, use the web forms or submit the same versioned JSON commands through CLI:
+
+```sh
+cargo run --locked -- case record-evidence CASE_ID --file evidence.json
+cargo run --locked -- case record-disposition CASE_ID --file disposition.json
+cargo run --locked -- case reconsider CASE_ID --file reconsideration.json
+cargo run --locked -- tick
+```
+
+Start from the [qualification command examples](contracts/v1/README.md). Replace expected versions, evidence digests, and the current disposition ID with values returned by your case snapshot. Timers are explicit per decision (1 second–30 days). `serve`/`worker` process persisted deadlines automatically; `tick` processes them without an executor. Expected/transient decisions require operator-reported supporting evidence; synthetic results alone do not establish those facts. The UI keeps source attribution and uncertainty visible.
+
+## Run the core without a web server
+
+The native `watchhouse` binary owns coordination. CLI workers can drive the fake team against the same durable database:
+
+```sh
+cargo run --locked -- case create --title "Investigate timeout" --key team-001
+cargo run --locked -- worker --block --once
+cargo run --locked -- case list
+cargo run --locked -- case show CASE_ID
+cargo run --locked -- team offer-handoff CASE_ID --file handoff.json
+cargo run --locked -- worker --identity fake-specialist --once
+cargo run --locked -- team inbox
+```
+
+Use the [handoff command example](contracts/v1/team/handoff.json), replacing its block ID and expected version from the case snapshot. The first worker stores a blocker/checkpoint; the successor discovers and accepts the durable handoff before ownership changes. A late old result is retained as unaccepted evidence and cannot complete the task.
+
+`worker --stall` simulates a live fake process with heartbeats but no useful progress. `serve --manual-workers` runs the scheduler and operating interface while separate CLI workers dispatch. `tick` supervises due work without an executor. Development fake deadlines and budgets are documented in the [team contract](contracts/v1/team/README.md); handoff cannot reset them. No external escalation delivery, real harness, installer, or OS service registration is implemented yet.
 
 ## A typical response
 

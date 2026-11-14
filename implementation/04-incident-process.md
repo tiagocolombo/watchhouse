@@ -82,3 +82,9 @@ Incident resolution, postmortem acceptance, and action completion remain separat
 A disposition requires rationale and reconsideration conditions. Incident resolution requires recovery evidence or an authorized risk acceptance. Postmortem acceptance requires reviewed analysis and owned actions. Action completion requires demonstrated acceptance criteria.
 
 See [artifact templates](templates/README.md). The structured records drive document rendering; generating prose does not satisfy a state transition on its own.
+
+## Implemented qualification boundary (M1)
+
+Expected behavior, apparently transient, and insufficient evidence are now explicit operator decisions through shared CLI/web services. Every decision cites case-bound evidence, scope, rationale, uncertainty, owner, reconsideration conditions, a recurrence threshold, and a bounded deadline. Expected/transient decisions require operator-reported supporting observations; fake agent results alone cannot justify them. Operator reports remain distinguished from independently observed checks.
+
+Review/monitoring/collection obligations survive restart. Reaching a deadline, observing a distinct recurrence threshold, reporting contradictory evidence or a scope change, or requesting operator review reopens the decision for accountable reassessment. A new decision supersedes the old record/obligation, retaining history. Reopening creates no repair/deployment authority and never asserts recovery. Other disposition categories and the coordinated incident process above remain planned. See [ADR 0005](adrs/0005-qualification-and-reconsideration.md).

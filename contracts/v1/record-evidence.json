@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "idempotency_key": "operator-evidence-001",
+  "actor": "operator",
+  "reason": "Record a sanitized observation for qualification",
+  "expected_version": 4,
+  "scope": "staging / checkout / release 1",
+  "statement": "A manually reviewed fixture showed one dependency timeout",
+  "collection_method": "Manual review of sanitized fixture output",
+  "observed_at": null,
+  "uncertainty": "Impact, cause, and current recovery are unknown"
+}

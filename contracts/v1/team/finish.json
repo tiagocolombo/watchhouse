@@ -1,0 +1,4 @@
+{
+  "meta": {"schema_version": 1, "idempotency_key": "team-finish-001", "actor": "fake-specialist", "reason": "Finish the bounded side-effect-free fake investigation"},
+  "proof": {"run_id": "run_replace_from_accepted_claim", "fence": "fence_replace_from_accepted_claim"}
+}

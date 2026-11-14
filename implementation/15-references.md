@@ -40,3 +40,7 @@ Repository inspected: [tiagocolombo/hallmark](https://github.com/tiagocolombo/ha
 - [Import/export implementation](https://github.com/tiagocolombo/hallmark/blob/main/src/library/portable.rs).
 
 The inspected design has Claude-specific execution and per-clone knowledge. A reusable standalone library or complete repair protocol must not be assumed to exist. Pin a commit when implementing compatibility; main-branch links are orientation references.
+
+## M0 protocol spike additions (2026-11-14)
+
+[ADR 0004](adrs/0004-execution-protocol-spike.md) records local `codex --version` / `codex exec --help` inspection (0.167.0-alpha.4), plus the current [Claude Code headless guide](https://code.claude.com/docs/en/headless), pi RPC guide, and Hermes CLI reference above. Only CLI help and documentation were inspected. No live runtime, account, subscription, cancellation, or isolation compatibility was exercised. A production adapter must recheck installed versions and primary protocol/authentication guidance at M4.

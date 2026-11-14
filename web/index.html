@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Watchhouse · Operations</title><link rel="icon" href="/icon.png"><link rel="stylesheet" href="/style.css"><script type="module" src="/app.js"></script></head>
+<body>
+<header><img src="/logo.png" alt="Watchhouse" width="280"><span class="badge">LOCAL WORKSPACE</span></header>
+<main>
+<div class="heading"><div><p class="eyebrow">OPERATIONS / CASES</p><h1>Every signal has a next step.</h1><p class="muted">Manual intake, accountable assignments, and a durable record.</p></div><span id="connection" role="status">Connect to workspace</span></div>
+<p id="error" role="alert"></p>
+<section id="login"><h2>Open your workspace</h2><p>Enter the local operator token printed by the coordinator.</p><form id="login-form"><label>Operator token<input id="token" type="password" required autocomplete="off"></label><button>Connect</button></form></section>
+<div id="workspace" hidden>
+<div class="notice"><strong>Fake execution enabled.</strong> Results are synthetic. The operator owns review; no incident recovery is asserted.</div>
+<div class="columns"><aside><section><h2>Create a case</h2><form id="create-form"><label>Title<input id="title" maxlength="200" required placeholder="What needs investigation?"></label><label>Description<textarea id="description" maxlength="16000" rows="3"></textarea></label><label>Reason<input id="reason" value="Manual intake" required></label><button id="create">Create case</button></form></section><section><h2>Case queue</h2><nav id="cases" aria-label="Cases"></nav></section></aside>
+<section id="detail"><div id="empty"><img src="/icon.png" width="76" alt=""><h2>Your watch starts here.</h2><p>Create or select a case to see its assignment, result, and recorded timeline.</p></div><div id="case-view" hidden><p class="eyebrow" id="case-id"></p><h2 id="case-title"></h2><div class="metadata"><span id="case-status" class="badge"></span><span id="version"></span><span id="owner"></span></div><p id="case-description"></p><p id="next" class="notice"></p><details><summary>Update title</summary><form id="rename-form"><label>Title<input id="rename-title" required maxlength="200"></label><label>Reason<input id="rename-reason" required></label><button>Save with version check</button></form></details><h3>Team coordination</h3>
+<div id="team-state"></div><div id="team-blocks"></div><div id="team-handoffs"></div><div id="team-escalations"></div>
+<details><summary>Send team message</summary><form id="team-message-form">
+<label for="team-kind">Message type</label><select id="team-kind"><option value="observation">Observation</option><option value="question">Question</option><option value="status">Status</option></select>
+<label>Message<textarea id="team-body" required maxlength="8000" rows="3"></textarea></label>
+<label>Local recipients (comma separated)<input id="team-recipients" required value="operator"></label>
+<label>Acknowledge within seconds (optional)<input id="team-ack-seconds" type="number" min="1" max="86400"></label>
+<label>Reply to message (optional)<input id="team-reply"></label>
+<label>Message reason<input id="team-message-reason" required maxlength="2000"></label><button>Record team message</button></form></details>
+<details id="handoff-panel" hidden><summary>Arrange handoff</summary><p class="muted">The current owner stays accountable until the successor accepts. The original deadline and remaining attempt budget are retained.</p>
+<form id="handoff-form"><label>Successor executor<input id="handoff-successor" value="fake-specialist" required maxlength="128"></label>
+<label>Owner after acceptance<input id="handoff-owner" value="operator" required maxlength="128"></label>
+<label>Accept within seconds<input id="handoff-seconds" type="number" min="1" max="120" value="60" required></label>
+<label>Handoff reason<input id="handoff-reason" required maxlength="2000"></label><button>Offer bounded handoff</button></form></details>
+<div id="team-messages"></div><h3>Investigation result</h3><div id="results"></div><h3>Qualification &amp; next obligation</h3>
+<div id="qualification-state"></div><div id="obligations"></div>
+<details><summary>Add operator evidence</summary>
+<p class="muted">An attributed report, separate from independent verification. Unknown occurrence time may be left blank.</p>
+<form id="evidence-form">
+<label>Evidence scope<input id="evidence-scope" required maxlength="2000" placeholder="Service / environment / release / workflow"></label>
+<label>Observation<textarea id="evidence-statement" required maxlength="8000" rows="3"></textarea></label>
+<label>Collection method<input id="evidence-method" required maxlength="2000" placeholder="How was this observed?"></label>
+<label>Observed at (RFC3339, optional)<input id="evidence-time" placeholder="2026-11-14T12:00:00Z"></label>
+<label>Evidence uncertainty<textarea id="evidence-uncertainty" required maxlength="2000" rows="2"></textarea></label>
+<label>Evidence reason<input id="evidence-reason" required maxlength="2000"></label>
+<button>Record evidence</button></form></details>
+<p class="muted">Select persisted evidence for the decision or reconsideration below.</p><div id="evidence-refs"></div>
+<details><summary>Record disposition</summary>
+<form id="disposition-form">
+<label for="plan-kind">Disposition</label><select id="plan-kind"><option value="insufficient_evidence">Insufficient evidence</option><option value="expected_behavior">Expected behavior</option><option value="apparently_transient">Apparently transient</option></select>
+<label>Accountable owner<input id="disposition-owner" value="operator" required maxlength="128"></label>
+<label>Applicability scope<input id="disposition-scope" required maxlength="2000"></label>
+<label>Decision uncertainty<textarea id="disposition-uncertainty" required maxlength="2000" rows="2"></textarea></label>
+<label>Reconsideration conditions<textarea id="disposition-conditions" required maxlength="2000" rows="2"></textarea></label>
+<label>Reopen after distinct recurrences<input id="disposition-threshold" type="number" min="1" max="1000" value="1" required></label>
+<label>Review / monitoring / collection deadline (seconds)<input id="disposition-seconds" type="number" min="1" max="2592000" value="3600" required></label>
+<label id="collection-label">Evidence collection task<textarea id="disposition-collection" maxlength="2000" rows="2" required></textarea></label>
+<label id="indicators-label" hidden>Recovery indicators<textarea id="disposition-indicators" maxlength="2000" rows="2"></textarea></label>
+<label>Disposition reason<input id="disposition-reason" required maxlength="2000"></label>
+<button id="record-disposition">Record decision &amp; obligation</button></form></details>
+<details id="reconsider-panel" hidden><summary>Reconsider decision</summary>
+<p class="muted">For a new recurrence, select only new operator evidence not used by this decision or a previous recurrence.</p><form id="reconsider-form"><label for="reconsider-trigger">Trigger</label><select id="reconsider-trigger"><option value="operator_review">Operator review</option><option value="recurrence">New recurrence</option><option value="contradictory_evidence">Contradictory evidence</option><option value="scope_changed">Scope changed</option></select>
+<label>Reconsideration reason<input id="reconsider-reason" required maxlength="2000"></label><button>Reconsider current decision</button></form></details>
+<h3>Activity timeline</h3><ol id="timeline"></ol></div></section></div>
+</div>
+</main><footer>Watchhouse · The incident record lives here.</footer>
+</body></html>

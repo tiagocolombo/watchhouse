@@ -1,0 +1,12 @@
+{
+  "command": {
+    "meta": {"schema_version": 1, "idempotency_key": "team-message-001", "actor": "operator", "reason": "Ask for a scoped observation"},
+    "expected_version": 3
+  },
+  "kind": "question",
+  "body": "Which sanitized evidence would distinguish the competing explanations? No authority is granted by this message.",
+  "recipients": ["fake-specialist"],
+  "evidence_refs": [],
+  "reply_to": null,
+  "ack_within_seconds": 60
+}

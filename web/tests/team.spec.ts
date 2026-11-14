@@ -1,0 +1,33 @@
+import {test,expect} from '@playwright/test';
+const token='browser-test-operator-token-32-bytes';
+test('core coordination remains authoritative while browser observes handoff and escalation',async({page,context})=>{
+  await page.goto('/');await page.getByLabel('Operator token').fill(token);await page.getByRole('button',{name:'Connect',exact:true}).click();
+  await page.locator('#title').fill('Durable team browser fixture');await page.getByRole('button',{name:'Create case',exact:true}).click();
+  await expect(page.locator('#team-state')).toContainText('queued');const id=await page.locator('#case-id').textContent();
+  const meta=(key:string,actor='operator')=>({schema_version:1,idempotency_key:key,actor,reason:'Sanitized browser-team fixture'});
+  const post=async(path:string,data:unknown)=>{const r=await context.request.post(`/api/v1${path}`,{headers:{Authorization:`Bearer ${token}`},data});expect(r.ok()).toBe(true);return r.json();};
+  const get=async()=>{const r=await context.request.get(`/api/v1/cases/${id}`,{headers:{Authorization:`Bearer ${token}`}});return r.json();};
+  const claim=await post('/team/claim',{meta:meta('browser-claim'),executor:'fake-investigator'});
+  const proof={run_id:claim.run_id,fence:claim.fence};
+  await post('/team/block',{run:{meta:meta('browser-block','fake-investigator'),proof},details:{reason_code:'missing_evidence',work_attempted:'Read objective',last_useful_progress:'Need a trace',checkpoint:'No mutable workspace or external effects',assistance_needed:'A second fake investigator must collect evidence',uncertainty:'Cause and recovery remain unknown',evidence_refs:[]}});
+  await expect(page.locator('#team-state')).toContainText('blocked');await expect(page.locator('#team-blocks')).toContainText('Owner: operator');
+  await page.locator('#team-blocks').getByRole('button',{name:'Inspect checkpoint / evidence'}).click();await expect(page.locator('#team-blocks pre')).toContainText('No mutable workspace');
+  await page.getByText('Send team message',{exact:true}).click();await page.getByLabel('Message',{exact:true}).fill('<script>window.teamInjected=true</script> Need bounded independent evidence.');await page.getByLabel('Message reason',{exact:true}).fill('Direct a scoped observation to the successor');await page.getByLabel('Local recipients (comma separated)',{exact:true}).fill('fake-specialist');await page.getByRole('button',{name:'Record team message',exact:true}).click();
+  await expect(page.locator('#team-messages')).toContainText('<script>window.teamInjected=true</script>');expect(await page.evaluate(()=>('teamInjected' in window))).toBe(false);
+  await page.getByText('Arrange handoff',{exact:true}).click();await page.getByLabel('Owner after acceptance',{exact:true}).fill('fake-specialist');await page.getByLabel('Handoff reason',{exact:true}).fill('Transfer only after successor accepts');await page.getByRole('button',{name:'Offer bounded handoff',exact:true}).click();
+  await expect(page.locator('#team-handoffs')).toContainText('Handoff proposed');await expect(page.locator('#owner')).toHaveText('Owner: operator');
+  const pending=await get();const h=pending.team.handoffs[0];
+  await context.setOffline(true);
+  const next=await post(`/cases/${id}/team/accept-handoff`,{command:{meta:meta('browser-accept','fake-specialist'),expected_version:pending.case.version},handoff_id:h.id});
+  const late=await context.request.post('/api/v1/team/finish',{headers:{Authorization:`Bearer ${token}`},data:{meta:meta('browser-late','fake-investigator'),proof}});expect(late.status()).toBe(409);
+  await post('/team/finish',{meta:meta('browser-finish','fake-specialist'),proof:{run_id:next.run_id,fence:next.fence}});
+  await context.setOffline(false);
+  await expect(page.locator('#team-handoffs')).toContainText('Handoff accepted');await expect(page.locator('#owner')).toHaveText('Owner: fake-specialist');await expect(page.locator('#team-messages')).toContainText('retained as unaccepted evidence');await expect(page.locator('#case-status')).toHaveText('awaiting review');
+  // Acknowledgment expiry is processed by the core scheduler, independent of workers/models.
+  const current=await get();await post(`/cases/${id}/team/messages`,{command:{meta:meta('browser-question'),expected_version:current.case.version},kind:'question',body:'Operator decision needed',recipients:['operator'],evidence_refs:[],reply_to:null,ack_within_seconds:1});
+  await expect(page.locator('#team-escalations')).toContainText('Local escalation open');await page.getByRole('button',{name:'Acknowledge local escalation',exact:true}).click();await expect(page.locator('#team-escalations')).toContainText('Local escalation acknowledged');
+  const s=await get();await expect(page.locator('#timeline li')).toHaveCount(s.events.length);
+  const ids=await page.locator('#timeline li').evaluateAll(nodes=>nodes.map(n=>(n as HTMLElement).dataset.eventId));expect(new Set(ids).size).toBe(s.events.length);
+  await page.reload();await expect(page.locator('#team-handoffs')).toContainText('Handoff accepted');await expect(page.locator('#team-escalations')).toContainText('Local escalation acknowledged');
+  await page.screenshot({path:'team-test-results/watchhouse-team.png',fullPage:true});await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+});

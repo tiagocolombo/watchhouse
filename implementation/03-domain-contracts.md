@@ -1,6 +1,6 @@
 # Domain and event contracts
 
-These are proposed logical contracts. Implement versioned schemas and compatibility fixtures before treating examples as a public API.
+The entity catalogue below is the wider proposed design. The executable first-slice contracts and compatibility fixtures are in [contracts/v1](../contracts/v1/README.md); only that subset is implemented. The example incident envelope below remains illustrative.
 
 ## Records
 
@@ -77,3 +77,19 @@ Check evidence includes exact command or runner identity, environment, candidate
 Immutable means an artifact's content does not silently change. Authorized deletion/redaction creates an audit tombstone and invalidates dependent evidence where necessary; it does not require retaining secret or personal bytes forever.
 
 Role briefings are immutable manifests of the evidence, messages, knowledge versions, task instructions, and policy scope supplied to a run. Preserve reproducibility without storing hidden model reasoning.
+
+## Implemented first-slice semantics
+
+CreateCase and RenameCase carry strict schema version 1, actor/reason, and global command keys; updates require expected_version. Case status is queued → running → awaiting_review, never recovered/closed from a fake run. Assignment state is queued → running → completed; run history retains expired attempts. Events serialize as a typed envelope and payload, share the case aggregate version, and include policy/correlation/causation/provenance links. Actor kind distinguishes operator and worker attribution. A source occurrence time remains null when unknown.
+
+Only the investigator role and bounded fake result are admitted. Evidence bytes, provenance, media type, timestamp, and digest are persisted with the result. The event cursor returned to clients is populated from the durable SQLite sequence. No Message, Challenge, Escalation, Incident, accepted knowledge, or formal artifact renderer is implemented yet; their proposed contracts above are preserved for subsequent milestones.
+
+## Implemented M1 qualification extension
+
+[ADR 0005](adrs/0005-qualification-and-reconsideration.md) and the [v1 contract catalogue](../contracts/v1/README.md) define RecordEvidence, RecordDisposition, and ReconsiderCase. Snapshot adds a qualification projection containing immutable decision contents with active/reopened/superseded lifecycle, owner/task/deadline obligations, and case-bound evidence provenance. The existing execution status remains separate and no recovery/closure status was added.
+
+New event families are evidence.recorded, disposition.recorded/reconsidered, obligation.scheduled/due, and case.reopened. All advance the same case aggregate version with actor/reason and causal references. Migration 002 preserves historical v1 bytes and receipts. Unknown/missing versions and unsupported event/plan kinds are rejected; old snapshots deserialize with an empty qualification projection. Old binaries do not support new event kinds or schema 2.
+
+## Implemented first M2 team extension
+
+See [team v1 contracts](../contracts/v1/team/README.md) for CommandMeta/OperatorCommand, fenced run commands, messages, blocks, frozen briefings, handoffs, and local escalations. Snapshot adds team state read atomically with the case timeline/cursor. Worker proof admission is separate from operator version checks; late results remain attributed data, never valid workflow authority. Old event kinds remain readable and migrations 001/002 are unchanged. Coordination state can be blocked/handoff_pending while the old execution field remains running; do not infer active execution from that older field alone. No real worker/RBAC protocol or independent challenge state machine exists yet.

@@ -1,0 +1,10 @@
+/target/
+/web/node_modules/
+/web/dist/
+/web/test-results/
+/web/playwright-report/
+/.watchhouse/
+*.db
+*.db-shm
+*.db-wal
+/web/team-test-results/
