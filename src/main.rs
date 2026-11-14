@@ -97,6 +97,16 @@ enum CaseCommand {
 }
 #[derive(Subcommand)]
 enum TeamCommand {
+    Challenge {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+    Gate {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
     Claim {
         #[arg(long, default_value = "fake-investigator")]
         executor: String,
@@ -246,6 +256,12 @@ async fn main() -> anyhow::Result<()> {
                         },
                         executor,
                     })?)?
+                }
+                TeamCommand::Challenge { id, file } => {
+                    serde_json::to_value(app.challenge(&id, read_command(file)?)?)?
+                }
+                TeamCommand::Gate { id, file } => {
+                    serde_json::to_value(app.record_gate(&id, read_command(file)?)?)?
                 }
                 TeamCommand::Inbox => serde_json::to_value(app.escalation_inbox()?)?,
                 TeamCommand::Finish { file } => {

@@ -48,6 +48,17 @@ pub struct Actor {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload", deny_unknown_fields)]
 pub enum EventData {
+    #[serde(rename = "challenge.changed")]
+    ChallengeChanged {
+        challenge: Box<crate::challenges::Challenge>,
+        reason: String,
+    },
+    #[serde(rename = "case.gate_recorded")]
+    GateRecorded {
+        gate: String,
+        evidence_refs: Vec<String>,
+        reason: String,
+    },
     #[serde(rename = "case.created")]
     CaseCreated {
         title: String,
@@ -208,6 +219,10 @@ pub struct Snapshot {
     pub qualification: QualificationSnapshot,
     #[serde(default)]
     pub team: TeamSnapshot,
+    #[serde(default)]
+    pub challenges: Vec<crate::challenges::Challenge>,
+    #[serde(default)]
+    pub gate: Option<crate::challenges::Gate>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

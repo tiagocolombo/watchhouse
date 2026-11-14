@@ -350,7 +350,7 @@ fn make_block(
     )?;
     Ok(block)
 }
-fn escalate(
+pub(crate) fn escalate(
     tx: &Transaction<'_>,
     case_id: &str,
     kind: &str,
@@ -966,7 +966,7 @@ impl Application {
         let mut db = self.store.connect()?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let now = self.now();
-        let mut changed = 0;
+        let mut changed = crate::challenges::supervise(&tx, &now)?;
         let proofs: Vec<RunProof> = {
             let mut stmt=tx.prepare("SELECT r.id,rc.fence FROM runs r JOIN run_control rc ON rc.run_id=r.id JOIN jobs j ON j.assignment_id=r.assignment_id AND j.attempt=r.attempt JOIN assignment_control c ON c.assignment_id=r.assignment_id WHERE c.state='running' AND r.state='running' AND (j.lease_until<=?1 OR rc.progress_deadline<=?1 OR c.overall_deadline<=?1) ORDER BY r.rowid LIMIT 100")?;
             stmt.query_map([&now], |r| {
@@ -1166,6 +1166,7 @@ fn complete_result(
         }
         return Ok(false);
     }
+    crate::challenges::ensure_clear(tx, &c.case_id)?;
     let digest = evidence(tx, &c.case_id, &content, "fake-v1:synthetic-result", now)?;
     tx.execute(
         "UPDATE runs SET state='completed',finished_at=?1,result=?2,evidence_digest=?3 WHERE id=?4",

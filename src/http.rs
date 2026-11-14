@@ -64,6 +64,8 @@ pub fn router(app: Application, token: String, authority: String) -> Router {
         .route("/cases", get(list).post(create))
         .route("/cases/{id}", get(snapshot))
         .route("/cases/{id}/rename", post(rename))
+        .route("/cases/{id}/challenges", post(challenge))
+        .route("/cases/{id}/gate", post(case_gate))
         .route("/cases/{id}/team/messages", post(team_message))
         .route("/cases/{id}/team/message-ack", post(team_message_ack))
         .route("/cases/{id}/team/handoffs", post(team_handoff))
@@ -194,6 +196,8 @@ macro_rules! worker_command {
         }
     };
 }
+case_command!(challenge, crate::challenges::ChallengeCommand, challenge);
+case_command!(case_gate, crate::challenges::GateCommand, record_gate);
 case_command!(team_message, PostMessage, post_team_message);
 case_command!(team_message_ack, AcknowledgeMessage, acknowledge_message);
 case_command!(team_handoff, OfferHandoff, offer_handoff);
