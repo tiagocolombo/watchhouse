@@ -361,7 +361,7 @@ impl Application {
                     "closure requires current independent validation and accountable owner".into(),
                 ));
             }
-            let pending:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM obligations o JOIN dispositions d ON d.id=o.disposition_id WHERE d.case_id=?1 AND o.state='pending')",[case_id],|r|r.get(0))?;
+            let pending:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM obligations o JOIN dispositions d ON d.id=o.disposition_id WHERE d.case_id=?1 AND o.state IN ('pending','due'))",[case_id],|r|r.get(0))?;
             if pending {
                 return Err(Error::Conflict(
                     "open review obligations prevent closure".into(),

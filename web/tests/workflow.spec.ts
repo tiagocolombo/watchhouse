@@ -103,6 +103,7 @@ test('operator qualifications retain evidence and reopen on review and offline d
 });
 test('challenge commands persist independent dissent and replay safely',async({page,context})=>{
   await page.goto('/');await page.getByLabel('Operator token').fill(token);await page.getByRole('button',{name:'Connect',exact:true}).click();
+  await expect(page.locator('#login')).toBeHidden();
   const headers={Authorization:`Bearer ${token}`};
   const created=await context.request.post('/api/v1/cases',{headers,data:{schema_version:1,idempotency_key:crypto.randomUUID(),actor:'operator',reason:'review fixture',title:'Independent challenge browser fixture',description:''}});const c=await created.json();
   await page.reload();await page.getByRole('button',{name:/Independent challenge browser fixture/}).click();await expect(page.locator('#case-status')).toHaveText('awaiting review');

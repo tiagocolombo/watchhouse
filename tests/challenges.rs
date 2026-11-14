@@ -259,3 +259,32 @@ fn competing_commands_and_injected_failure_preserve_atomic_review() {
     db.execute_batch("DROP TRIGGER fail_review").unwrap();
     a.challenge(&id, ack).unwrap();
 }
+#[test]
+fn overdue_review_obligations_still_prevent_assessment_closure() {
+    let (_d, a, t, id) = setup();
+    a.run_fake_worker_once("fake-investigator", false).unwrap();
+    let proof = evidence(&a, &id, "overdue-verifier", "fake-verifier");
+    a.record_disposition(&id,serde_json::from_value(serde_json::json!({"schema_version":1,"idempotency_key":"review-obligation","actor":"operator","reason":"Collect more evidence","expected_version":a.snapshot(&id).unwrap().case.version,"owner":"operator","scope":"fixture","uncertainty":"No service outcome known","evidence_refs":[proof.clone()],"reconsideration_conditions":"Review deadline","reopen_after_occurrences":1,"plan":{"kind":"insufficient_evidence","after_seconds":1,"collection_task":"Collect additional fixture evidence"}})).unwrap()).unwrap();
+    t.advance(Duration::seconds(2));
+    a.process_due_obligations().unwrap();
+    a.record_gate(
+        &id,
+        GateCommand {
+            command: cmd(&a, &id, "overdue-validation", "fake-verifier"),
+            close: false,
+            evidence_refs: vec![proof.clone()],
+        },
+    )
+    .unwrap();
+    assert!(
+        a.record_gate(
+            &id,
+            GateCommand {
+                command: cmd(&a, &id, "overdue-closure", "operator"),
+                close: true,
+                evidence_refs: vec![proof]
+            }
+        )
+        .is_err()
+    );
+}
