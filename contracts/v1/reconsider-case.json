@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "idempotency_key": "reconsideration-001",
+  "actor": "operator",
+  "reason": "A new in-scope failure was reported",
+  "expected_version": 8,
+  "disposition_id": "dsp_replace_with_current_id",
+  "trigger": "recurrence",
+  "evidence_refs": ["sha256:0000000000000000000000000000000000000000000000000000000000000000"]
+}

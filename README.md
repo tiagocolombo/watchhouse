@@ -10,7 +10,7 @@ Connect an observability tool such as Sentry or Datadog. Watchhouse assesses wha
 
 The team keeps the records a real incident organization needs: incident details, investigation logs, escalation and handoff records, change plans, recovery assessments, postmortems, corrective actions, and runbooks.
 
-**Status: M0 foundations and the first M1 slice run locally.** Manual case creation → durable events → queued fake investigation → persisted evidence/result → live web timeline works. The broader team described below remains the intended product; no real harness, production integration, or merge automation is implemented.
+**Status: M0 and the bounded M1 workflow are implemented.** Manual intake → durable fake investigation → evidence → operator disposition → owned deadline/recurrence → reopened review works through CLI and web. The broader team described below remains the intended product; no real harness, production integration, or merge automation is implemented.
 
 ## Run the local slice
 
@@ -22,7 +22,7 @@ npm run build --prefix web
 cargo run --locked -- serve
 ```
 
-Open `http://127.0.0.1:8787` and enter the operator token printed in your terminal. Create a case; the coordinator processes its fake assignment even if you close the browser. Reopen the case to inspect the persisted result and timeline. Results are explicitly synthetic, and the case remains awaiting operator review.
+Open `http://127.0.0.1:8787` and enter the operator token printed in your terminal. Create a case; the coordinator processes its fake assignment even if you close the browser. Reopen the case to inspect the persisted result and timeline. Investigator results are explicitly synthetic. Add operator-reported evidence, then record a scoped expected/transient/insufficient-evidence disposition with uncertainty, an owner, and a review deadline. Deadline or qualifying recurrence reopens review without implying recovery or repair.
 
 CLI uses the same services and database (default `.watchhouse/watchhouse.db`):
 
@@ -45,7 +45,20 @@ npx playwright install chromium
 npm test
 ```
 
-Browser tests use only a temporary local database and fake execution. Standard checks never invoke a live harness or production system. Linux was validated locally; CI also configures Rust checks on macOS and Windows. Full M1 dispositions/reopening, M2 communication/supervision/escalation, and real execution are still ahead. See [current status](implementation/STATUS.md) for evidence and the exact next task.
+Browser tests use only a temporary local database and fake execution. Standard checks never invoke a live harness or production system. Linux was validated locally; CI also configures Rust checks on macOS and Windows. M2 team communication, stuck-agent recovery, notification/escalation, and real execution are still ahead. See [current status](implementation/STATUS.md) for evidence and the exact next task.
+
+## Qualification commands
+
+After investigation completes, use the web forms or submit the same versioned JSON commands through CLI:
+
+```sh
+cargo run --locked -- case record-evidence CASE_ID --file evidence.json
+cargo run --locked -- case record-disposition CASE_ID --file disposition.json
+cargo run --locked -- case reconsider CASE_ID --file reconsideration.json
+cargo run --locked -- tick
+```
+
+Start from the [qualification command examples](contracts/v1/README.md). Replace expected versions, evidence digests, and the current disposition ID with values returned by your case snapshot. Timers are explicit per decision (1 second–30 days). `serve`/`worker` process persisted deadlines automatically; `tick` processes them without an executor. Expected/transient decisions require operator-reported supporting evidence; synthetic results alone do not establish those facts. The UI keeps source attribution and uncertainty visible.
 
 ## A typical response
 

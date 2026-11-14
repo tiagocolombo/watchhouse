@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "idempotency_key": "disposition-001",
+  "actor": "operator",
+  "reason": "Monitor a possibly transient dependency failure",
+  "expected_version": 5,
+  "owner": "operator",
+  "scope": "staging / checkout / release 1",
+  "uncertainty": "Apparently transient is a hypothesis; recovery is not established",
+  "evidence_refs": ["sha256:0000000000000000000000000000000000000000000000000000000000000000"],
+  "reconsideration_conditions": "New failures, contradictory evidence, scope change, or monitoring deadline",
+  "reopen_after_occurrences": 2,
+  "plan": {
+    "kind": "apparently_transient",
+    "after_seconds": 900,
+    "recovery_indicators": "Successful checkouts with sufficient observed request volume during the monitoring window"
+  }
+}

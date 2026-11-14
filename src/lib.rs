@@ -5,4 +5,5 @@ pub mod error;
 pub mod execution;
 pub mod http;
 pub mod intake;
+pub mod qualification;
 pub mod store;

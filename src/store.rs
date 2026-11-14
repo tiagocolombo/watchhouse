@@ -23,32 +23,38 @@ impl Store {
         db.pragma_update(None, "journal_mode", "WAL")?;
         let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         tx.execute_batch("CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, digest TEXT NOT NULL);")?;
-        let sql = include_str!("../migrations/001_initial.sql");
-        let digest = digest(sql);
-        let existing: Option<String> = tx
-            .query_row(
-                "SELECT digest FROM schema_migrations WHERE version=1",
-                [],
-                |r| r.get(0),
-            )
-            .optional()?;
-        match existing {
-            Some(old) if old != digest => {
-                return Err(Error::Conflict("migration 1 checksum changed".into()));
+        let migrations = [
+            (1, include_str!("../migrations/001_initial.sql")),
+            (2, include_str!("../migrations/002_qualification.sql")),
+        ];
+        let applied: Vec<(i64, String)> = {
+            let mut stmt =
+                tx.prepare("SELECT version,digest FROM schema_migrations ORDER BY version")?;
+            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+                .collect::<std::result::Result<_, _>>()?
+        };
+        // Validate the complete applied history before running any new migration.
+        for (index, (version, checksum)) in applied.iter().enumerate() {
+            let Some((expected, sql)) = migrations.get(index) else {
+                return Err(Error::Conflict(
+                    "database is newer than this application".into(),
+                ));
+            };
+            if version != expected
+                || checksum != &migration_digest(sql)
+                    && checksum != &digest(&sql.replace("\r\n", "\n").replace('\n', "\r\n"))
+            {
+                return Err(Error::Conflict(format!(
+                    "migration {version} history or checksum changed"
+                )));
             }
-            None => {
-                tx.execute_batch(sql)?;
-                tx.execute("INSERT INTO schema_migrations VALUES (1, ?1)", [&digest])?;
-            }
-            _ => {}
         }
-        let newest: i64 = tx.query_row("SELECT MAX(version) FROM schema_migrations", [], |r| {
-            r.get(0)
-        })?;
-        if newest != 1 {
-            return Err(Error::Conflict(
-                "database is newer than this application".into(),
-            ));
+        for (version, sql) in migrations.iter().skip(applied.len()) {
+            tx.execute_batch(sql)?;
+            tx.execute(
+                "INSERT INTO schema_migrations VALUES (?1,?2)",
+                params![version, migration_digest(sql)],
+            )?;
         }
         tx.commit()?;
         Ok(store)
@@ -60,6 +66,11 @@ impl Store {
         db.pragma_update(None, "synchronous", "FULL")?;
         Ok(db)
     }
+}
+// Git may check out CRLF on Windows. New checksums use LF; exact legacy CRLF
+// checksums are accepted without rewriting applied history.
+fn migration_digest(sql: &str) -> String {
+    digest(&sql.replace("\r\n", "\n"))
 }
 pub fn digest(content: &str) -> String {
     format!("sha256:{:x}", Sha256::digest(content.as_bytes()))

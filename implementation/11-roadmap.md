@@ -4,7 +4,7 @@ Every milestone delivers a usable vertical slice with evidence and a STATUS.md u
 
 ## Current delivery state (2026-11-14)
 
-M0 foundations are implemented, including the documented no-model protocol spike. The requested first M1 slice works end to end and has recovery/concurrency/browser evidence in [STATUS](STATUS.md). This does **not** complete M1: evidence-backed expected/transient/uncertain dispositions and reopening rules are next. M2–M8 remain planned. Real runtime admission is still unverified; ADR 0004 records the bounded spike.
+M0 foundations are implemented, including the documented no-model protocol spike. The bounded M1 workflow now also includes operator-reported evidence, expected/transient/uncertain decisions, owned persisted deadlines, manual reconsideration, and recurrence/deadline reopening, with recovery/concurrency/browser evidence in [STATUS](STATUS.md). M1 exit scenarios are covered for local manual/fake fixtures; source automation and real execution are not implied. M2–M8 remain planned. Real runtime admission is still unverified; ADR 0004 records the bounded spike.
 
 ## M0 — Bootstrap and contracts
 
@@ -68,4 +68,4 @@ Do not defer all UI to M8. Every milestone has a visible operating surface. Do n
 
 ## First implementation task
 
-Completed: M0 plus manual case creation -> persisted event -> queued fake assignment -> observed result -> web timeline. Next: complete M1 with versioned disposition/reconsideration commands, evidence references, configurable monitoring/review deadlines, and deterministic reopening, visible in CLI/web; then start M2 before real execution.
+Completed: M0 plus manual case creation -> persisted event -> queued fake assignment -> observed result -> web timeline. Completed: versioned disposition/reconsideration commands, case-bound evidence, configurable review/monitoring/collection deadlines, and deterministic reopening in CLI/web. Next: begin M2 with durable typed team messages and acknowledged assignment handoff, then progress-deadline supervision and escalation before real execution.

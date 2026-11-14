@@ -7,7 +7,10 @@ use std::sync::Arc;
 use tempfile::TempDir;
 use tower::ServiceExt;
 use watchhouse::{
-    application::Application, contracts::*, domain::SystemClock, execution::FakeAdapter,
+    application::Application,
+    contracts::*,
+    domain::{Case, SystemClock},
+    execution::FakeAdapter,
     store::Store,
 };
 const TOKEN: &str = "test-operator-token-32-bytes-minimum";
@@ -166,4 +169,75 @@ async fn timeline_snapshot_and_last_event_id_replay_across_reconnection() {
         received.push_str(std::str::from_utf8(&frame.into_data().unwrap()).unwrap());
     }
     assert!(received.contains("assignment.completed"));
+}
+#[tokio::test]
+async fn qualification_commands_share_strict_version_conflict_and_replay_contracts() {
+    let (_dir, app, router) = setup();
+    let case = app
+        .create_case(
+            serde_json::from_str(include_str!("../contracts/v1/manual-case.json")).unwrap(),
+        )
+        .unwrap();
+    app.run_once(&FakeAdapter).unwrap();
+    let snapshot = app.snapshot(&case.id).unwrap();
+    let evidence = serde_json::json!({"schema_version":1,"idempotency_key":"http-evidence","actor":"operator","reason":"Sanitized HTTP fixture","expected_version":snapshot.case.version,"scope":"staging checkout","statement":"A dependency timeout was manually reported","collection_method":"Fixture report","observed_at":null,"uncertainty":"Cause and recovery unknown"});
+    let path = format!("/api/v1/cases/{}/evidence", case.id);
+    let response = router
+        .clone()
+        .oneshot(request("POST", &path, &evidence.to_string()))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let receipt: RecordedEvidence =
+        serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    let command = serde_json::json!({"schema_version":1,"idempotency_key":"http-disposition","actor":"operator","reason":"Monitor dependency behavior without asserting recovery","expected_version":receipt.case.version,"owner":"operator","scope":"staging checkout","uncertainty":"Traffic and recovery unknown","evidence_refs":[receipt.evidence.digest],"reconsideration_conditions":"New failures, scope changes, or deadline","reopen_after_occurrences":1,"plan":{"kind":"apparently_transient","after_seconds":60,"recovery_indicators":"Successful checkouts at sufficient volume"}});
+    let path = format!("/api/v1/cases/{}/dispositions", case.id);
+    let response = router
+        .clone()
+        .oneshot(request("POST", &path, &command.to_string()))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let receipt: Case =
+        serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    let mut changed = command.clone();
+    changed["idempotency_key"] = "stale-decision".into();
+    assert_eq!(
+        router
+            .clone()
+            .oneshot(request("POST", &path, &changed.to_string()))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CONFLICT
+    );
+    let mut unknown = command.clone();
+    unknown["schema_version"] = 2.into();
+    assert_eq!(
+        router
+            .clone()
+            .oneshot(request("POST", &path, &unknown.to_string()))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::BAD_REQUEST
+    );
+    let snapshot = app.snapshot(&case.id).unwrap();
+    let cursor = snapshot.cursor;
+    let reconsider = serde_json::json!({"schema_version":1,"idempotency_key":"http-review","actor":"operator","reason":"Operator requests early review","expected_version":receipt.version,"disposition_id":snapshot.qualification.dispositions[0].id,"trigger":"operator_review","evidence_refs":[snapshot.qualification.evidence[0].digest]});
+    let path = format!("/api/v1/cases/{}/reconsider", case.id);
+    assert_eq!(
+        router
+            .oneshot(request("POST", &path, &reconsider.to_string()))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK
+    );
+    let events = app.timeline(&case.id, cursor).unwrap();
+    assert_eq!(events.len(), 3);
+    assert!(matches!(events[1].data, EventData::CaseReopened { .. }));
+    for event in events {
+        assert!(serde_json::from_value::<Event>(serde_json::to_value(event).unwrap()).is_ok());
+    }
 }

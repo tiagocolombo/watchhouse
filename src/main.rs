@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 use std::{path::PathBuf, sync::Arc, time::Duration};
 use watchhouse::{
     application::Application,
-    contracts::{CreateCase, RenameCase, V1},
+    contracts::{CreateCase, ReconsiderCase, RecordDisposition, RecordEvidence, RenameCase, V1},
     domain::SystemClock,
     execution::FakeAdapter,
     store::Store,
@@ -31,6 +31,8 @@ enum Command {
     },
     /// Apply and validate migrations without starting workers.
     Migrate,
+    /// Reconsider up to 100 persisted deadlines without invoking any executor.
+    Tick,
     Case {
         #[command(subcommand)]
         action: CaseCommand,
@@ -49,6 +51,24 @@ enum CaseCommand {
         actor: String,
         #[arg(long, default_value = "Manual intake")]
         reason: String,
+    },
+    /// Record an attributed observation from a versioned JSON command file.
+    RecordEvidence {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+    /// Record an evidence-backed disposition and durable reassessment obligation.
+    RecordDisposition {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+    /// Apply an explicit review/recurrence/contradiction/scope-change command.
+    Reconsider {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
     },
     List,
     Show {
@@ -88,7 +108,11 @@ async fn main() -> anyhow::Result<()> {
     }
     let app = Application::new(Store::open(cli.db)?, Arc::new(SystemClock));
     match cli.command {
-        Command::Migrate => println!("Schema version 1 validated"),
+        Command::Migrate => println!("Schema version 2 validated"),
+        Command::Tick => println!(
+            "{} obligation(s) became due",
+            app.process_due_obligations()?
+        ),
         Command::Case { action } => {
             let output = match action {
                 CaseCommand::Create {
@@ -105,6 +129,24 @@ async fn main() -> anyhow::Result<()> {
                     title,
                     description,
                 })?)?,
+                CaseCommand::RecordEvidence { id, file } => {
+                    serde_json::to_value(app.record_evidence(
+                        &id,
+                        serde_json::from_slice::<RecordEvidence>(&std::fs::read(file)?)?,
+                    )?)?
+                }
+                CaseCommand::RecordDisposition { id, file } => {
+                    serde_json::to_value(app.record_disposition(
+                        &id,
+                        serde_json::from_slice::<RecordDisposition>(&std::fs::read(file)?)?,
+                    )?)?
+                }
+                CaseCommand::Reconsider { id, file } => {
+                    serde_json::to_value(app.reconsider_case(
+                        &id,
+                        serde_json::from_slice::<ReconsiderCase>(&std::fs::read(file)?)?,
+                    )?)?
+                }
                 CaseCommand::List => serde_json::to_value(app.list_cases()?)?,
                 CaseCommand::Show { id } => serde_json::to_value(app.snapshot(&id)?)?,
                 CaseCommand::Rename {

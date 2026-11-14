@@ -12,8 +12,8 @@ use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct Application {
-    store: Store,
-    clock: Arc<dyn Clock>,
+    pub(crate) store: Store,
+    pub(crate) clock: Arc<dyn Clock>,
 }
 #[derive(Debug, Clone)]
 pub struct Claim {
@@ -23,7 +23,7 @@ pub struct Claim {
     pub fence: String,
     pub task: Task,
 }
-fn operator(id: &str) -> Actor {
+pub(crate) fn operator(id: &str) -> Actor {
     Actor {
         kind: "operator".into(),
         id: id.into(),
@@ -35,7 +35,7 @@ fn worker() -> Actor {
         id: "fake-investigator".into(),
     }
 }
-fn text(value: &str, name: &str, max: usize) -> Result<()> {
+pub(crate) fn text(value: &str, name: &str, max: usize) -> Result<()> {
     if value.trim().is_empty() || value.len() > max || value.contains('\0') {
         return Err(Error::Invalid(format!(
             "{name} must contain 1..{max} bytes of text"
@@ -43,7 +43,7 @@ fn text(value: &str, name: &str, max: usize) -> Result<()> {
     }
     Ok(())
 }
-fn receipt<T: DeserializeOwned>(
+pub(crate) fn receipt<T: DeserializeOwned>(
     tx: &rusqlite::Transaction<'_>,
     key: &str,
     fingerprint: &str,
@@ -63,7 +63,7 @@ fn receipt<T: DeserializeOwned>(
         None => Ok(None),
     }
 }
-fn save_receipt<T: Serialize>(
+pub(crate) fn save_receipt<T: Serialize>(
     tx: &rusqlite::Transaction<'_>,
     key: &str,
     fingerprint: &str,
@@ -79,7 +79,7 @@ impl Application {
     pub fn new(store: Store, clock: Arc<dyn Clock>) -> Self {
         Self { store, clock }
     }
-    fn now(&self) -> String {
+    pub(crate) fn now(&self) -> String {
         self.clock
             .now()
             .to_rfc3339_opts(SecondsFormat::Millis, true)
@@ -224,6 +224,7 @@ impl Application {
             events,
             cursor,
             results,
+            qualification: crate::qualification::snapshot(&tx, id)?,
         })
     }
     pub fn timeline(&self, id: &str, after: i64) -> Result<Vec<Event>> {
@@ -355,6 +356,10 @@ impl Application {
         }
         let now = self.now();
         tx.execute("INSERT OR IGNORE INTO evidence VALUES (?1,'application/json',?2,'fake-v1:synthetic-result',?3)",params![digest,content,now])?;
+        tx.execute(
+            "INSERT OR IGNORE INTO case_evidence VALUES (?1,?2)",
+            params![claim.case_id, digest],
+        )?;
         tx.execute("UPDATE runs SET state='completed',finished_at=?1,result=?2,evidence_digest=?3 WHERE id=?4",params![now,content,digest,claim.run_id])?;
         tx.execute(
             "UPDATE assignments SET state='completed' WHERE id=?1",
@@ -373,8 +378,9 @@ impl Application {
         Ok(())
     }
     pub fn run_once(&self, adapter: &dyn ExecutionAdapter) -> Result<bool> {
+        let due = self.process_due_obligations()?;
         let Some(claim) = self.claim()? else {
-            return Ok(false);
+            return Ok(due > 0);
         };
         let result = adapter.execute(&claim.task);
         self.complete(&claim, result)?;

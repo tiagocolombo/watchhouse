@@ -58,3 +58,5 @@ pub struct Assignment {
     pub objective: String,
     pub state: String,
 }
+
+pub mod qualification;

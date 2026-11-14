@@ -56,3 +56,73 @@ fn cli_uses_durable_application_services_across_processes() {
             .contains("current version 4")
     );
 }
+#[test]
+fn cli_records_evidence_dispositions_and_explicit_reconsideration() {
+    let dir = TempDir::new().unwrap();
+    let db = dir.path().join("qualification.db");
+    let output = run(
+        &db,
+        &[
+            "case",
+            "create",
+            "--title",
+            "Qualification CLI",
+            "--key",
+            "qualification-cli",
+        ],
+    );
+    let case: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    let id = case["id"].as_str().unwrap();
+    assert!(run(&db, &["worker", "--once"]).status.success());
+    let evidence = serde_json::json!({"schema_version":1,"idempotency_key":"cli-evidence","actor":"operator","reason":"Record sanitized fixture","expected_version":4,"scope":"staging checkout","statement":"Operator reported a timeout","collection_method":"Manual fixture report","observed_at":null,"uncertainty":"Impact and recovery unknown"});
+    let file = dir.path().join("evidence.json");
+    std::fs::write(&file, evidence.to_string()).unwrap();
+    let output = run(
+        &db,
+        &[
+            "case",
+            "record-evidence",
+            id,
+            "--file",
+            file.to_str().unwrap(),
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let evidence: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    let decision = serde_json::json!({"schema_version":1,"idempotency_key":"cli-disposition","actor":"operator","reason":"Request more evidence","expected_version":5,"owner":"operator","scope":"staging checkout","uncertainty":"Cause not established","evidence_refs":[evidence["evidence"]["digest"]],"reconsideration_conditions":"New evidence or deadline","reopen_after_occurrences":1,"plan":{"kind":"insufficient_evidence","after_seconds":60,"collection_task":"Collect sanitized trace"}});
+    let file = dir.path().join("decision.json");
+    std::fs::write(&file, decision.to_string()).unwrap();
+    let args = [
+        "case",
+        "record-disposition",
+        id,
+        "--file",
+        file.to_str().unwrap(),
+    ];
+    let first = run(&db, &args);
+    assert!(first.status.success());
+    assert_eq!(first.stdout, run(&db, &args).stdout);
+    assert!(run(&db, &["tick"]).status.success());
+    let s: serde_json::Value =
+        serde_json::from_slice(&run(&db, &["case", "show", id]).stdout).unwrap();
+    assert_eq!(s["qualification"]["obligations"][0]["state"], "pending");
+    let review = serde_json::json!({"schema_version":1,"idempotency_key":"cli-reconsider","actor":"operator","reason":"Reassess current report","expected_version":7,"disposition_id":s["qualification"]["dispositions"][0]["id"],"trigger":"operator_review","evidence_refs":[evidence["evidence"]["digest"]]});
+    let file = dir.path().join("review.json");
+    std::fs::write(&file, review.to_string()).unwrap();
+    assert!(
+        run(
+            &db,
+            &["case", "reconsider", id, "--file", file.to_str().unwrap()]
+        )
+        .status
+        .success()
+    );
+    let s: serde_json::Value =
+        serde_json::from_slice(&run(&db, &["case", "show", id]).stdout).unwrap();
+    assert_eq!(s["qualification"]["dispositions"][0]["state"], "reopened");
+    assert_eq!(s["case"]["status"], "awaiting_review");
+}

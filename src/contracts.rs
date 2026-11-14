@@ -1,4 +1,5 @@
 //! Versioned, strict protocol DTOs. V1 rejects unsupported versions.
+pub use crate::domain::qualification::*;
 use crate::domain::{Assignment, Case};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -74,6 +75,44 @@ pub enum EventData {
         evidence_refs: Vec<String>,
         reason: String,
     },
+    #[serde(rename = "evidence.recorded")]
+    EvidenceRecorded {
+        evidence_refs: Vec<String>,
+        provenance: String,
+        scope: String,
+        reason: String,
+    },
+    #[serde(rename = "disposition.recorded")]
+    DispositionRecorded {
+        disposition: Box<Disposition>,
+        supersedes: Option<String>,
+        reason: String,
+    },
+    #[serde(rename = "obligation.scheduled")]
+    ObligationScheduled {
+        obligation: Obligation,
+        reason: String,
+    },
+    #[serde(rename = "disposition.reconsidered")]
+    DispositionReconsidered {
+        disposition_id: String,
+        trigger: ReconsiderTrigger,
+        occurrence_count: u32,
+        evidence_refs: Vec<String>,
+        reason: String,
+    },
+    #[serde(rename = "case.reopened")]
+    CaseReopened {
+        disposition_id: String,
+        evidence_refs: Vec<String>,
+        reason: String,
+    },
+    #[serde(rename = "obligation.due")]
+    ObligationDue {
+        obligation_id: String,
+        owner: String,
+        reason: String,
+    },
     #[serde(rename = "case.renamed")]
     CaseRenamed { title: String, reason: String },
 }
@@ -113,4 +152,12 @@ pub struct Snapshot {
     pub events: Vec<Event>,
     pub cursor: i64,
     pub results: Vec<ExecutionResult>,
+    #[serde(default)]
+    pub qualification: QualificationSnapshot,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecordedEvidence {
+    pub case: Case,
+    pub evidence: EvidenceReference,
 }

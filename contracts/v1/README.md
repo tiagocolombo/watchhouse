@@ -13,6 +13,26 @@ The Rust types in [contracts.rs](../../src/contracts.rs) and [domain.rs](../../s
 
 Event envelope fields are in the fixture. Supported kinds: case.created, assignment.queued, run.started, run.lease_expired, assignment.completed, case.renamed. Each carries a reason; completion carries evidence_refs as sha256 digests. Child events share the case aggregate/version in this slice. recorded_at is coordinator time; occurred_at is null because source occurrence time is unknown. The cursor is a global SQLite sequence and may have gaps within one case; event identity is stable and events are append-only.
 
-A command key is global to the database. Exact retries return the original response. Reusing it with another target/type/actor/reason/content conflicts. A title update needs the current case version and creates an audited event; it cannot change an in-flight task objective. No disposition, incident declaration, independent verification, or policy-editing command exists yet.
+A command key is global to the database. Exact retries return the original response. Reusing it with another target/type/actor/reason/content conflicts. A title update needs the current case version and creates an audited event; it cannot change an in-flight task objective. M1 qualification commands are described below. Incident declaration, independent verification, and policy-editing commands remain unimplemented.
 
 The current Task/ExecutionAdapter seam is internal Rust, not a remotely callable worker protocol. Do not treat this minimal fake contract as proof a real executor has isolation or cancellation capabilities. See [ADR 0004](../../implementation/adrs/0004-execution-protocol-spike.md).
+
+## Qualification extension
+
+The strict types in [domain/qualification.rs](../../src/domain/qualification.rs) are added to local v1. Snapshot adds `qualification: {dispositions, obligations, evidence}` with an empty default for reading old snapshots. Existing Case fields and old event bytes/receipts are preserved. New event kinds require an updated reader; schema 2 prevents old binaries from operating the upgraded database.
+
+Examples: [record-evidence.json](record-evidence.json), [record-disposition.json](record-disposition.json), [reconsider-case.json](reconsider-case.json). These fixtures validate shape; replace zero digests, example disposition ID, and expected versions with your actual case snapshot/receipts before submitting.
+
+| Command | Fields beyond schema_version/key/actor/reason/expected_version |
+| --- | --- |
+| RecordEvidence | scope, statement, collection_method, observed_at (RFC3339 or null), uncertainty |
+| RecordDisposition | owner, scope, uncertainty, evidence_refs, reconsideration_conditions, reopen_after_occurrences, plan |
+| ReconsiderCase | disposition_id, trigger, evidence_refs |
+
+Command field `idempotency_key` is global to the database. RecordEvidence returns `{case, evidence}` including digest, attribution/provenance, summary, and recorded timestamp. Disposition/reconsideration return the original post-command Case receipt; query snapshot for current decision state.
+
+`plan` is a strict tagged object: `expected_behavior` requires after_seconds; `apparently_transient` also requires recovery_indicators; `insufficient_evidence` also requires collection_task. Intervals must be 1..2592000 seconds and thresholds 1..1000 distinct occurrences. All decisions cite 1..20 unique, digest-valid evidence references belonging to this case. Expected/transient plans require at least one operator-reported reference; fake evidence alone only supports insufficient-evidence qualification. Reports are attribution, not independent checks.
+
+Trigger values: operator_review, recurrence, contradictory_evidence, scope_changed. The current active disposition and version must match. Each recurrence command counts one occurrence and requires operator evidence recorded after the current decision, not already counted/cited by it. Other triggers reopen immediately. Conditions are explicit operator-readable scope/criteria; natural language is not parsed as automation. New source integration must normalize observations before matching them.
+
+New events: evidence.recorded, disposition.recorded, obligation.scheduled, disposition.reconsidered, case.reopened, obligation.due. Decisions are active/reopened/superseded; obligations pending/due/superseded. Every active decision has one owned persisted obligation. Timer processing makes it due and reopens review once, preserving the original deadline. New decisions supersede prior records/obligations; they do not claim those tasks were completed. Execution status stays awaiting_review. No repair, recovery, notification, or new executor is implied.

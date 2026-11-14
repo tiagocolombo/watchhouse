@@ -64,6 +64,9 @@ pub fn router(app: Application, token: String, authority: String) -> Router {
         .route("/cases", get(list).post(create))
         .route("/cases/{id}", get(snapshot))
         .route("/cases/{id}/rename", post(rename))
+        .route("/cases/{id}/evidence", post(record_evidence))
+        .route("/cases/{id}/dispositions", post(record_disposition))
+        .route("/cases/{id}/reconsider", post(reconsider))
         .route("/cases/{id}/events", get(stream))
         .route("/evidence/{digest}", get(evidence))
         .route_layer(middleware::from_fn_with_state(state.clone(), authenticate));
@@ -183,6 +186,37 @@ async fn rename(
 ) -> Result<impl IntoResponse, ApiError> {
     let Json(cmd) = body.map_err(|e| ApiError(Error::Invalid(e.body_text())))?;
     Ok(Json(blocking(move || s.app.rename_case(&id, cmd)).await?))
+}
+async fn record_evidence(
+    State(s): State<HttpState>,
+    Path(id): Path<String>,
+    body: Result<Json<RecordEvidence>, JsonRejection>,
+) -> Result<impl IntoResponse, ApiError> {
+    let Json(cmd) = body.map_err(|e| ApiError(Error::Invalid(e.body_text())))?;
+    Ok((
+        StatusCode::CREATED,
+        Json(blocking(move || s.app.record_evidence(&id, cmd)).await?),
+    ))
+}
+async fn record_disposition(
+    State(s): State<HttpState>,
+    Path(id): Path<String>,
+    body: Result<Json<RecordDisposition>, JsonRejection>,
+) -> Result<impl IntoResponse, ApiError> {
+    let Json(cmd) = body.map_err(|e| ApiError(Error::Invalid(e.body_text())))?;
+    Ok(Json(
+        blocking(move || s.app.record_disposition(&id, cmd)).await?,
+    ))
+}
+async fn reconsider(
+    State(s): State<HttpState>,
+    Path(id): Path<String>,
+    body: Result<Json<ReconsiderCase>, JsonRejection>,
+) -> Result<impl IntoResponse, ApiError> {
+    let Json(cmd) = body.map_err(|e| ApiError(Error::Invalid(e.body_text())))?;
+    Ok(Json(
+        blocking(move || s.app.reconsider_case(&id, cmd)).await?,
+    ))
 }
 async fn evidence(
     State(s): State<HttpState>,
