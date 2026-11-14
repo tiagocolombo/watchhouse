@@ -42,6 +42,7 @@ These are implementation recommendations, not owner-approved technology commitme
 | [0003](adrs/0003-local-api-and-timeline.md) | P05: loopback bearer session, shared application services, snapshot plus durable SSE replay |
 | [0004](adrs/0004-execution-protocol-spike.md) | P07/M0 protocol spike: fake-only admission; Codex exec is the first real-adapter candidate, unverified until M4 |
 | [0005](adrs/0005-qualification-and-reconsideration.md) | M1: separate qualification lifecycle, operator-reported evidence, atomic review obligations and deterministic reconsideration |
+| [0006](adrs/0006-durable-fake-team-coordination.md) | First M2 slice: directed messages, deterministic supervision, owned blockers, acknowledged handoff, late evidence, local inbox; supersedes silent expired-fake retries |
 
 These resolve implementation proposals within the owner's authorized scope. They do not change confirmed product decisions. P03/P04/P06/P08 remain wider design proposals; partial assignment/lease foundations do not complete them.
 
@@ -85,3 +86,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 2026-11-14: M0/M1 slice implementation accepted ADRs 0001–0004. Evidence and limitations are recorded in STATUS.md.
 
 2026-11-14: remaining M1 qualification/reopening slice implemented under ADR 0005; no real-execution or production authority was added.
+
+2026-11-14: ADR 0006 implements the first bounded M2 core slice; full challenges, external notification chains and real-worker authority remain open.

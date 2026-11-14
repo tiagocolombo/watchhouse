@@ -38,4 +38,6 @@ jobs:
         if: failure() && runner.os == 'Linux'
         with:
           name: browser-results
-          path: web/test-results
+          path: |
+            web/test-results
+            web/team-test-results

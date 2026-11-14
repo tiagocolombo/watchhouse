@@ -1,0 +1,10 @@
+{
+  "command": {
+    "meta": {"schema_version": 1, "idempotency_key": "team-handoff-001", "actor": "operator", "reason": "Request help without resetting the original budget"},
+    "expected_version": 5
+  },
+  "block_id": "blk_replace_from_snapshot",
+  "successor": "fake-specialist",
+  "next_owner": "operator",
+  "acknowledge_within_seconds": 60
+}

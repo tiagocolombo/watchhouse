@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "test": "playwright test"
+    "test": "playwright test && playwright test --config playwright.team.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.56.1",

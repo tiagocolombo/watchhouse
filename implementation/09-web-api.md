@@ -73,3 +73,23 @@ See [v1 contracts](../contracts/v1/README.md) for payloads. Command validation e
 Only loopback binding is supported. Explicit bearer auth, Host/Origin checks, CSP, and inert text rendering establish the local session boundary; there are no cookies, remote roles, or worker API. The token remains in browser tab sessionStorage and is supplied as an Authorization header, including fetch-based SSE. Snapshots/stream frames are deduplicated by event ID. [ADR 0003](adrs/0003-local-api-and-timeline.md) describes reconnection and current pagination limits. Closing the browser cannot stop the polling fake worker.
 
 The M1 qualification UI displays current/prior decisions, scope, reason, uncertainty, evidence choices/provenance, recurrence count/threshold, original deadline, trigger time, and accountable pending/due obligations. A disposition is distinct from the unchanged case execution state. Form retries retain the command key and expected version after uncertain network responses; server rejections require a fresh user submission. Bodies remain bounded and all case text is rendered inertly. The qualification snapshot is read within the same transaction as the timeline/cursor. Browser tests cover offline deadline processing and replay without duplicate history.
+
+## Implemented first M2 operating surface
+
+The browser shows coordination state, current executor/owner, heartbeat/progress/deadlines, block help/checkpoint/uncertainty/escalation path, pending/accepted/expired handoffs with frozen briefing limits, local inbox acknowledgment, directed messages/acks, and unaccepted late evidence. Operator message/handoff forms use the shared application services and retain draft version checks. Team clocks, worker discovery, and transfer logic remain in Rust.
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| POST | /api/v1/cases/{id}/team/messages | Typed directed operator message |
+| POST | /api/v1/cases/{id}/team/message-ack | Listed recipient acknowledgment |
+| POST | /api/v1/cases/{id}/team/handoffs | Offer a bounded handoff |
+| POST | /api/v1/cases/{id}/team/accept-handoff | Addressed fake successor accepts |
+| POST | /api/v1/cases/{id}/team/escalation-ack | Local operator acknowledges inbox entry |
+| POST | /api/v1/team/claim | Idempotent local fake claim packet |
+| POST | /api/v1/team/heartbeat | Current proof heartbeat |
+| POST | /api/v1/team/progress | Distinct reported checkpoint |
+| POST | /api/v1/team/block | Current proof reports missing evidence/capability |
+| POST | /api/v1/team/finish | Fake result from stored task/proof |
+| GET | /api/v1/team/escalations | Newest 200 local escalation records |
+
+All endpoints retain loopback bearer/Host/Origin boundaries. These local operator simulation APIs do not authenticate independent remote workers. The ordinary snapshot omits fences. See [team contracts](../contracts/v1/team/README.md) for nested command metadata, idempotency, role limits and attribution.

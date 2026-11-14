@@ -1,12 +1,6 @@
 use clap::{Parser, Subcommand};
 use std::{path::PathBuf, sync::Arc, time::Duration};
-use watchhouse::{
-    application::Application,
-    contracts::{CreateCase, ReconsiderCase, RecordDisposition, RecordEvidence, RenameCase, V1},
-    domain::SystemClock,
-    execution::FakeAdapter,
-    store::Store,
-};
+use watchhouse::{application::Application, contracts::*, domain::SystemClock, store::Store};
 #[derive(Parser)]
 #[command(version, about = "Watchhouse local fake-only coordinator")]
 struct Cli {
@@ -23,11 +17,24 @@ enum Command {
         port: u16,
         #[arg(long, env = "WATCHHOUSE_TOKEN", hide_env_values = true)]
         token: Option<String>,
+        /// Keep the deterministic scheduler active but let separate fake workers claim work.
+        #[arg(long)]
+        manual_workers: bool,
     },
     /// Process queued/expired fake work against the same transactional store.
     Worker {
         #[arg(long)]
         once: bool,
+        #[arg(long, default_value = "fake-investigator")]
+        identity: String,
+        #[arg(long, conflicts_with = "stall")]
+        block: bool,
+        #[arg(long, conflicts_with = "block")]
+        stall: bool,
+    },
+    Team {
+        #[command(subcommand)]
+        action: TeamCommand,
     },
     /// Apply and validate migrations without starting workers.
     Migrate,
@@ -88,10 +95,124 @@ enum CaseCommand {
         reason: String,
     },
 }
-async fn work(app: Application, once: bool) -> anyhow::Result<()> {
+#[derive(Subcommand)]
+enum TeamCommand {
+    Claim {
+        #[arg(long, default_value = "fake-investigator")]
+        executor: String,
+        #[arg(long)]
+        key: String,
+    },
+    Inbox,
+    Finish {
+        #[arg(long)]
+        file: PathBuf,
+    },
+    Heartbeat {
+        #[arg(long)]
+        file: PathBuf,
+    },
+    Progress {
+        #[arg(long)]
+        file: PathBuf,
+    },
+    ReportBlock {
+        #[arg(long)]
+        file: PathBuf,
+    },
+    Message {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+    AcknowledgeMessage {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+    OfferHandoff {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+    AcceptHandoff {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+    AcknowledgeEscalation {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+}
+fn read_command<T: serde::de::DeserializeOwned>(file: PathBuf) -> anyhow::Result<T> {
+    Ok(serde_json::from_slice(&std::fs::read(file)?)?)
+}
+async fn work(
+    app: Application,
+    once: bool,
+    manual: bool,
+    identity: String,
+    block: bool,
+    stall: bool,
+) -> anyhow::Result<()> {
+    let mut held: Option<watchhouse::application::Claim> = None;
+    let mut heartbeat_at = tokio::time::Instant::now();
     loop {
         let worker = app.clone();
-        let ran = tokio::task::spawn_blocking(move || worker.run_once(&FakeAdapter)).await??;
+        let who = identity.clone();
+        let previous = held.clone();
+        let heartbeat_due = heartbeat_at.elapsed() >= Duration::from_secs(5);
+        let outcome = tokio::task::spawn_blocking(move || -> watchhouse::error::Result<_> {
+            if manual {
+                return Ok((
+                    worker.process_due_obligations()? + worker.supervise_team()? > 0,
+                    None,
+                ));
+            }
+            if stall {
+                let changed = worker.process_due_obligations()? + worker.supervise_team()?;
+                if let Some(c) = previous {
+                    if heartbeat_due {
+                        let command = RunCommand {
+                            meta: CommandMeta {
+                                schema_version: V1,
+                                idempotency_key: uuid::Uuid::new_v4().to_string(),
+                                actor: who,
+                                reason: "Fake process remains alive, without useful progress"
+                                    .into(),
+                            },
+                            proof: RunProof {
+                                run_id: c.run_id.clone(),
+                                fence: c.fence.clone(),
+                            },
+                        };
+                        match worker.heartbeat(command) {
+                            Ok(_) => {}
+                            Err(watchhouse::error::Error::Conflict(_)) => return Ok((false, None)),
+                            Err(e) => return Err(e),
+                        }
+                    }
+                    return Ok((changed > 0, Some(c)));
+                }
+                return Ok((changed > 0, worker.accept_or_claim_fake(&who)?));
+            }
+            Ok((worker.run_fake_worker_once(&who, block)?, None))
+        })
+        .await?;
+        let (ran, next) = match outcome {
+            Ok(value) => value,
+            Err(watchhouse::error::Error::Conflict(message)) => {
+                eprintln!("Worker state changed: {message}");
+                (false, None)
+            }
+            Err(error) => return Err(error.into()),
+        };
+        held = next;
+        if heartbeat_due {
+            heartbeat_at = tokio::time::Instant::now();
+        }
         if once {
             return Ok(());
         }
@@ -108,11 +229,55 @@ async fn main() -> anyhow::Result<()> {
     }
     let app = Application::new(Store::open(cli.db)?, Arc::new(SystemClock));
     match cli.command {
-        Command::Migrate => println!("Schema version 2 validated"),
+        Command::Migrate => println!("Schema version 3 validated"),
         Command::Tick => println!(
             "{} obligation(s) became due",
-            app.process_due_obligations()?
+            app.process_due_obligations()? + app.supervise_team()?
         ),
+        Command::Team { action } => {
+            let value = match action {
+                TeamCommand::Claim { executor, key } => {
+                    serde_json::to_value(app.claim_work(ClaimWork {
+                        meta: CommandMeta {
+                            schema_version: V1,
+                            idempotency_key: key,
+                            actor: "operator".into(),
+                            reason: "Local fake worker requested queued work".into(),
+                        },
+                        executor,
+                    })?)?
+                }
+                TeamCommand::Inbox => serde_json::to_value(app.escalation_inbox()?)?,
+                TeamCommand::Finish { file } => {
+                    serde_json::to_value(app.finish_fake(read_command(file)?)?)?
+                }
+                TeamCommand::Heartbeat { file } => {
+                    serde_json::to_value(app.heartbeat(read_command(file)?)?)?
+                }
+                TeamCommand::Progress { file } => {
+                    serde_json::to_value(app.report_progress(read_command(file)?)?)?
+                }
+                TeamCommand::ReportBlock { file } => {
+                    serde_json::to_value(app.report_block(read_command(file)?)?)?
+                }
+                TeamCommand::Message { id, file } => {
+                    serde_json::to_value(app.post_team_message(&id, read_command(file)?)?)?
+                }
+                TeamCommand::AcknowledgeMessage { id, file } => {
+                    serde_json::to_value(app.acknowledge_message(&id, read_command(file)?)?)?
+                }
+                TeamCommand::OfferHandoff { id, file } => {
+                    serde_json::to_value(app.offer_handoff(&id, read_command(file)?)?)?
+                }
+                TeamCommand::AcceptHandoff { id, file } => {
+                    serde_json::to_value(app.accept_handoff(&id, read_command(file)?)?)?
+                }
+                TeamCommand::AcknowledgeEscalation { id, file } => {
+                    serde_json::to_value(app.acknowledge_escalation(&id, read_command(file)?)?)?
+                }
+            };
+            println!("{}", serde_json::to_string_pretty(&value)?);
+        }
         Command::Case { action } => {
             let output = match action {
                 CaseCommand::Create {
@@ -170,10 +335,19 @@ async fn main() -> anyhow::Result<()> {
             };
             println!("{}", serde_json::to_string_pretty(&output)?);
         }
-        Command::Worker { once } => {
-            tokio::select! { result = work(app,once) => result?, _ = tokio::signal::ctrl_c() => {} }
+        Command::Worker {
+            once,
+            identity,
+            block,
+            stall,
+        } => {
+            tokio::select! { result = work(app,once,false,identity,block,stall) => result?, _ = tokio::signal::ctrl_c() => {} }
         }
-        Command::Serve { port, token } => {
+        Command::Serve {
+            port,
+            token,
+            manual_workers,
+        } => {
             let token = token.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
             anyhow::ensure!(
                 token.len() >= 32,
@@ -188,7 +362,7 @@ async fn main() -> anyhow::Result<()> {
             let router = watchhouse::http::router(app.clone(), token, authority);
             tokio::select! {
                 result = axum::serve(listener,router).with_graceful_shutdown(async { let _ = tokio::signal::ctrl_c().await; }) => result?,
-                result = work(app,false) => result?,
+                result = work(app,false,manual_workers,"fake-investigator".into(),false,false) => result?,
             }
         }
     }

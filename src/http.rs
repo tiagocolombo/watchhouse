@@ -64,6 +64,17 @@ pub fn router(app: Application, token: String, authority: String) -> Router {
         .route("/cases", get(list).post(create))
         .route("/cases/{id}", get(snapshot))
         .route("/cases/{id}/rename", post(rename))
+        .route("/cases/{id}/team/messages", post(team_message))
+        .route("/cases/{id}/team/message-ack", post(team_message_ack))
+        .route("/cases/{id}/team/handoffs", post(team_handoff))
+        .route("/cases/{id}/team/accept-handoff", post(team_accept))
+        .route("/cases/{id}/team/escalation-ack", post(team_escalation_ack))
+        .route("/team/claim", post(team_claim))
+        .route("/team/heartbeat", post(team_heartbeat))
+        .route("/team/progress", post(team_progress))
+        .route("/team/block", post(team_block))
+        .route("/team/finish", post(team_finish))
+        .route("/team/escalations", get(team_inbox))
         .route("/cases/{id}/evidence", post(record_evidence))
         .route("/cases/{id}/dispositions", post(record_disposition))
         .route("/cases/{id}/reconsider", post(reconsider))
@@ -159,6 +170,46 @@ async fn authenticate(State(s): State<HttpState>, req: Request, next: Next) -> R
         return (StatusCode::UNAUTHORIZED,Json(serde_json::json!({"code":"unauthorized","message":"Enter the local operator token printed by serve"}))).into_response();
     }
     next.run(req).await
+}
+macro_rules! case_command {
+    ($handler:ident,$command:ty,$method:ident) => {
+        async fn $handler(
+            State(s): State<HttpState>,
+            Path(id): Path<String>,
+            body: Result<Json<$command>, JsonRejection>,
+        ) -> Result<impl IntoResponse, ApiError> {
+            let Json(cmd) = body.map_err(|e| ApiError(Error::Invalid(e.body_text())))?;
+            Ok(Json(blocking(move || s.app.$method(&id, cmd)).await?))
+        }
+    };
+}
+macro_rules! worker_command {
+    ($handler:ident,$command:ty,$method:ident) => {
+        async fn $handler(
+            State(s): State<HttpState>,
+            body: Result<Json<$command>, JsonRejection>,
+        ) -> Result<impl IntoResponse, ApiError> {
+            let Json(cmd) = body.map_err(|e| ApiError(Error::Invalid(e.body_text())))?;
+            Ok(Json(blocking(move || s.app.$method(cmd)).await?))
+        }
+    };
+}
+case_command!(team_message, PostMessage, post_team_message);
+case_command!(team_message_ack, AcknowledgeMessage, acknowledge_message);
+case_command!(team_handoff, OfferHandoff, offer_handoff);
+case_command!(team_accept, AcceptHandoff, accept_handoff);
+case_command!(
+    team_escalation_ack,
+    AcknowledgeEscalation,
+    acknowledge_escalation
+);
+worker_command!(team_claim, ClaimWork, claim_work);
+worker_command!(team_heartbeat, RunCommand, heartbeat);
+worker_command!(team_progress, ReportProgress, report_progress);
+worker_command!(team_block, ReportBlock, report_block);
+worker_command!(team_finish, RunCommand, finish_fake);
+async fn team_inbox(State(s): State<HttpState>) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(blocking(move || s.app.escalation_inbox()).await?))
 }
 async fn list(State(s): State<HttpState>) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(blocking(move || s.app.list_cases()).await?))

@@ -1,5 +1,6 @@
 //! Versioned, strict protocol DTOs. V1 rejects unsupported versions.
 pub use crate::domain::qualification::*;
+pub use crate::domain::team::*;
 use crate::domain::{Assignment, Case};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -113,6 +114,57 @@ pub enum EventData {
         owner: String,
         reason: String,
     },
+    #[serde(rename = "team.message_posted")]
+    MessagePosted {
+        message: Box<Message>,
+        reason: String,
+    },
+    #[serde(rename = "team.message_acknowledged")]
+    MessageAcknowledged {
+        message_id: String,
+        recipient: String,
+        reason: String,
+    },
+    #[serde(rename = "run.heartbeat")]
+    RunHeartbeat { run_id: String, reason: String },
+    #[serde(rename = "run.progressed")]
+    RunProgressed {
+        run_id: String,
+        evidence_refs: Vec<String>,
+        reason: String,
+    },
+    #[serde(rename = "assignment.blocked")]
+    AssignmentBlocked { block: Box<Block>, reason: String },
+    #[serde(rename = "handoff.proposed")]
+    HandoffProposed {
+        handoff: Box<Handoff>,
+        reason: String,
+    },
+    #[serde(rename = "handoff.accepted")]
+    HandoffAccepted {
+        handoff_id: String,
+        run_id: String,
+        owner: String,
+        reason: String,
+    },
+    #[serde(rename = "handoff.expired")]
+    HandoffExpired { handoff_id: String, reason: String },
+    #[serde(rename = "escalation.opened")]
+    EscalationOpened {
+        escalation: Box<Escalation>,
+        reason: String,
+    },
+    #[serde(rename = "escalation.acknowledged")]
+    EscalationAcknowledged {
+        escalation_id: String,
+        reason: String,
+    },
+    #[serde(rename = "run.late_result_recorded")]
+    LateResultRecorded {
+        run_id: String,
+        evidence_refs: Vec<String>,
+        reason: String,
+    },
     #[serde(rename = "case.renamed")]
     CaseRenamed { title: String, reason: String },
 }
@@ -154,6 +206,8 @@ pub struct Snapshot {
     pub results: Vec<ExecutionResult>,
     #[serde(default)]
     pub qualification: QualificationSnapshot,
+    #[serde(default)]
+    pub team: TeamSnapshot,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

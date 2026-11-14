@@ -10,7 +10,7 @@ Connect an observability tool such as Sentry or Datadog. Watchhouse assesses wha
 
 The team keeps the records a real incident organization needs: incident details, investigation logs, escalation and handoff records, change plans, recovery assessments, postmortems, corrective actions, and runbooks.
 
-**Status: M0 and the bounded M1 workflow are implemented.** Manual intake → durable fake investigation → evidence → operator disposition → owned deadline/recurrence → reopened review works through CLI and web. The broader team described below remains the intended product; no real harness, production integration, or merge automation is implemented.
+**Status: M0/M1 and the first bounded M2 core coordination slice are implemented.** Manual intake → durable fake investigation → evidence → operator disposition → owned deadline/recurrence → reopened review works through CLI and web. The broader team described below remains the intended product; no real harness, production integration, or merge automation is implemented.
 
 ## Run the local slice
 
@@ -45,7 +45,7 @@ npx playwright install chromium
 npm test
 ```
 
-Browser tests use only a temporary local database and fake execution. Standard checks never invoke a live harness or production system. Linux was validated locally; CI also configures Rust checks on macOS and Windows. M2 team communication, stuck-agent recovery, notification/escalation, and real execution are still ahead. See [current status](implementation/STATUS.md) for evidence and the exact next task.
+Browser tests use only a temporary local database and fake execution. Standard checks never invoke a live harness or production system. Linux was validated locally; CI also configures Rust checks on macOS and Windows. The fake-team slice now includes directed messages, stalled-worker supervision, checkpoints, acknowledged handoff, and a local escalation inbox. Independent challenges, real notification delivery, and real execution remain ahead. See [current status](implementation/STATUS.md) for evidence and the exact next task.
 
 ## Qualification commands
 
@@ -59,6 +59,24 @@ cargo run --locked -- tick
 ```
 
 Start from the [qualification command examples](contracts/v1/README.md). Replace expected versions, evidence digests, and the current disposition ID with values returned by your case snapshot. Timers are explicit per decision (1 second–30 days). `serve`/`worker` process persisted deadlines automatically; `tick` processes them without an executor. Expected/transient decisions require operator-reported supporting evidence; synthetic results alone do not establish those facts. The UI keeps source attribution and uncertainty visible.
+
+## Run the core without a web server
+
+The native `watchhouse` binary owns coordination. CLI workers can drive the fake team against the same durable database:
+
+```sh
+cargo run --locked -- case create --title "Investigate timeout" --key team-001
+cargo run --locked -- worker --block --once
+cargo run --locked -- case list
+cargo run --locked -- case show CASE_ID
+cargo run --locked -- team offer-handoff CASE_ID --file handoff.json
+cargo run --locked -- worker --identity fake-specialist --once
+cargo run --locked -- team inbox
+```
+
+Use the [handoff command example](contracts/v1/team/handoff.json), replacing its block ID and expected version from the case snapshot. The first worker stores a blocker/checkpoint; the successor discovers and accepts the durable handoff before ownership changes. A late old result is retained as unaccepted evidence and cannot complete the task.
+
+`worker --stall` simulates a live fake process with heartbeats but no useful progress. `serve --manual-workers` runs the scheduler and operating interface while separate CLI workers dispatch. `tick` supervises due work without an executor. Development fake deadlines and budgets are documented in the [team contract](contracts/v1/team/README.md); handoff cannot reset them. No external escalation delivery, real harness, installer, or OS service registration is implemented yet.
 
 ## A typical response
 

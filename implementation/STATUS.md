@@ -4,33 +4,33 @@ Last updated: 2026-11-14.
 
 ## Repository reality
 
-**M0 and the bounded M1 manual/fake workflow are implemented.**
+**M0/M1 and the first bounded M2 core coordination slice are implemented. Full M2 is unfinished.**
 
-Manual case → atomic events/job → fake investigation → persisted evidence → operator qualification → owned review/monitoring/collection obligation → deadline/recurrence/reconsideration → reopened review, visible in CLI and web.
+The native Rust coordinator owns state, supervision, communication and transfer. A fake investigator can claim work, report an owned blocker/checkpoint, receive a directed reply, and be replaced by an addressed successor that accepts the frozen briefing before ownership changes. CLI workers execute this path without HTTP. The web app observes the same persisted state and submits validated operator commands.
 
-Current development branch: `dev/m1-dispositions`, based on `3af6c21` from `dev/m0-m1-durable-slice`. Implementation commit: `f400e09`; the final documentation commit records its verified CI handoff. M1 exit scenarios are covered for local sanitized/manual/fake cases; automated sources, real harnesses, independent verification, production actions, and M2–M8 are not implemented.
+Development branch: `dev/m2-team-handoff`, based on `4fcfc16` from `dev/m1-dispositions`. This branch's implementation commit includes the updated contracts, ADR and handoff. No real harness, production system, external notification, independent challenge/verification gate, or automatic merge exists.
 
 ## Implemented
 
-- Existing Rust 1.90 coordinator/CLI, bundled strict TypeScript UI and Watchhouse branding, shared Application services, fake execution/source, injected clock, SQLite WAL/FULL, durable queue, event replay, command receipts, optimistic versions, attempts/leases/fences, and synthetic-result evidence remain intact.
-- Migration 002 adds immutable disposition contents with separate lifecycle, owned obligations, case/evidence links, and recurrence deduplication. It backfills v1 fake evidence links without changing migration 001, old event bytes, or command receipts. Migration history is validated before applying pending SQL; LF checksums and exact legacy CRLF checksums are supported without rewriting history. Future/gapped/modified histories fail explicitly.
-- Versioned RecordEvidence records attributed scope/statement/collection method/optional occurrence time/uncertainty. Operator reports remain distinguished from independent check evidence and synthetic results. Digests and case ownership of references are checked before decisions.
-- Versioned RecordDisposition supports expected_behavior (expiry review), apparently_transient (monitoring duration and recovery indicators), and insufficient_evidence (concrete collection task/deadline). All require actor/reason, key/version, owner, scope, uncertainty, evidence, reconsideration conditions, and recurrence threshold. Synthetic evidence alone cannot justify expected/transient behavior.
-- Decisions create their next obligation in the same transaction as state, events, ownership, and receipt. New decisions supersede prior decisions/obligations, retaining the full history and original contents; supersession is not proof that the old collection task was completed.
-- Versioned ReconsiderCase binds an explicit trigger to the current active disposition/version. New recurrence evidence must be operator-reported after the decision and not previously counted/cited. A threshold reopens; operator review, contradictory evidence, or scope change reopen immediately. Same-key retries return the original response; recounting evidence under a new key conflicts.
-- Persisted deadlines (explicitly configured per command, 1 second–30 days) reopen review and make the owned obligation due once. Original deadline/trigger time remain visible. `serve`/`worker` tick before claiming fake work; standalone `tick` processes up to 100 due obligations without an executor or model.
-- CLI and authenticated HTTP expose the same commands. Snapshot adds a consistent qualification projection with current/prior decisions, obligations, evidence/provenance, and its timeline cursor. Old snapshots deserialize with an empty projection; old Case shapes and receipts remain unchanged. New event kinds require an updated reader; old binaries refuse schema 2.
-- Web evidence entry, decision/reconsideration forms, uncertainty/scope/history/deadlines, pending/due ownership, and timeline replay work. Drafts retain their original version while edited; live updates cannot silently make a stale draft current. Uncertain network retries retain the same key/version. Switching cases clears unrelated drafts.
+- Existing M0/M1 case creation, strict contracts, SQLite state/events/jobs/receipts, case-bound evidence, scoped dispositions, deterministic reopening, HTTP/CLI services, bearer boundary and replayable branded UI are retained.
+- Migration 003 adds case coordination threads, typed directed messages and recipient acknowledgments, assignment coordination state, immutable run proof/briefing, checkpoints, owned blocks, handoffs, progress deduplication, a local escalation inbox, and unaccepted late-result references. Migrations 001/002, old event bytes, and command receipts remain unchanged. Active schema-2 runs upgrade with their current fence and original start-based budget.
+- Provider-independent domain/team records and Rust team application services own the new behavior; team/store maps projections. Snapshot adds a defaulted team projection. Existing Case/Assignment execution fields stay compatible; control exposes queued/running/blocked/handoff_pending/completed coordination state.
+- Typed observation/question/status messages have sender, local recipients, case/thread/reply links, evidence, referenced version, time, and optional acknowledgment deadline. Body text cannot grant capabilities. Block/handoff notices commit only through their corresponding commands. Reply depth, text size, recipient count and briefing message count are bounded.
+- Workers use current run/fence/executor plus lease/progress/absolute deadlines. Heartbeats do not count as useful progress. New checkpoint digests are required for reported progress; reusing one cannot reset the deadline. Semantic proof of useful progress is still future work.
+- Missed heartbeat/progress/absolute deadlines and explicit missing-evidence/capability reports create a blocker, immutable checkpoint and directed message in one transaction, retaining the current accountable owner and a response deadline/local escalation path. The old proof loses all authoritative mutation rights.
+- Handoff offers preserve objective, investigator role, checkpoint/evidence, latest relevant message IDs, original absolute deadline and shared remaining attempts. The previous owner remains accountable until the addressed successor explicitly accepts; acceptance/new run/fence/owner transfer/receipt commit together. Fake worker processes discover their offers without browser orchestration.
+- Known late output is retained once per run/digest as wrapped unaccepted evidence and an audit event; it cannot complete or change the current workflow. Unknown/forged proof is rejected without invented attribution. Accepted and rejected artifact provenance remain distinct.
+- Deterministic team supervision detects stalled-but-alive fake work, overdue block response, missed handoff acceptance, and missing message acknowledgment. It writes deduplicated owned records into the local operator inbox, without models or external messaging. Inbox acknowledgment is not resolution, recipient delivery, or ownership transfer.
+- Headless CLI adds `team` commands, `worker --identity`, deterministic `--block` and `--stall` modes. `serve --manual-workers` keeps supervision/API alive while separate workers dispatch; `tick` evaluates both qualification and team deadlines. Worker version contention is retryable; infrastructure errors remain surfaced.
+- Web shows executor/owner/control state, heartbeat/progress/deadlines, blockers/checkpoints/uncertainty, frozen handoff limits, local inbox/acks, directed messages, and unaccepted late evidence. Operator message/handoff drafts retain their original version; all text is rendered inertly. The browser never owns scheduling or run authority.
 
-Qualification is separate from execution and recovery. Case execution status remains awaiting_review after the fake run. A reopened decision invokes no new agent, repair, production action, notification, or recovery declaration. Accountable owner strings are trusted-operator attribution, not remote identities/RBAC or a completed M2 handoff protocol.
+## Material decision
 
-## Decisions
+[ADR 0006](adrs/0006-durable-fake-team-coordination.md) partially implements P03/P04. It **supersedes the M0 automatic expired-fake retry path** from ADR 0002: lost attempts now become owned blocks and require accepted transfer. Recovery tests were strengthened to cover that change while preserving every accepted case/obligation and rejecting stale results. Historical run.lease_expired events remain readable.
 
-- [ADR 0005](adrs/0005-qualification-and-reconsideration.md): qualification lifecycle, operator evidence, bounded deterministic reconsideration, atomic obligations, and compatibility.
-- [ADR 0001](adrs/0001-local-stack.md): Rust/TypeScript local package.
-- [ADR 0002](adrs/0002-transactional-local-store.md): SQLite transactions, queue/evidence/receipts, leases/fencing.
-- [ADR 0003](adrs/0003-local-api-and-timeline.md): loopback bearer session and snapshot/SSE replay.
-- [ADR 0004](adrs/0004-execution-protocol-spike.md): fake-only admission; real harness compatibility is unverified.
+Development-only fake limits: 30-second lease, 60-second progress deadline, 120-second block response window, 300-second assignment wall time, and three total attempts; migrated histories receive at least one remaining attempt. Heartbeats/progress/handoffs cannot extend the original deadline or reset attempts. These are test-profile defaults, not organization severity policy. General trusted policy configuration is still open.
+
+[Earlier ADRs](14-decisions.md) cover the stack, transactional persistence, replay/session boundary, fake-only adapter admission, and M1 qualification. No real runtime authority was added.
 
 ## Validation actually run
 
@@ -41,17 +41,15 @@ Linux, 2026-11-14:
 | `npm run build --prefix web` | Strict TypeScript passed |
 | `cargo fmt --all -- --check` | Passed |
 | `cargo clippy --locked --all-targets -- -D warnings` | Passed |
-| `cargo test --locked` | 25 tests passed: 2 CLI, 3 HTTP, 11 qualification, 9 original workflow (including two crash-child helpers); doc tests passed |
-| `cargo build --locked` | Binary/bundled assets built |
-| `npm test --prefix web` | 2 Chromium scenarios passed: original workflow and full qualification/reopening/offline-deadline/stale-draft flow |
-| Screenshot/layout inspection | Branded qualification view reviewed; 390px overflow check passed |
-| `git diff --check` and local Markdown checks | Whitespace, final newlines, fences and relative references passed |
+| `cargo test --locked` | 41 tests passed: 3 CLI, 4 HTTP, 11 qualification, 14 team, 9 original workflow (including three crash-child helpers); doc tests passed |
+| `cargo build --locked` | Native binary and bundled assets built |
+| `npm test --prefix web` | 3 Chromium scenarios passed across normal and manual-worker coordinators |
+| Screenshot/layout inspection | Team/qualification operating view reviewed; 390px overflow checks passed |
+| `git diff --check` and local Markdown checks | Whitespace, final newlines, fenced blocks and relative references passed |
 
-New tests include schema-1 upgrade preservation/backfill; exact legacy CRLF checksum preservation; future-schema rejection; strict version/plan fixtures; old snapshot reads; operator evidence requirements; corrupt/foreign references; expected expiry; distinct transient recurrence thresholds; authenticated-401 counterevidence; stale/duplicate/concurrent decisions and ticks; SQL rollback of evidence/decisions/ownership/obligations/timer events; and a real child exit after accepting a deadline. The reopened process catches up once using the fake clock. CLI commands run in separate processes. The browser goes offline while the coordinator reaches a deadline, then reconnects/reloads with complete duplicate-free history. A draft edited before a competing update is explicitly rejected.
+New evidence includes a multi-process CLI-only block → offer → successor discovery/acceptance → result flow, healthy heartbeats without useful progress, repeated checkpoints, shared time/attempt budgets, competing handoff/accept/tick commands, wrong/late proof, late artifact deduplication, message acknowledgment vs resolution, schema-2 active-run preservation, and injected rollback of checkpoint/message/block, ownership/acceptance and escalation. Children exit after block, offer, and acceptance; reopening the database preserves the pending obligation or current proof. Browser acceptance disconnects while the core accepts/completes/rejects old output, then replays full history and observes/acknowledges a local overdue-message escalation. Untrusted message text stays inert.
 
-The first browser pass exposed an inaccessible select label; explicit label associations fixed it, and the full browser suite passed afterward. Standard tests never invoke live models, subscriptions, production systems, or external message delivery.
-
-Prior baseline [CI 43625938174](https://github.com/tiagocolombo/watchhouse/actions/runs/43625938174) passed Linux/macOS/Windows at `c9553a2`. **Current [CI 43629885681](https://github.com/tiagocolombo/watchhouse/actions/runs/43629885681) passed at `f400e09` on Linux (Ubuntu 24.04), macOS, and Windows: TypeScript, formatting, Clippy, all 25 Rust tests, and builds. Both Chromium scenarios passed on Linux.** CI keeps Ubuntu 24.04 for pinned Playwright compatibility and checks all three platforms independently.
+Standard checks use no live models, subscriptions, production systems, external notification destinations, or real mutable workspaces. Previous M1 [CI 43629885681](https://github.com/tiagocolombo/watchhouse/actions/runs/43629885681) passed at `f400e09`; current branch cross-platform CI is pending publication/verification and must be recorded separately.
 
 ## How to run
 
@@ -61,37 +59,40 @@ npm run build --prefix web
 cargo run --locked -- serve
 ```
 
-Open http://127.0.0.1:8787 and enter the printed local token. Create a case, wait for the fake result, add operator evidence, and record a scoped disposition/deadline. Expected/transient decisions need operator-reported support; insufficient evidence needs an explicit collection task. Use the reconsideration form for review/recurrence/counterevidence/scope change.
+Default serve runs the core scheduler, initial fake responder, and HTTP interface at http://127.0.0.1:8787. Enter the printed local token; closing the browser cannot stop core work. Use `--db PATH` to select a database and `migrate` to validate/apply schema 3.
 
-Equivalent CLI commands, using actual case ID, current expected versions and evidence references in the versioned JSON files:
+Headless teamwork, without starting a web server:
 
 ```sh
-cargo run --locked -- case record-evidence CASE_ID --file evidence.json
-cargo run --locked -- case record-disposition CASE_ID --file disposition.json
-cargo run --locked -- case reconsider CASE_ID --file reconsideration.json
-cargo run --locked -- tick
+cargo run --locked -- case create --title "Investigate timeout" --key team-001
+cargo run --locked -- worker --block --once
+cargo run --locked -- case list
 cargo run --locked -- case show CASE_ID
+cargo run --locked -- team offer-handoff CASE_ID --file handoff.json
+cargo run --locked -- worker --identity fake-specialist --once
+cargo run --locked -- team inbox
 ```
 
-[Command examples and semantics](../contracts/v1/README.md). `--db PATH` selects the database; `migrate` validates/applies schema 2. `serve`/continuous `worker` process deadlines even with no browser. `worker --once` ticks then processes at most one fake job. WATCHHOUSE_TOKEN retains a local token across restarts; otherwise reconnect using the new generated token.
+Use [the handoff example](../contracts/v1/team/handoff.json) with the actual block ID/current case version. The successor worker discovers and accepts the persisted offer itself. `worker --stall` simulates healthy heartbeats with no progress; a deterministic block follows. `serve --manual-workers` exposes observation/operator commands and keeps supervision active while separate CLI responders dispatch. `tick` processes due qualification/team work without an executor. [All team contracts and examples](../contracts/v1/team/README.md).
 
 ## Limits and unresolved work
 
-- Local manual qualification only. Conditions/scope are operator-readable criteria, not a natural-language rule engine. Recurrences are explicit operator reports; automatic source normalization/correlation, other disposition categories, incident declaration, recovery proof, and real regression reproduction remain later work.
-- M2 durable team messages, roles/acknowledgments, independent challenges, checkpoint/handoff, meaningful progress/heartbeat supervision, retry budgets, escalation inbox/notification chains, and human escalation delivery are absent. Simple qualification timers are not that full supervisor.
-- One completed fake investigator assignment per case; qualification reopening deliberately does not create another executor. Real adapter protocol/cancel/reconcile, process isolation, scoped authority, and external-effect reconciliation are still prerequisites to operational agents.
-- No formal incident artifact renderer, knowledge acceptance, production/repository effects, general policy editing, pause/stop, or remote-worker/RBAC surface. No project license was invented.
-- Loopback bearer session and OS-protected CLI database only. New event kinds require current clients; no public released API compatibility is claimed. Initial snapshots include full history, queue lists newest 200 cases, evidence is bounded inline JSON. Pagination, backpressure, retention/redaction, backup/restore and clock-jump handling remain open.
-- Due obligations stay visibly due until explicitly superseded by a new operator decision; no external notification or escalation is sent. An unavailable coordinator processes overdue obligations after restart, not while stopped. Worker/storage failures are surfaced, not yet handled by a full supervisor.
+- This is a **partial M2** fake-team implementation. Independent challenge/verification state/gates, broader persistent roles, escalation resolution and an externally configured human notification/fallback chain are absent. Local inbox rows never claim external delivery. Acknowledgment is not resolution.
+- All local executor identities are fake-* investigators with no external effects or mutable workspace. Database fencing therefore suffices only here. Real subprocess cancellation/quarantine, resource isolation, worker authentication, credential scoping/revocation, and uncertain-effect reconciliation remain mandatory before a real adapter.
+- One investigator responsibility per case is retained across attempts; no parallel builder/verifier/reviewer execution or automatic repair is available. New checkpoint bytes are necessary but do not establish semantic useful progress; hard shared limits bound simulated repetition.
+- Timer/budget defaults are development-only. Trusted versioned policy configuration, semantic repeat detection, more overload/backpressure, notification retries/fallback and clock-jump handling remain open. A stopped coordinator catches up only on restart; storage faults are surfaced.
+- Actor/recipient labels are local attribution under the single trusted operator token/OS database permissions, not remote identities or delivery destinations. Ordinary snapshots omit fences; explicit fake claim/accept commands return proofs. There is no real-worker registration path.
+- No real observability source, formal incident artifact renderer, accepted knowledge workflow, production/repository effects, policy editing, pause/stop controls, packaged installer, OS service integration, or new project license has been added.
+- History snapshots remain unpaginated, inbox/queue show newest 200 entries, artifacts are bounded inline JSON, and backup/restore/retention/redaction are unimplemented. New event kinds require current clients; old binaries reject schema 3 rather than operating unknown records.
 
 ## Exact next task
 
-**Begin the smallest M2 durable communication and acknowledged handoff slice, still using fake workers.**
+**Continue M2 with independent challenges and explicit validation/closure gates, still fake-only.**
 
-1. Add versioned typed team messages/threads, assignment acknowledgment and owned block/handoff records using a new migration; preserve all case/qualification history and receipts.
-2. Allow one fake investigator to report a block with last useful progress, checkpoint/evidence, required help, accountable owner, response deadline, and escalation path. Record block/message/obligation atomically; show them in CLI and web.
-3. Assign a successor with a fresh attempt/fence and require acceptance before transferring accountability. Assemble a bounded durable briefing; retain independence of author/challenger/verifier responsibilities. Reject late results from the old worker and retain their attributed evidence without advancing state.
-4. Use the fake clock for missed acknowledgment/progress deadlines and an owned local escalation inbox; test crash/restart, duplicate/concurrent handoff, stalled-but-alive work, late results, and browser replay.
-5. Complete the rest of M2 with an explicitly configured human notification channel/recipient fallback chain and verified delivery/acknowledgment timers before unattended real-agent execution. Do not infer that authority or those destinations from local owner labels.
+1. Add versioned challenge commands/records tied to the exact contested claim/event/artifact version, requested evidence, accountable recipient, acknowledgment/response deadlines, and designated independent arbiter.
+2. Implement open → acknowledged/investigating → answered → independently resolved or escalated; a proposed answer or author agreement must never resolve its own blocking challenge. Keep dissent and remaining uncertainty durable.
+3. Build separate briefings and role admission for fake investigator/challenger/verifier responsibilities, excluding private transcripts and self-approval. Prevent conflicting completion/acceptance while a required blocking challenge is unresolved; policy remains outside agent-controlled candidate content.
+4. Expose challenge evidence/state/next owner through CLI, API and web. Verify changed claim versions, duplicate/concurrent/stale commands, restart/deadline escalation, independent resolution, and timeline replay without live models.
+5. Then finish M2 with trusted versioned timer/budget configuration and one explicitly configured human notification channel/recipient fallback chain, verified delivery/acknowledgment/retry and resolution before unattended real-agent execution. Prepare adapters/configuration reviewably before asking for a missing destination/authority; do not infer those from local owner labels.
 
-No missing owner decision blocks the next local/fake slice. Human recipients, production permissions, deployment/recovery mappings, and installed real-runtime compatibility remain explicit configuration/admission work at their documented milestone.
+No missing owner decision blocks the next local fake challenge slice. M3 sources/incident artifacts and M4 real execution still follow the documented dependency/authority boundaries.

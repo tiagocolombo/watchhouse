@@ -241,3 +241,92 @@ async fn qualification_commands_share_strict_version_conflict_and_replay_contrac
         assert!(serde_json::from_value::<Event>(serde_json::to_value(event).unwrap()).is_ok());
     }
 }
+#[tokio::test]
+async fn team_api_uses_run_proofs_operator_versions_and_late_evidence_without_model_access() {
+    let (_dir, app, router) = setup();
+    let case = app
+        .create_case(
+            serde_json::from_str(include_str!("../contracts/v1/manual-case.json")).unwrap(),
+        )
+        .unwrap();
+    let claim = serde_json::json!({"meta":{"schema_version":1,"idempotency_key":"http-team-claim","actor":"operator","reason":"Local fake worker claim"},"executor":"fake-investigator"});
+    let response = router
+        .clone()
+        .oneshot(request("POST", "/api/v1/team/claim", &claim.to_string()))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let c: serde_json::Value =
+        serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    let retried = router
+        .clone()
+        .oneshot(request("POST", "/api/v1/team/claim", &claim.to_string()))
+        .await
+        .unwrap();
+    let retry: serde_json::Value =
+        serde_json::from_slice(&retried.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    assert_eq!(retry, c);
+    let proof = serde_json::json!({"run_id":c["run_id"],"fence":c["fence"]});
+    let blocked = serde_json::json!({"run":{"meta":{"schema_version":1,"idempotency_key":"http-block","actor":"fake-investigator","reason":"Need more evidence"},"proof":proof},"details":{"reason_code":"missing_evidence","work_attempted":"Read objective","last_useful_progress":"No inspected service","checkpoint":"No mutable resources or external effects","assistance_needed":"Need another investigator","uncertainty":"Cause unknown","evidence_refs":[]}});
+    let response = router
+        .clone()
+        .oneshot(request("POST", "/api/v1/team/block", &blocked.to_string()))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let b: Block =
+        serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    let s = app.snapshot(&case.id).unwrap();
+    let handoff = serde_json::json!({"command":{"meta":{"schema_version":1,"idempotency_key":"http-offer","actor":"operator","reason":"Transfer after acceptance"},"expected_version":s.case.version},"block_id":b.id,"successor":"fake-specialist","next_owner":"operator","acknowledge_within_seconds":60});
+    let response = router
+        .clone()
+        .oneshot(request(
+            "POST",
+            &format!("/api/v1/cases/{}/team/handoffs", case.id),
+            &handoff.to_string(),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let h: Handoff =
+        serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    let s = app.snapshot(&case.id).unwrap();
+    let accept = serde_json::json!({"command":{"meta":{"schema_version":1,"idempotency_key":"http-accept","actor":"fake-specialist","reason":"Received briefing"},"expected_version":s.case.version},"handoff_id":h.id});
+    let response = router
+        .clone()
+        .oneshot(request(
+            "POST",
+            &format!("/api/v1/cases/{}/team/accept-handoff", case.id),
+            &accept.to_string(),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let next: serde_json::Value =
+        serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    let late = serde_json::json!({"meta":{"schema_version":1,"idempotency_key":"http-late","actor":"fake-investigator","reason":"Late fake result"},"proof":proof});
+    assert_eq!(
+        router
+            .clone()
+            .oneshot(request("POST", "/api/v1/team/finish", &late.to_string()))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CONFLICT
+    );
+    let done = serde_json::json!({"meta":{"schema_version":1,"idempotency_key":"http-finish","actor":"fake-specialist","reason":"Finish bounded investigation"},"proof":{"run_id":next["run_id"],"fence":next["fence"]}});
+    assert_eq!(
+        router
+            .oneshot(request("POST", "/api/v1/team/finish", &done.to_string()))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK
+    );
+    let s = app.snapshot(&case.id).unwrap();
+    assert_eq!(s.results.len(), 1);
+    assert_eq!(s.team.late_results.len(), 1);
+    for event in s.events {
+        assert!(serde_json::from_value::<Event>(serde_json::to_value(event).unwrap()).is_ok());
+    }
+}

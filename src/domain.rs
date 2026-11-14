@@ -60,3 +60,4 @@ pub struct Assignment {
 }
 
 pub mod qualification;
+pub mod team;

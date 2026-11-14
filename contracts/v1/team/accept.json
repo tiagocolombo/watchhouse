@@ -1,0 +1,7 @@
+{
+  "command": {
+    "meta": {"schema_version": 1, "idempotency_key": "team-accept-001", "actor": "fake-specialist", "reason": "Accept the frozen briefing and remaining limits"},
+    "expected_version": 7
+  },
+  "handoff_id": "hnd_replace_from_snapshot"
+}

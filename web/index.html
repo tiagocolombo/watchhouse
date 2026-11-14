@@ -10,7 +10,21 @@
 <div id="workspace" hidden>
 <div class="notice"><strong>Fake execution enabled.</strong> Results are synthetic. The operator owns review; no incident recovery is asserted.</div>
 <div class="columns"><aside><section><h2>Create a case</h2><form id="create-form"><label>Title<input id="title" maxlength="200" required placeholder="What needs investigation?"></label><label>Description<textarea id="description" maxlength="16000" rows="3"></textarea></label><label>Reason<input id="reason" value="Manual intake" required></label><button id="create">Create case</button></form></section><section><h2>Case queue</h2><nav id="cases" aria-label="Cases"></nav></section></aside>
-<section id="detail"><div id="empty"><img src="/icon.png" width="76" alt=""><h2>Your watch starts here.</h2><p>Create or select a case to see its assignment, result, and recorded timeline.</p></div><div id="case-view" hidden><p class="eyebrow" id="case-id"></p><h2 id="case-title"></h2><div class="metadata"><span id="case-status" class="badge"></span><span id="version"></span><span id="owner"></span></div><p id="case-description"></p><p id="next" class="notice"></p><details><summary>Update title</summary><form id="rename-form"><label>Title<input id="rename-title" required maxlength="200"></label><label>Reason<input id="rename-reason" required></label><button>Save with version check</button></form></details><h3>Investigation result</h3><div id="results"></div><h3>Qualification &amp; next obligation</h3>
+<section id="detail"><div id="empty"><img src="/icon.png" width="76" alt=""><h2>Your watch starts here.</h2><p>Create or select a case to see its assignment, result, and recorded timeline.</p></div><div id="case-view" hidden><p class="eyebrow" id="case-id"></p><h2 id="case-title"></h2><div class="metadata"><span id="case-status" class="badge"></span><span id="version"></span><span id="owner"></span></div><p id="case-description"></p><p id="next" class="notice"></p><details><summary>Update title</summary><form id="rename-form"><label>Title<input id="rename-title" required maxlength="200"></label><label>Reason<input id="rename-reason" required></label><button>Save with version check</button></form></details><h3>Team coordination</h3>
+<div id="team-state"></div><div id="team-blocks"></div><div id="team-handoffs"></div><div id="team-escalations"></div>
+<details><summary>Send team message</summary><form id="team-message-form">
+<label for="team-kind">Message type</label><select id="team-kind"><option value="observation">Observation</option><option value="question">Question</option><option value="status">Status</option></select>
+<label>Message<textarea id="team-body" required maxlength="8000" rows="3"></textarea></label>
+<label>Local recipients (comma separated)<input id="team-recipients" required value="operator"></label>
+<label>Acknowledge within seconds (optional)<input id="team-ack-seconds" type="number" min="1" max="86400"></label>
+<label>Reply to message (optional)<input id="team-reply"></label>
+<label>Message reason<input id="team-message-reason" required maxlength="2000"></label><button>Record team message</button></form></details>
+<details id="handoff-panel" hidden><summary>Arrange handoff</summary><p class="muted">The current owner stays accountable until the successor accepts. The original deadline and remaining attempt budget are retained.</p>
+<form id="handoff-form"><label>Successor executor<input id="handoff-successor" value="fake-specialist" required maxlength="128"></label>
+<label>Owner after acceptance<input id="handoff-owner" value="operator" required maxlength="128"></label>
+<label>Accept within seconds<input id="handoff-seconds" type="number" min="1" max="120" value="60" required></label>
+<label>Handoff reason<input id="handoff-reason" required maxlength="2000"></label><button>Offer bounded handoff</button></form></details>
+<div id="team-messages"></div><h3>Investigation result</h3><div id="results"></div><h3>Qualification &amp; next obligation</h3>
 <div id="qualification-state"></div><div id="obligations"></div>
 <details><summary>Add operator evidence</summary>
 <p class="muted">An attributed report, separate from independent verification. Unknown occurrence time may be left blank.</p>

@@ -126,3 +126,67 @@ fn cli_records_evidence_dispositions_and_explicit_reconsideration() {
     assert_eq!(s["qualification"]["dispositions"][0]["state"], "reopened");
     assert_eq!(s["case"]["status"], "awaiting_review");
 }
+#[test]
+fn headless_fake_workers_block_handoff_accept_and_complete_without_a_server() {
+    let dir = TempDir::new().unwrap();
+    let db = dir.path().join("team.db");
+    let initial = run(
+        &db,
+        &[
+            "case",
+            "create",
+            "--title",
+            "Headless teamwork",
+            "--key",
+            "headless-team",
+        ],
+    );
+    assert!(initial.status.success());
+    let case: serde_json::Value = serde_json::from_slice(&initial.stdout).unwrap();
+    let id = case["id"].as_str().unwrap();
+    assert!(run(&db, &["worker", "--once", "--block"]).status.success());
+    let before: serde_json::Value =
+        serde_json::from_slice(&run(&db, &["case", "show", id]).stdout).unwrap();
+    assert_eq!(before["team"]["control"]["state"], "blocked");
+    assert_eq!(before["case"]["owner"], "operator");
+    let offer = serde_json::json!({"command":{"meta":{"schema_version":1,"idempotency_key":"headless-offer","actor":"operator","reason":"Send durable checkpoint to a second fake investigator"},"expected_version":before["case"]["version"]},"block_id":before["team"]["blocks"][0]["id"],"successor":"fake-specialist","next_owner":"fake-specialist","acknowledge_within_seconds":60});
+    let file = dir.path().join("handoff.json");
+    std::fs::write(&file, offer.to_string()).unwrap();
+    let output = run(
+        &db,
+        &[
+            "team",
+            "offer-handoff",
+            id,
+            "--file",
+            file.to_str().unwrap(),
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let pending: serde_json::Value =
+        serde_json::from_slice(&run(&db, &["case", "show", id]).stdout).unwrap();
+    assert_eq!(pending["case"]["owner"], "operator");
+    assert_eq!(pending["team"]["handoffs"][0]["state"], "proposed");
+    let output = run(&db, &["worker", "--once", "--identity", "fake-specialist"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let done: serde_json::Value =
+        serde_json::from_slice(&run(&db, &["case", "show", id]).stdout).unwrap();
+    assert_eq!(done["case"]["owner"], "fake-specialist");
+    assert_eq!(done["case"]["status"], "awaiting_review");
+    assert_eq!(done["team"]["handoffs"][0]["state"], "accepted");
+    assert_eq!(done["team"]["runs"].as_array().unwrap().len(), 2);
+    assert_eq!(done["results"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        done["team"]["control"]["overall_deadline"],
+        before["team"]["control"]["overall_deadline"]
+    );
+    assert!(run(&db, &["team", "inbox"]).status.success());
+}

@@ -145,7 +145,11 @@ fn concurrent_claims_are_exclusive_and_expired_results_are_fenced() {
         app.complete(old, result.clone()),
         Err(Error::Conflict(_))
     ));
-    let new = app.claim().unwrap().unwrap();
+    assert!(
+        app.claim().unwrap().is_none(),
+        "lost worker becomes an owned block, never a silent retry"
+    );
+    let new = recover_blocked(&app, &case.id);
     assert_ne!(old.fence, new.fence);
     assert!(matches!(app.complete(old, result), Err(Error::Conflict(_))));
     let result = FakeAdapter.execute(&new.task);
@@ -153,7 +157,10 @@ fn concurrent_claims_are_exclusive_and_expired_results_are_fenced() {
     app.complete(&new, result).unwrap();
     let state = app.snapshot(&case.id).unwrap();
     assert_eq!(state.results.len(), 1);
-    assert_eq!(state.events.len(), 6);
+    assert_eq!(state.team.late_results.len(), 1);
+    assert_eq!(state.team.blocks.len(), 1);
+    assert_eq!(state.team.handoffs[0].state, "accepted");
+    assert_eq!(state.team.control.unwrap().state, "completed");
 }
 #[test]
 fn faults_roll_back_state_events_work_receipts_and_evidence() {
@@ -281,6 +288,20 @@ fn process_loss_at_every_committed_boundary_recovers_without_lost_work() {
         let app = Application::new(Store::open(path).unwrap(), Arc::new(clock));
         let case = app.create_case(command()).unwrap();
         app.run_once(&FakeAdapter).unwrap();
+        if app
+            .snapshot(&case.id)
+            .unwrap()
+            .team
+            .control
+            .as_ref()
+            .unwrap()
+            .state
+            == "blocked"
+        {
+            let successor = recover_blocked(&app, &case.id);
+            app.complete(&successor, FakeAdapter.execute(&successor.task))
+                .unwrap();
+        }
         let snapshot = app.snapshot(&case.id).unwrap();
         assert_eq!(app.list_cases().unwrap().len(), 1);
         assert_eq!(snapshot.case.status, CaseStatus::AwaitingReview);
@@ -335,4 +356,47 @@ fn versioned_event_fixture_rejects_unknown_versions_types_and_fields() {
     let mut invalid = fixture;
     invalid["payload"]["authority"] = serde_json::json!("production");
     assert!(serde_json::from_value::<Event>(invalid).is_err());
+}
+
+fn recover_blocked(app: &Application, id: &str) -> watchhouse::application::Claim {
+    let s = app.snapshot(id).unwrap();
+    assert_eq!(s.case.owner, "operator");
+    let h = app
+        .offer_handoff(
+            id,
+            OfferHandoff {
+                command: OperatorCommand {
+                    meta: CommandMeta {
+                        schema_version: V1,
+                        idempotency_key: "recovery-offer".into(),
+                        actor: "operator".into(),
+                        reason: "Recover committed work through explicit ownership".into(),
+                    },
+                    expected_version: s.case.version,
+                },
+                block_id: s.team.blocks[0].id.clone(),
+                successor: "fake-recovery".into(),
+                next_owner: "operator".into(),
+                acknowledge_within_seconds: 60,
+            },
+        )
+        .unwrap();
+    let s = app.snapshot(id).unwrap();
+    assert_eq!(s.case.owner, "operator");
+    app.accept_handoff(
+        id,
+        AcceptHandoff {
+            command: OperatorCommand {
+                meta: CommandMeta {
+                    schema_version: V1,
+                    idempotency_key: "recovery-accept".into(),
+                    actor: "fake-recovery".into(),
+                    reason: "Accept bounded durable briefing".into(),
+                },
+                expected_version: s.case.version,
+            },
+            handoff_id: h.id,
+        },
+    )
+    .unwrap()
 }

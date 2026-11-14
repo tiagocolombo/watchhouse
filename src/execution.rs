@@ -1,6 +1,7 @@
 //! The only admitted adapter has no filesystem, network, model, or effect authority.
 use crate::contracts::{ExecutionResult, V1};
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Task {
     pub schema_version: V1,
     pub assignment_id: String,

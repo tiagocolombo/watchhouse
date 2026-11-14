@@ -25,7 +25,7 @@ fn expected(tx: &Transaction<'_>, case_id: &str, version: i64) -> Result<Case> {
     }
     Ok(case)
 }
-fn evidence_refs(
+pub(crate) fn evidence_refs(
     tx: &Transaction<'_>,
     case_id: &str,
     refs: &[String],
@@ -114,6 +114,9 @@ pub(crate) fn snapshot(db: &Connection, case_id: &str) -> Result<QualificationSn
                     .and_then(|v| {
                         v.get("statement")
                             .or_else(|| v.get("summary"))
+                            .or_else(|| v.get("checkpoint"))
+                            .or_else(|| v.get("details").and_then(|d| d.get("checkpoint")))
+                            .or_else(|| v.get("result").and_then(|r| r.get("summary")))
                             .and_then(|s| s.as_str())
                             .map(str::to_owned)
                     })

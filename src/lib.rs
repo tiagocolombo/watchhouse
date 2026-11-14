@@ -7,3 +7,4 @@ pub mod http;
 pub mod intake;
 pub mod qualification;
 pub mod store;
+pub mod team;

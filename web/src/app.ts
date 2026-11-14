@@ -5,13 +5,19 @@ interface Disposition { id:string; state:string; occurrence_count:number; record
 interface Obligation { id:string; owner:string; task:string; due_at:string; state:string; triggered_at:string|null }
 interface EvidenceReference { digest:string; provenance:string; recorded_at:string; summary:string }
 interface Qualification { dispositions:Disposition[]; obligations:Obligation[]; evidence:EvidenceReference[] }
-interface Snapshot { case:Case; events:TimelineEvent[]; cursor:number; results:{summary:string;conclusion:string}[]; qualification:Qualification }
+interface TeamMessage {id:string;kind:string;body:string;sender:{kind:string;id:string};recipients:string[];recorded_at:string;acknowledge_by:string|null;acknowledged_by:string[];evidence_refs:string[]}
+interface TeamBlock {id:string;state:string;owner:string;response_due_at:string;checkpoint_digest:string;escalation_path:string;details:{reason_code:string;assistance_needed:string;uncertainty:string;last_useful_progress:string}}
+interface TeamHandoff {id:string;state:string;previous_owner:string;successor:string;next_owner:string;acknowledge_by:string;briefing:{remaining_attempts:number;overall_deadline:string;checkpoint_digest:string|null;message_refs:string[]}}
+interface TeamEscalation {id:string;state:string;owner:string;reason:string;next_action:string}
+interface Team {control:{state:string;executor:string;overall_deadline:string|null;max_attempts:number}|null;messages:TeamMessage[];blocks:TeamBlock[];handoffs:TeamHandoff[];escalations:TeamEscalation[];runs:{run_id:string;state:string;executor:string;progress_deadline:string;heartbeat_at:string;progress_at:string}[];late_results:{run_id:string;digest:string}[]}
+interface Snapshot { case:Case; events:TimelineEvent[]; cursor:number; results:{summary:string;conclusion:string}[]; qualification:Qualification; team:Team }
 const el = <T extends HTMLElement = HTMLElement>(id:string) => document.getElementById(id) as T;
 const input = (id:string) => el<HTMLInputElement>(id).value;
 let token = sessionStorage.getItem('watchhouse-token') ?? '';
 let selected:Case | undefined;
 let qualification:Qualification = {dispositions:[],obligations:[],evidence:[]};
 let evidenceCase = "";
+let team:Team|undefined;
 let generation = 0;
 let active:AbortController | undefined;
 let createKey = crypto.randomUUID();
@@ -52,11 +58,12 @@ function renderState(snapshot:Snapshot) {
   el('case-status').textContent=selected.status.replaceAll('_',' ');
   el('version').textContent=`Version ${selected.version}`; el('owner').textContent=`Owner: ${selected.owner}`;
   el('case-description').textContent=selected.description; el<HTMLInputElement>('rename-title').value=selected.title;
-  el('next').textContent=selected.status==='awaiting_review'?'Next: operator reviews synthetic evidence and decides the next investigation. Case remains open.':selected.status==='running'?'Next: fake investigator returns a bounded result. Operator remains accountable.':'Next: coordinator claims the queued investigation. Operator remains accountable.';
+  el('next').textContent=selected.status==='awaiting_review'?`Next: ${selected.owner} owns review of the synthetic result and the next investigation. Case remains open.`:selected.status==='running'?'Next: fake investigator returns a bounded result. Operator remains accountable.':'Next: coordinator claims the queued investigation. Operator remains accountable.';
   el('results').replaceChildren();
   for(const result of snapshot.results) { const p=document.createElement('p');p.textContent=result.summary; el('results').append(p); }
   if (!snapshot.results.length) el('results').textContent='No result recorded yet.';
   renderQualification(snapshot);
+  renderTeam(snapshot);
 }
 async function follow(id:string,cursor:number,current:number,signal:AbortSignal) {
   while(!signal.aborted && current===generation) {
@@ -123,7 +130,12 @@ async function command<T>(id:string,action:string,fields:Record<string,unknown>,
   const signature=JSON.stringify(fields);
   let pending=pendingCommands.get(key);
   if(!pending || pending.signature!==signature) {
-    pending={signature,body:{schema_version:1,idempotency_key:crypto.randomUUID(),actor:'operator',expected_version:expectedVersion,...fields}};
+    const idempotency_key=crypto.randomUUID();
+    const body=action.startsWith('team/') ? (()=>{
+      const {reason,...data}=fields;
+      return {command:{meta:{schema_version:1,idempotency_key,actor:'operator',reason},expected_version:expectedVersion},...data};
+    })() : {schema_version:1,idempotency_key,actor:'operator',expected_version:expectedVersion,...fields};
+    pending={signature,body};
     pendingCommands.set(key,pending);
   }
   try {
@@ -169,14 +181,14 @@ function renderQualification(snapshot:Snapshot) {
   const previous=new Map(Array.from(el('evidence-refs').querySelectorAll<HTMLInputElement>('input')).map(c=>[c.value,c.checked]));
   if(evidenceCase!==snapshot.case.id) {
     previous.clear();evidenceCase=snapshot.case.id;formVersions.clear();
-    for(const id of ['evidence-form','disposition-form','reconsider-form']) el<HTMLFormElement>(id).reset();
-    el<HTMLInputElement>('disposition-owner').value=snapshot.case.owner;planFields();
+    for(const id of ['evidence-form','disposition-form','reconsider-form','team-message-form','handoff-form']) el<HTMLFormElement>(id).reset();
+    el<HTMLInputElement>('disposition-owner').value=snapshot.case.owner;el<HTMLInputElement>('handoff-owner').value=snapshot.case.owner;planFields();
   }
   const refs=el('evidence-refs');refs.replaceChildren();
   for(const evidence of qualification.evidence) {
     const label=document.createElement('label');const checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.value=evidence.digest;
     checkbox.checked=previous.get(evidence.digest)??true;
-    label.append(checkbox,document.createTextNode(`${evidence.provenance==='operator-reported-v1'?'Operator report':'Synthetic result'}: ${evidence.summary} (${evidence.digest.slice(0,19)}…)`));refs.append(label);
+    label.append(checkbox,document.createTextNode(`${({'operator-reported-v1':'Operator report','fake-v1:synthetic-result':'Synthetic result','fake-worker-progress-v1':'Reported fake progress','fake-worker-checkpoint-v1':'Fake worker checkpoint','fake-v1:late-unaccepted':'Unaccepted late result'} as Record<string,string>)[evidence.provenance]??'Evidence'}: ${evidence.summary} (${evidence.digest.slice(0,19)}…)`));refs.append(label);
   }
   el<HTMLButtonElement>('record-disposition').disabled=snapshot.case.status!=='awaiting_review';
   el('reconsider-panel').hidden=!latest || latest.state!=='active';
@@ -218,5 +230,74 @@ handleForm('disposition-form',(id,version)=>{
 });
 handleForm('reconsider-form',(id,version)=>command(id,'reconsider',{
   reason:input('reconsider-reason'),disposition_id:qualification.dispositions.at(-1)?.id,trigger:input('reconsider-trigger'),evidence_refs:chosenEvidence(),
+},version));
+
+function inspect(parent:HTMLElement,digest:string) {
+  const button=document.createElement('button');button.type='button';button.textContent='Inspect checkpoint / evidence';
+  button.onclick=()=>void api<unknown>(`/evidence/${digest}`).then(value=>{
+    const pre=document.createElement('pre');pre.textContent=JSON.stringify(value,null,2);pre.style.whiteSpace='pre-wrap';parent.append(pre);button.remove();
+  }).catch(fail);parent.append(button);
+}
+function renderTeam(snapshot:Snapshot) {
+  team=snapshot.team;
+  const panel=el('team-state');panel.replaceChildren();
+  const control=team.control;
+  if(control) {
+    paragraph(panel,`${control.state.replaceAll('_',' ')} · Executor: ${control.executor} · Accountable owner: ${snapshot.case.owner}`);
+    if(control.overall_deadline) paragraph(panel,`Assignment deadline: ${new Date(control.overall_deadline).toLocaleString()} · Attempt limit: ${control.max_attempts}`);
+    const running=team.runs.find(r=>r.state==='running');
+    if(running) paragraph(panel,`Last heartbeat: ${new Date(running.heartbeat_at).toLocaleString()} · Last useful progress: ${new Date(running.progress_at).toLocaleString()} · Progress due: ${new Date(running.progress_deadline).toLocaleString()}`);
+    if(control.state==='blocked') el('next').textContent=`Next: ${snapshot.case.owner} must respond to the blocker, arrange an acknowledged handoff, or review the local escalation inbox.`;
+    if(control.state==='handoff_pending') el('next').textContent=`Next: successor must accept the handoff. ${snapshot.case.owner} remains accountable.`;
+  }
+  const blocks=el('team-blocks');blocks.replaceChildren();
+  for(const b of team.blocks) {
+    const box=document.createElement('div');box.className='team-card';
+    paragraph(box,`Block ${b.state} · ${b.details.reason_code.replaceAll('_',' ')} · Owner: ${b.owner}`);
+    paragraph(box,b.details.assistance_needed);paragraph(box,`Last useful progress: ${b.details.last_useful_progress}`);
+    paragraph(box,`Uncertainty: ${b.details.uncertainty}`);paragraph(box,`Response by ${new Date(b.response_due_at).toLocaleString()} · Escalation: ${b.escalation_path}`);
+    inspect(box,b.checkpoint_digest);blocks.append(box);
+  }
+  const handoffs=el('team-handoffs');handoffs.replaceChildren();
+  for(const h of team.handoffs) {
+    const box=document.createElement('div');box.className='team-card';
+    paragraph(box,`Handoff ${h.state} · Successor: ${h.successor} · Owner after acceptance: ${h.next_owner}`);
+    paragraph(box,`Previous owner: ${h.previous_owner} · Accept by ${new Date(h.acknowledge_by).toLocaleString()}`);
+    paragraph(box,`Frozen briefing: ${h.briefing.message_refs.length} relevant messages, ${h.briefing.remaining_attempts} available attempts at offer. Original assignment deadline: ${new Date(h.briefing.overall_deadline).toLocaleString()}`);
+    if(h.briefing.checkpoint_digest) inspect(box,h.briefing.checkpoint_digest);handoffs.append(box);
+  }
+  const escalations=el('team-escalations');escalations.replaceChildren();
+  for(const e of team.escalations) {
+    const box=document.createElement('div');box.className='obligation-due';
+    paragraph(box,`Local escalation ${e.state} · Owner: ${e.owner}`);paragraph(box,e.reason);paragraph(box,e.next_action);
+    if(e.state==='open' && e.owner==='operator') {
+      const button=document.createElement('button');button.textContent='Acknowledge local escalation';
+      button.onclick=()=>{if(!selected) return;const id=selected.id;void command(id,'team/escalation-ack',{escalation_id:e.id,reason:'Operator acknowledged the local escalation; resolution remains outstanding'},selected.version).then(()=>openCase(id)).catch(fail);};box.append(button);
+    } escalations.append(box);
+  }
+  const messages=el('team-messages');messages.replaceChildren();
+  if(team.messages.length) {const title=document.createElement('h3');title.textContent='Durable team messages';messages.append(title);}
+  for(const m of team.messages) {
+    const box=document.createElement('article');box.className='team-card';box.dataset.messageId=m.id;
+    paragraph(box,`${m.kind} · ${m.sender.id} → ${m.recipients.join(', ')}`);paragraph(box,m.body);
+    paragraph(box,`Recorded ${new Date(m.recorded_at).toLocaleString()} · ${m.id}`);
+    if(m.acknowledge_by) paragraph(box,`Acknowledge by ${new Date(m.acknowledge_by).toLocaleString()} · Acknowledged: ${m.acknowledged_by.join(', ')||'none'}`);
+    if(m.recipients.includes('operator')&&!m.acknowledged_by.includes('operator')) {
+      const button=document.createElement('button');button.textContent='Acknowledge message';button.onclick=()=>{if(!selected)return;const id=selected.id;void command(id,'team/message-ack',{message_id:m.id,reason:'Local operator read the directed message'},selected.version).then(()=>openCase(id)).catch(fail);};box.append(button);
+    }
+    messages.append(box);
+  }
+  for(const result of team.late_results) {
+    const box=document.createElement('div');paragraph(box,`Late result from ${result.run_id} retained as unaccepted evidence. It did not advance workflow.`);inspect(box,result.digest);messages.append(box);
+  }
+  el('handoff-panel').hidden=control?.state!=='blocked'||!team.blocks.some(b=>b.state==='open'||b.state==='escalated');
+}
+handleForm('team-message-form',(id,version)=>command(id,'team/messages',{
+  kind:input('team-kind'),body:input('team-body'),recipients:input('team-recipients').split(',').map(s=>s.trim()).filter(Boolean),
+  evidence_refs:[],reply_to:input('team-reply')||null,ack_within_seconds:input('team-ack-seconds')?Number(input('team-ack-seconds')):null,reason:input('team-message-reason'),
+},version));
+handleForm('handoff-form',(id,version)=>command(id,'team/handoffs',{
+  block_id:team?.blocks.filter(b=>b.state==='open'||b.state==='escalated').at(-1)?.id,successor:input('handoff-successor'),next_owner:input('handoff-owner'),
+  acknowledge_within_seconds:Number(input('handoff-seconds')),reason:input('handoff-reason'),
 },version));
 if(token) void connect().catch(fail);

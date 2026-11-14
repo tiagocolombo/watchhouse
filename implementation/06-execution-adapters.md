@@ -68,3 +68,9 @@ Session resume is an optimization. A different harness can continue using the du
 [src/execution.rs](../src/execution.rs) implements a deterministic, side-effect-free FakeAdapter and a versioned assignment/objective Task. The injected Clock supports explicit time advancement in tests. [FakeSource](../src/intake.rs) reads a versioned sanitized fixture, with no provider dependencies. Application validates fake output, correlates it to the current run/assignment/fence, and persists synthetic evidence. There is no harness/model selection surface.
 
 This narrow synchronous trait is not the full start/events/cancel/reconcile production protocol above. [ADR 0004](adrs/0004-execution-protocol-spike.md) records installed Codex help inspection and primary documentation for Claude Code, pi, and Hermes. Codex exec is the first M4 candidate; authentication, subscriptions, isolation, actual execution, usage, and cancellation remain unverified. A real adapter must not be admitted through the fake retry path.
+
+## Fake-worker coordination boundary
+
+Claim packets now include persisted executor/run/fence and an immutable bounded briefing. The core validates heartbeat/progress/block/result messages against current run authority, absolute assignment time, and progress deadline. Accepted handoffs create fresh attempts/fences. Known late results receive a distinct unaccepted-evidence wrapper; identical late output is retained once, not promoted to an accepted result. No actual model or provider credentials exist in these packets.
+
+The CLI supports fake completion, deterministic block, and alive-without-progress scenarios. These are local simulation modes, not new real runtime adapters. Database fencing is sufficient only because fake workers have no mutable workspace or external effects. Actual subprocess cancellation, credential revocation, isolation, uncertain-effect reconciliation, and installed-runtime admission remain required before M4 real execution.

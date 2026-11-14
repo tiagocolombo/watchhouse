@@ -645,13 +645,13 @@ fn migration_checksums_accept_legacy_crlf_and_reject_future_history_without_writ
         .unwrap(),
         legacy
     );
-    db.execute("INSERT INTO schema_migrations VALUES (3,'future')", [])
+    db.execute("INSERT INTO schema_migrations VALUES (4,'future')", [])
         .unwrap();
     assert!(matches!(Store::open(&path), Err(Error::Conflict(_))));
     assert_eq!(
         db.query_row("SELECT COUNT(*) FROM schema_migrations", [], |r| r
             .get::<_, i64>(0))
             .unwrap(),
-        3
+        4
     );
 }
