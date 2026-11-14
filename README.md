@@ -1,5 +1,7 @@
 # Watchhouse
 
+<img src="assets/logo.png" alt="Watchhouse logo" width="640">
+
 **An agent-operated maintenance, incident response, and SRE team.**
 
 Watchhouse turns operational signals into coordinated investigations, evidence-backed decisions, verified fixes, and lasting improvements.
@@ -66,3 +68,5 @@ Hallmark may serve as an optional repair backend. Its lessons format is a candid
 Start with the [implementation guide](implementation/README.md), then the [current status](implementation/STATUS.md) and [roadmap](implementation/11-roadmap.md).
 
 The [agent instructions](AGENTS.md) explain how to continue across sessions. The implementation documents preserve requirements, proposed architecture, interfaces, acceptance scenarios, and unresolved decisions without relying on chat history.
+
+[Icon and logo assets](assets/README.md).

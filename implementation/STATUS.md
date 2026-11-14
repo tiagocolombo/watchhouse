@@ -18,6 +18,7 @@ The repository is intended to be the authoritative continuation point. Do not re
 - Knowledge lifecycle, formal artifact templates, web/API design, policy, and factory operations.
 - Ordered roadmap, acceptance scenarios, decision register, and primary reference list.
 - Root agent instructions for continuation.
+- Watchhouse icon and horizontal logo, with generation prompts and README integration.
 
 ## Next task
 
@@ -36,6 +37,6 @@ No missing information blocks documentation. Implementation proposals and later 
 
 ## Verification of this baseline
 
-2026-11-14: a local Python documentation check passed for 25 Markdown files and 32 local links, balanced fenced blocks, final newlines, and absence of trailing whitespace. Requirement, roadmap, and status coverage was reviewed. Application tests are not applicable: this is a documentation-only baseline.
+2026-11-14: a local Python documentation check passed for 26 Markdown files, local document/image references, balanced fenced blocks, final newlines, and absence of trailing whitespace. PNG integrity and icon transparency were checked. Requirement, roadmap, and status coverage was reviewed. Application tests are not applicable: this is a documentation-only baseline.
 
 After implementation begins, add actual commands/results and milestone evidence. Keep implemented capabilities separate from intended acceptance criteria.
