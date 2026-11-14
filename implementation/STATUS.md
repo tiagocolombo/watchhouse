@@ -35,7 +35,7 @@ On Linux, 2026-11-14:
 
 | Command / check | Result |
 | --- | --- |
-| `npm install --prefix web` | Dependency lockfile created; no runtime web dependencies |
+| `npm install --prefix web`, then `npm ci --prefix web` | Lockfile created and clean install passed; no runtime web dependencies |
 | `npm run build --prefix web` | Strict TypeScript compilation passed |
 | `cargo fmt --all -- --check` | Passed |
 | `cargo clippy --locked --all-targets -- -D warnings` | Passed |
@@ -48,7 +48,7 @@ On Linux, 2026-11-14:
 
 Recovery tests exit a child process without destructors after intake commit, claim commit, adapter execution, and completion commit. A new application opens the same SQLite file, recovers pending/expired work, retains one accepted result, and never loses accepted intake. SQL-fault tests separately prove rollback during intake, claim, and completion (including evidence). Concurrent tests exercise eight identical intake commands, two competing versioned edits, and eight work claimers. Expired/superseded and incorrectly attributed results cannot advance state. HTTP tests replay from Last-Event-ID after a snapshot/connection gap. The CLI test runs distinct processes against the same database. Standard tests use no live models, subscriptions, or production systems.
 
-The CI workflow is configured; local evidence above is Linux only. Remote CI execution and macOS/Windows behavior must be checked separately, and no distribution/portability claim is made yet.
+Initial [remote CI run](https://github.com/tiagocolombo/watchhouse/actions/runs/43625728573) passed Linux Rust checks but failed browser setup because ubuntu-latest selected Ubuntu 26.04, unsupported by pinned Playwright 1.56.1. CI now pins Ubuntu 24.04, explicitly installs the Rust toolchain, and disables matrix fail-fast to retain independent platform results. The follow-up run is pending; local browser acceptance passed. No distribution/portability claim is made yet.
 
 ## How to run
 

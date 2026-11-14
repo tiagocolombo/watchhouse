@@ -7,8 +7,9 @@ permissions:
 jobs:
   check:
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-24.04, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -18,7 +19,7 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - name: Install pinned Rust toolchain
-        run: rustup show
+        run: rustup toolchain install 1.90.0 --profile minimal --component rustfmt,clippy
       - name: Install and compile web assets
         run: npm ci --prefix web && npm run build --prefix web
       - run: cargo fmt --all -- --check
