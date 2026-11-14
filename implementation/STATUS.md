@@ -8,7 +8,7 @@ Last updated: 2026-11-14.
 
 The native Rust coordinator owns state, supervision, communication and transfer. A fake investigator can claim work, report an owned blocker/checkpoint, receive a directed reply, and be replaced by an addressed successor that accepts the frozen briefing before ownership changes. CLI workers execute this path without HTTP. The web app observes the same persisted state and submits validated operator commands.
 
-Development branch: `dev/m2-team-handoff`, based on `4fcfc16` from `dev/m1-dispositions`. This branch's implementation commit includes the updated contracts, ADR and handoff. No real harness, production system, external notification, independent challenge/verification gate, or automatic merge exists.
+Development branch: `dev/m2-team-handoff`, based on `4fcfc16` from `dev/m1-dispositions`. Implementation commit: `0adf9d8`; the final documentation commit records its verified CI handoff. No real harness, production system, external notification, independent challenge/verification gate, or automatic merge exists.
 
 ## Implemented
 
@@ -49,7 +49,7 @@ Linux, 2026-11-14:
 
 New evidence includes a multi-process CLI-only block → offer → successor discovery/acceptance → result flow, healthy heartbeats without useful progress, repeated checkpoints, shared time/attempt budgets, competing handoff/accept/tick commands, wrong/late proof, late artifact deduplication, message acknowledgment vs resolution, schema-2 active-run preservation, and injected rollback of checkpoint/message/block, ownership/acceptance and escalation. Children exit after block, offer, and acceptance; reopening the database preserves the pending obligation or current proof. Browser acceptance disconnects while the core accepts/completes/rejects old output, then replays full history and observes/acknowledges a local overdue-message escalation. Untrusted message text stays inert.
 
-Standard checks use no live models, subscriptions, production systems, external notification destinations, or real mutable workspaces. Previous M1 [CI 43629885681](https://github.com/tiagocolombo/watchhouse/actions/runs/43629885681) passed at `f400e09`; current branch cross-platform CI is pending publication/verification and must be recorded separately.
+Standard checks use no live models, subscriptions, production systems, external notification destinations, or real mutable workspaces. Previous M1 [CI 43629885681](https://github.com/tiagocolombo/watchhouse/actions/runs/43629885681) passed at `f400e09`; **current [CI 43634045680](https://github.com/tiagocolombo/watchhouse/actions/runs/43634045680) passed at `0adf9d8` on Linux (Ubuntu 24.04), macOS and Windows: strict TypeScript, formatting, Clippy, all 41 Rust tests and native builds. All 3 Chromium scenarios passed on Linux.**
 
 ## How to run
 
