@@ -8,7 +8,7 @@ M0 foundations and the requested smallest M1 vertical slice are implemented:
 
 **Manual case → committed state/events/job → claimed fake investigation → persisted result/evidence → visible replayable web timeline.**
 
-Development branch: `dev/m0-m1-durable-slice`, based on `19fdcf2`. The implementation commit on this branch includes this handoff. No real harness, production integration, incident automation, or merge workflow exists. M1 as a whole is not complete; M2–M8 remain planned.
+Development branch: `dev/m0-m1-durable-slice`, based on `19fdcf2`. Implementation commit: `7a54046`; verified CI configuration: `c9553a2`. The final documentation commit records this validation handoff. No real harness, production integration, incident automation, or merge workflow exists. M1 as a whole is not complete; M2–M8 remain planned.
 
 ## Implemented
 
@@ -48,7 +48,7 @@ On Linux, 2026-11-14:
 
 Recovery tests exit a child process without destructors after intake commit, claim commit, adapter execution, and completion commit. A new application opens the same SQLite file, recovers pending/expired work, retains one accepted result, and never loses accepted intake. SQL-fault tests separately prove rollback during intake, claim, and completion (including evidence). Concurrent tests exercise eight identical intake commands, two competing versioned edits, and eight work claimers. Expired/superseded and incorrectly attributed results cannot advance state. HTTP tests replay from Last-Event-ID after a snapshot/connection gap. The CLI test runs distinct processes against the same database. Standard tests use no live models, subscriptions, or production systems.
 
-Initial [remote CI run](https://github.com/tiagocolombo/watchhouse/actions/runs/43625728573) passed Linux Rust checks but failed browser setup because ubuntu-latest selected Ubuntu 26.04, unsupported by pinned Playwright 1.56.1. CI now pins Ubuntu 24.04, explicitly installs the Rust toolchain, and disables matrix fail-fast to retain independent platform results. The follow-up run is pending; local browser acceptance passed. No distribution/portability claim is made yet.
+Initial [remote CI run](https://github.com/tiagocolombo/watchhouse/actions/runs/43625728573) passed Linux Rust checks but failed browser setup because ubuntu-latest selected Ubuntu 26.04, unsupported by pinned Playwright 1.56.1. CI now pins Ubuntu 24.04, explicitly installs the Rust toolchain, and disables matrix fail-fast to retain independent platform results. **Follow-up [CI run 43625938174](https://github.com/tiagocolombo/watchhouse/actions/runs/43625938174) passed on Linux (Ubuntu 24.04), macOS, and Windows at `c9553a2`: strict TypeScript compilation, formatting, Clippy, all 12 Rust tests, and binary builds. The Linux Chromium workflow also passed.** These checks establish this slice on those hosted platforms, not a packaged distribution or real-harness portability guarantee.
 
 ## How to run
 
