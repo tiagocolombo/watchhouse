@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Watchhouse · Operations</title><link rel="icon" href="/icon.png"><link rel="stylesheet" href="/style.css"><script type="module" src="/app.js"></script></head>
+<body>
+<header><img src="/logo.png" alt="Watchhouse" width="280"><span class="badge">LOCAL WORKSPACE</span></header>
+<main>
+<div class="heading"><div><p class="eyebrow">OPERATIONS / CASES</p><h1>Every signal has a next step.</h1><p class="muted">Manual intake, accountable assignments, and a durable record.</p></div><span id="connection" role="status">Connect to workspace</span></div>
+<p id="error" role="alert"></p>
+<section id="login"><h2>Open your workspace</h2><p>Enter the local operator token printed by the coordinator.</p><form id="login-form"><label>Operator token<input id="token" type="password" required autocomplete="off"></label><button>Connect</button></form></section>
+<div id="workspace" hidden>
+<div class="notice"><strong>Fake execution enabled.</strong> Results are synthetic. The operator owns review; no incident recovery is asserted.</div>
+<div class="columns"><aside><section><h2>Create a case</h2><form id="create-form"><label>Title<input id="title" maxlength="200" required placeholder="What needs investigation?"></label><label>Description<textarea id="description" maxlength="16000" rows="3"></textarea></label><label>Reason<input id="reason" value="Manual intake" required></label><button id="create">Create case</button></form></section><section><h2>Case queue</h2><nav id="cases" aria-label="Cases"></nav></section></aside>
+<section id="detail"><div id="empty"><img src="/icon.png" width="76" alt=""><h2>Your watch starts here.</h2><p>Create or select a case to see its assignment, result, and recorded timeline.</p></div><div id="case-view" hidden><p class="eyebrow" id="case-id"></p><h2 id="case-title"></h2><div class="metadata"><span id="case-status" class="badge"></span><span id="version"></span><span id="owner"></span></div><p id="case-description"></p><p id="next" class="notice"></p><details><summary>Update title</summary><form id="rename-form"><label>Title<input id="rename-title" required maxlength="200"></label><label>Reason<input id="rename-reason" required></label><button>Save with version check</button></form></details><h3>Investigation result</h3><div id="results"></div><h3>Activity timeline</h3><ol id="timeline"></ol></div></section></div>
+</div>
+</main><footer>Watchhouse · The incident record lives here.</footer>
+</body></html>

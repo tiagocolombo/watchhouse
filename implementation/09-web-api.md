@@ -52,3 +52,19 @@ Operator, observer, service-owner, and worker capabilities are separate. A worke
 A TypeScript browser application is a candidate; framework and packaging remain open. Prefer bundled static assets served by the coordinator for the first release. The application must remain useful with no model available.
 
 Acceptance requires browser-level checks for the incident timeline, stale-action conflicts, stuck-worker takeover, and provenance navigation. Every status should link to evidence, policy reason, and the next responsible action.
+
+## Implemented local interface (first M1 slice)
+
+The current branded UI provides token entry, manual intake, newest 200 cases, case ownership/next obligation, assignment status, synthetic result, evidence inspection, and a live/replayable activity timeline. Title updates demonstrate audited expected-version conflicts. No other operator controls listed above exist yet.
+
+| Method | Implemented endpoint | Meaning |
+| --- | --- | --- |
+| GET / POST | /api/v1/cases | List / create via CreateCase |
+| GET | /api/v1/cases/{id} | Consistent snapshot, assignment, results, complete history and resume cursor |
+| POST | /api/v1/cases/{id}/rename | RenameCase with actor/reason/key/expected_version |
+| GET | /api/v1/cases/{id}/events | SSE replay after cursor; Last-Event-ID overrides after query |
+| GET | /api/v1/evidence/{digest} | Authenticated persisted fake-result JSON |
+
+See [v1 contracts](../contracts/v1/README.md) for payloads. Command validation errors return 400 invalid_command; command-key/version/fence conflicts return 409 conflict, missing records 404 not_found. Unknown internal/persistence errors return 500 internal_error without exposing database detail. Framework rejection of malformed query/body limits may use its native errors.
+
+Only loopback binding is supported. Explicit bearer auth, Host/Origin checks, CSP, and inert text rendering establish the local session boundary; there are no cookies, remote roles, or worker API. The token remains in browser tab sessionStorage and is supplied as an Authorization header, including fetch-based SSE. Snapshots/stream frames are deduplicated by event ID. [ADR 0003](adrs/0003-local-api-and-timeline.md) describes reconnection and current pagination limits. Closing the browser cannot stop the polling fake worker.

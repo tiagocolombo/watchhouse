@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "idempotency_key": "manual-intake-fixture-1",
+  "actor": "operator",
+  "reason": "Investigate a sanitized fixture without production access",
+  "title": "Intermittent checkout timeout",
+  "description": "Synthetic observation only. Impact, cause, and recovery are unknown."
+}

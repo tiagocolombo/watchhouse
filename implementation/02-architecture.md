@@ -77,3 +77,9 @@ Advertise worker labels such as macOS, Xcode, Android SDK, Linux container, repo
 A failed adapter, unavailable model, or held incident must not stop unrelated incidents. Per-repository work limits prevent conflicting repair attempts. Protect shared testing ports, caches, and fixture services with explicit resource leases.
 
 The deterministic supervisor owns deadlines and escalation even when all execution backends are unavailable. See [team communication](05-team-communication.md) and [operations](13-operations.md).
+
+## Implemented M0 / first M1 slice (2026-11-14)
+
+[ADR 0001](adrs/0001-local-stack.md) accepts Rust and the bundled TypeScript UI. The current source modules are domain, contracts, application, store, intake (fake source), execution (fake adapter), HTTP, and CLI. Only Application mutates authoritative records. Domain types and clocks have no infrastructure/provider dependency. One case aggregate serializes its assignment/run changes; HTTP and CLI call identical services.
+
+[ADR 0002](adrs/0002-transactional-local-store.md) accepts SQLite state/events/jobs/receipts and inline content-addressed bounded evidence for this slice, superseding the proposed external artifact location for fake JSON only. Intake, claim, and completion are separate atomic boundaries; no other runtime can be selected. A polling worker and durable stream queries avoid broker or browser-lifetime dependencies. [ADR 0003](adrs/0003-local-api-and-timeline.md) covers local auth/replay. Full module ownership, subprocess workers, supervisor, external-effect outbox, and remote modes above remain planned.

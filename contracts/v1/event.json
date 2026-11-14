@@ -1,0 +1,20 @@
+{
+  "cursor": 1,
+  "event_id": "evt_fixture",
+  "schema_version": 1,
+  "aggregate_type": "case",
+  "aggregate_id": "case_fixture",
+  "aggregate_version": 1,
+  "recorded_at": "2026-11-14T12:00:00.000Z",
+  "occurred_at": null,
+  "actor": { "kind": "operator", "id": "operator" },
+  "correlation_id": "case_fixture",
+  "causation_id": "manual-intake-fixture-1",
+  "policy_version": "local-fake-only-v1",
+  "type": "case.created",
+  "payload": {
+    "title": "Intermittent checkout timeout",
+    "reason": "Investigate a sanitized fixture without production access",
+    "owner": "operator"
+  }
+}

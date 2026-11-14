@@ -47,3 +47,9 @@ Control retry storms. Authentication/quota outages trigger circuit breakers and 
 Before enabling automatic merges, run the relevant verification scenarios in a dedicated repository. Before production runbook actions, demonstrate isolation, target scoping, stop/rollback behavior, and independent outcome checks.
 
 Practice commander loss, worker loss, notification-channel failure, source outage, injected evidence, and restore. Use postmortems on factory failures too; accepted lessons cannot weaken factory authority.
+
+## Current local development operations
+
+Build/run/test commands are in the root README. Startup applies/checks migration 1 before CLI or HTTP work. `serve` binds only to 127.0.0.1 and also polls fake work; `worker --once` can finish one queued or expired job without a browser/server. A generated token changes on restart unless WATCHHOUSE_TOKEN is supplied. A claimed fake run waits at most its remaining 30-second lease before recovery; fake results have no external effects to reconcile.
+
+The database contains state, events, command receipts, queue, runs, and bounded evidence. Retain the database rather than relying on process memory; do not copy a live WAL database casually. Consistent backup/restore tooling, clock-jump handling, scheduler health/backpressure, terminal retry budgets, notification/escalation, and automatic fault isolation are not implemented. A worker/storage error is surfaced to the process; restarting preserves committed work. No production-readiness claim is made by this local slice.

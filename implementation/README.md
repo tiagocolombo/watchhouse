@@ -2,7 +2,7 @@
 
 This folder is the durable design and implementation handoff for Watchhouse. It is intended to let a new contributor or agent continue without the original conversation.
 
-Baseline date: 2026-11-14. Status: design baseline; no application implementation.
+Baseline date: 2026-11-14. M0 foundations and the first M1 slice are implemented; see [STATUS](STATUS.md) for verified scope. Other capabilities below remain planned.
 
 ## Reading order
 

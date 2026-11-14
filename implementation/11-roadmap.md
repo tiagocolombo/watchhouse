@@ -2,6 +2,10 @@
 
 Every milestone delivers a usable vertical slice with evidence and a STATUS.md update. A checked document is not an implemented feature.
 
+## Current delivery state (2026-11-14)
+
+M0 foundations are implemented, including the documented no-model protocol spike. The requested first M1 slice works end to end and has recovery/concurrency/browser evidence in [STATUS](STATUS.md). This does **not** complete M1: evidence-backed expected/transient/uncertain dispositions and reopening rules are next. M2–M8 remain planned. Real runtime admission is still unverified; ADR 0004 records the bounded spike.
+
 ## M0 — Bootstrap and contracts
 
 Deliver repository scaffold, chosen language/runtime versions, formatting/CI, migrations framework, versioned contracts, fake clock/runtime/source, and ADRs for initial stack.
@@ -64,4 +68,4 @@ Do not defer all UI to M8. Every milestone has a visible operating surface. Do n
 
 ## First implementation task
 
-Implement M0 plus the smallest M1 slice: manual case creation -> persisted event -> queued fake assignment -> observed result -> web timeline. Start by deciding the stack and writing contracts/migration tests.
+Completed: M0 plus manual case creation -> persisted event -> queued fake assignment -> observed result -> web timeline. Next: complete M1 with versioned disposition/reconsideration commands, evidence references, configurable monitoring/review deadlines, and deterministic reopening, visible in CLI/web; then start M2 before real execution.

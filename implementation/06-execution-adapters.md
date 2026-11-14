@@ -62,3 +62,9 @@ Implement a deterministic fake adapter first, then select one real runtime after
 Use native machine protocols where available; do not scrape a TUI as the primary contract. Generic subprocess adapters must conform to the same validation, cancellation, and evidence requirements.
 
 Session resume is an optimization. A different harness can continue using the durable handoff package without importing another harness's private session.
+
+## Implemented fake seam and M0 spike
+
+[src/execution.rs](../src/execution.rs) implements a deterministic, side-effect-free FakeAdapter and a versioned assignment/objective Task. The injected Clock supports explicit time advancement in tests. [FakeSource](../src/intake.rs) reads a versioned sanitized fixture, with no provider dependencies. Application validates fake output, correlates it to the current run/assignment/fence, and persists synthetic evidence. There is no harness/model selection surface.
+
+This narrow synchronous trait is not the full start/events/cancel/reconcile production protocol above. [ADR 0004](adrs/0004-execution-protocol-spike.md) records installed Codex help inspection and primary documentation for Claude Code, pi, and Hermes. Codex exec is the first M4 candidate; authentication, subscriptions, isolation, actual execution, usage, and cancellation remain unverified. A real adapter must not be admitted through the fake retry path.

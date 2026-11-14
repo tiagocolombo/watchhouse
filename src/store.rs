@@ -1,0 +1,144 @@
+//! SQLite owns state, events, evidence bytes, command receipts, and runnable work.
+use crate::contracts::{Actor, Event, EventData, V1};
+use crate::domain::{Case, CaseStatus};
+use crate::error::{Error, Result};
+use rusqlite::{Connection, OptionalExtension, Transaction, params};
+use sha2::{Digest, Sha256};
+use std::{
+    path::{Path, PathBuf},
+    time::Duration,
+};
+use uuid::Uuid;
+
+#[derive(Clone)]
+pub struct Store {
+    path: PathBuf,
+}
+impl Store {
+    pub fn open(path: impl AsRef<Path>) -> Result<Self> {
+        let store = Self {
+            path: path.as_ref().to_path_buf(),
+        };
+        let mut db = store.connect()?;
+        db.pragma_update(None, "journal_mode", "WAL")?;
+        let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        tx.execute_batch("CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, digest TEXT NOT NULL);")?;
+        let sql = include_str!("../migrations/001_initial.sql");
+        let digest = digest(sql);
+        let existing: Option<String> = tx
+            .query_row(
+                "SELECT digest FROM schema_migrations WHERE version=1",
+                [],
+                |r| r.get(0),
+            )
+            .optional()?;
+        match existing {
+            Some(old) if old != digest => {
+                return Err(Error::Conflict("migration 1 checksum changed".into()));
+            }
+            None => {
+                tx.execute_batch(sql)?;
+                tx.execute("INSERT INTO schema_migrations VALUES (1, ?1)", [&digest])?;
+            }
+            _ => {}
+        }
+        let newest: i64 = tx.query_row("SELECT MAX(version) FROM schema_migrations", [], |r| {
+            r.get(0)
+        })?;
+        if newest != 1 {
+            return Err(Error::Conflict(
+                "database is newer than this application".into(),
+            ));
+        }
+        tx.commit()?;
+        Ok(store)
+    }
+    pub fn connect(&self) -> Result<Connection> {
+        let db = Connection::open(&self.path)?;
+        db.busy_timeout(Duration::from_secs(5))?;
+        db.pragma_update(None, "foreign_keys", "ON")?;
+        db.pragma_update(None, "synchronous", "FULL")?;
+        Ok(db)
+    }
+}
+pub fn digest(content: &str) -> String {
+    format!("sha256:{:x}", Sha256::digest(content.as_bytes()))
+}
+pub fn id(prefix: &str) -> String {
+    format!("{prefix}_{}", Uuid::new_v4())
+}
+pub fn case(db: &Connection, id: &str) -> Result<Case> {
+    db.query_row(
+        "SELECT id,title,description,owner,status,version,created_at FROM cases WHERE id=?1",
+        [id],
+        |row| {
+            let status: String = row.get(4)?;
+            Ok(Case {
+                schema_version: V1,
+                id: row.get(0)?,
+                title: row.get(1)?,
+                description: row.get(2)?,
+                owner: row.get(3)?,
+                status: match status.as_str() {
+                    "queued" => CaseStatus::Queued,
+                    "running" => CaseStatus::Running,
+                    _ => CaseStatus::AwaitingReview,
+                },
+                version: row.get(5)?,
+                created_at: row.get(6)?,
+            })
+        },
+    )
+    .optional()?
+    .ok_or(Error::NotFound)
+}
+/// All child records use the case aggregate's serialization/version boundary in v1.
+pub fn emit(
+    tx: &Transaction<'_>,
+    case_id: &str,
+    actor: Actor,
+    cause: &str,
+    time: &str,
+    data: EventData,
+) -> Result<()> {
+    tx.execute("UPDATE cases SET version=version+1 WHERE id=?1", [case_id])?;
+    let version = case(tx, case_id)?.version;
+    let event = Event {
+        cursor: 0,
+        event_id: id("evt"),
+        schema_version: V1,
+        aggregate_type: "case".into(),
+        aggregate_id: case_id.into(),
+        aggregate_version: version,
+        recorded_at: time.into(),
+        occurred_at: None,
+        actor,
+        correlation_id: case_id.into(),
+        causation_id: cause.into(),
+        policy_version: "local-fake-only-v1".into(),
+        data,
+    };
+    tx.execute(
+        "INSERT INTO events(event_id,case_id,aggregate_version,envelope) VALUES (?1,?2,?3,?4)",
+        params![
+            event.event_id,
+            case_id,
+            version,
+            serde_json::to_string(&event)?
+        ],
+    )?;
+    Ok(())
+}
+pub fn events(db: &Connection, case_id: &str, after: i64, limit: i64) -> Result<Vec<Event>> {
+    let mut stmt = db.prepare("SELECT cursor,envelope FROM events WHERE case_id=?1 AND cursor>?2 ORDER BY cursor LIMIT ?3")?;
+    let rows = stmt.query_map(params![case_id, after, limit], |r| {
+        Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?))
+    })?;
+    rows.map(|row| {
+        let (cursor, json) = row?;
+        let mut event: Event = serde_json::from_str(&json)?;
+        event.cursor = cursor;
+        Ok(event)
+    })
+    .collect()
+}

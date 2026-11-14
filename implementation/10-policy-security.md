@@ -60,3 +60,9 @@ Define retention for raw evidence, transcripts, exported reports, and postmortem
 Test injected telemetry, a candidate modifying its own instructions, forged agent results, stale-worker writes, duplicate publishing, malicious imported knowledge, leaked credentials in logs, unsafe remote web access, and a compromised adapter.
 
 Pause new effects independently from monitoring and notifications. Emergency stop revokes applicable capabilities and cancels workers; reconcile potentially completed external operations before resuming.
+
+## Current authority in the first slice
+
+The only executable policy profile is local-fake-only-v1: manual intake, title updates, and side-effect-free synthetic investigation. No selectable real harness, shell action, production mutation, publication, communication, policy update, or knowledge acceptance endpoint exists. A shared local bearer token represents one trusted operator; actor labels are attribution, not RBAC identities. Direct CLI authority is OS-level database access.
+
+Results require the matching assignment/run/case/current fence and an unexpired lease; late results cannot advance authoritative state. Completion means synthetic evidence recorded and operator review pending, never recovery or independent verification. General policy evaluation, pause/stop controls, subprocess containment, scoped external effects, and independence gates above remain required before operational automation.

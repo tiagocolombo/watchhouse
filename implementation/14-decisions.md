@@ -33,12 +33,23 @@ This is the initial lightweight decision register. Split substantial future ADRs
 
 These are implementation recommendations, not owner-approved technology commitments. A contributor may resolve routine choices with an ADR and evidence, preserving confirmed product decisions.
 
+## Accepted implementation ADRs
+
+| ADR | Resolution |
+| --- | --- |
+| [0001](adrs/0001-local-stack.md) | P01/P05: Rust 1.90 coordinator/CLI, bundled framework-free TypeScript UI |
+| [0002](adrs/0002-transactional-local-store.md) | P02: SQLite state/events/jobs/receipts; bounded evidence inline by digest; aggregate versions and fencing |
+| [0003](adrs/0003-local-api-and-timeline.md) | P05: loopback bearer session, shared application services, snapshot plus durable SSE replay |
+| [0004](adrs/0004-execution-protocol-spike.md) | P07/M0 protocol spike: fake-only admission; Codex exec is the first real-adapter candidate, unverified until M4 |
+
+These resolve implementation proposals within the owner's authorized scope. They do not change confirmed product decisions. P03/P04/P06/P08 remain wider design proposals; partial assignment/lease foundations do not complete them.
+
 ## Open decisions and when to resolve
 
 | Question | Resolve by |
 | --- | --- |
-| Final stack, minimum versions, UI framework, package layout | M0 |
-| First real runtime, installed version, protocol, auth/capability coverage | M0 spike; implement M4 |
+| Final stack, minimum versions, UI framework, package layout | Resolved: ADR 0001 |
+| First real runtime, installed version, protocol, auth/capability coverage | M0 spike: ADR 0004; full installed-version admission and implementation M4 |
 | Initial service/repository and sanitized historical fixtures | M3 |
 | Sentry plan features and webhook/enrichment permissions | M3 |
 | Numeric severity profiles and default timers | M3; configurable before real response |
@@ -69,3 +80,5 @@ These are implementation recommendations, not owner-approved technology commitme
 ## Change record
 
 2026-11-14: initial product and implementation baseline captured from the owner's requirements. No application capability is yet implemented.
+
+2026-11-14: M0/M1 slice implementation accepted ADRs 0001–0004. Evidence and limitations are recorded in STATUS.md.

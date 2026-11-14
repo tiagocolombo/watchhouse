@@ -61,3 +61,13 @@ Human review is required for evaluation labels where operational truth is uncert
 ## Definition of done per feature
 
 Implementation plus meaningful tests, visible state/evidence, typed failure/recovery behavior, documented authority, updated contracts, and STATUS.md entries with actual commands/results. Avoid tests that merely mirror field assignments.
+
+## Verified first slice (2026-11-14)
+
+- Rust workflow tests: atomic intake/claim/completion rollback under injected SQL failures; append-only history; versioned fixture validation and rejection; migration checksums; duplicate key replay/mismatch; concurrent updates/claims; invalid/misattributed/stale result rejection; deterministic adapter and fake clock/source.
+- Process recovery: a child exits without destructors after intake, claim, execution, and completion. Reopen the real file, advance the controlled clock, retry pending work, and retain one accepted case/result with all committed history.
+- HTTP tests: token/origin/host enforcement, strict schema decoding, structured conflicts, snapshot plus Last-Event-ID stream replay, cursor validation, and evidence path coverage through browser acceptance.
+- CLI integration: separate processes migrate, create/retry, execute, show results, and reject stale updates against the same store/services.
+- Chromium: create through UI, inspect persisted evidence, confirm script-looking input is inert, disconnect while another client changes the case, reconnect/reload without duplicate entries, and reject a competing stale browser command. Desktop/mobile screenshots are reviewed locally.
+
+V26 is covered for this bounded workflow. The fake lease tests establish a prerequisite for V07/V10; they do not prove full M2 takeover, checkpoint/handoff, external-effect cancellation, notification, or escalation behavior. V01–V03 dispositions/reopening remain unfinished M1 work. Other wider acceptance scenarios above remain planned. Exact commands/results and platform limits are in [STATUS](STATUS.md).

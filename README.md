@@ -10,7 +10,42 @@ Connect an observability tool such as Sentry or Datadog. Watchhouse assesses wha
 
 The team keeps the records a real incident organization needs: incident details, investigation logs, escalation and handoff records, change plans, recovery assessments, postmortems, corrective actions, and runbooks.
 
-**Status: design and implementation planning.** This repository currently contains the specification; the capabilities below describe the intended product. There is no released application or install command yet.
+**Status: M0 foundations and the first M1 slice run locally.** Manual case creation → durable events → queued fake investigation → persisted evidence/result → live web timeline works. The broader team described below remains the intended product; no real harness, production integration, or merge automation is implemented.
+
+## Run the local slice
+
+Prerequisites: Rust via rustup (the repository pins 1.90.0), Node.js 22+, and npm. No model account or subscription is needed.
+
+```sh
+npm ci --prefix web
+npm run build --prefix web
+cargo run --locked -- serve
+```
+
+Open `http://127.0.0.1:8787` and enter the operator token printed in your terminal. Create a case; the coordinator processes its fake assignment even if you close the browser. Reopen the case to inspect the persisted result and timeline. Results are explicitly synthetic, and the case remains awaiting operator review.
+
+CLI uses the same services and database (default `.watchhouse/watchhouse.db`):
+
+```sh
+cargo run --locked -- case create --title "Checkout timeout" --key intake-001
+cargo run --locked -- worker --once
+cargo run --locked -- case list
+cargo run --locked -- case show CASE_ID
+```
+
+The key makes command retries safe. `worker --once` is useful without `serve`; `serve` already runs the worker. Use `--db PATH` to select another database, `migrate` to validate/apply migrations, and `serve --port PORT` for another loopback port. Set `WATCHHOUSE_TOKEN` (at least 32 bytes) for a stable local operator token; otherwise each server start generates one. Local CLI access relies on operating-system access to the database.
+
+```sh
+cargo fmt --all -- --check
+cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked
+cargo build --locked
+cd web
+npx playwright install chromium
+npm test
+```
+
+Browser tests use only a temporary local database and fake execution. Standard checks never invoke a live harness or production system. Linux was validated locally; CI also configures Rust checks on macOS and Windows. Full M1 dispositions/reopening, M2 communication/supervision/escalation, and real execution are still ahead. See [current status](implementation/STATUS.md) for evidence and the exact next task.
 
 ## A typical response
 
