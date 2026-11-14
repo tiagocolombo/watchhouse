@@ -1,0 +1,62 @@
+# Policy, authority, and safety boundaries
+
+## Authority model
+
+Policy is a versioned configuration owned by the operator, outside candidate workspaces and agent-controlled changes.
+
+Capabilities scope repositories, services/environments, data access, tools, filesystem/network access, operational actions, publishing, merging, external communications, and knowledge acceptance.
+
+Evaluate policy deterministically from verified facts and explicit exceptions. Agents recommend; the application grants scoped authority. The commander coordinates within policy and cannot grant new powers.
+
+## Automatic merge
+
+Automatic eligible merging is a confirmed product goal. Admission requires:
+
+1. Repository, base branch, change category, paths, and risk class are allowed.
+2. Candidate identity and final relevant base are known.
+3. Required reproduction, tests, checks, independent review, and CI satisfy policy.
+4. Required repository approvals/protection remain satisfied.
+5. No unresolved blocking findings/challenges or conflicting active changes.
+6. Limits and any required exception approvals are current.
+7. Immediately before the effect, external head/base/eligibility are rechecked.
+8. An idempotent or reconcilable merge operation is recorded.
+
+Record both allowed and denied decisions with inputs, versions, reasons, and expiration. Never count the builder's statement that tests passed as verified check evidence.
+
+Approval carryover, test reuse, and merge-strategy handling need explicit rules and tests. Until implemented, candidate/base changes trigger conservative revalidation.
+
+## Separate powers
+
+Publishing and merging do not imply deployment or arbitrary production execution. Treat production mitigation, secret changes, data migrations/deletion, auth/billing changes, and customer communications as separate action classes.
+
+Use declared sensitive-path and action policies. An exception states exact scope, authority, compensating controls, expiry, and required follow-up. No silent bypass for emergencies.
+
+Builders get no repository publication credentials. Production effects run through controlled executors where feasible, not arbitrary shell access with broad cloud credentials.
+
+## Untrusted input
+
+Logs can contain attacker-controlled instructions, URLs, payloads, and secrets. Source signatures establish provenance, not instruction authority.
+
+Separate trusted task/policy instructions from evidence. Bound/redact telemetry and restrict fetches to configured providers/hosts. Defend enrichment against SSRF, credential forwarding, oversized artifacts, malicious archives, and source-map paths.
+
+Candidate code, repository configuration, hooks, tests, plugins, and imported lessons can execute or influence agents. Run builds/tests in qualified isolation. Pin trusted role definitions and knowledge outside the candidate.
+
+Use actual OS/container/worker boundaries. Git worktrees alone are not security isolation; they share repository metadata and often host privileges.
+
+## Independent validation
+
+Freeze artifact versions for review. Avoid the author's private transcript in reviewer context. The same model may staff different roles, but independent evidence gathering and separate capability scopes remain mandatory.
+
+Record disagreement; evaluate claims through experiments and evidence. Model agreement is not a gate. Review attestations bind to candidate, checks, environment, policy, and role identity.
+
+## Secrets and privacy
+
+Store secret references, use platform secret stores or configured secure injection, redact transcripts, and scope access by incident/service. Do not copy harness OAuth stores into the factory or worker artifacts.
+
+Define retention for raw evidence, transcripts, exported reports, and postmortems. Public summaries and internal incident detail are different audiences. Restrict sensitive security/data incidents.
+
+## Threat and recovery scenarios
+
+Test injected telemetry, a candidate modifying its own instructions, forged agent results, stale-worker writes, duplicate publishing, malicious imported knowledge, leaked credentials in logs, unsafe remote web access, and a compromised adapter.
+
+Pause new effects independently from monitoring and notifications. Emergency stop revokes applicable capabilities and cancels workers; reconcile potentially completed external operations before resuming.
