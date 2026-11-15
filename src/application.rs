@@ -230,6 +230,7 @@ impl Application {
             challenges: crate::challenges::snapshot(&tx, id)?,
             gate: crate::challenges::gate(&tx, id)?,
             policy: Some(crate::policy::for_case(&tx, id)?),
+            notifications: crate::notifications::snapshot(&tx, id)?,
         })
     }
     pub fn timeline(&self, id: &str, after: i64) -> Result<Vec<Event>> {

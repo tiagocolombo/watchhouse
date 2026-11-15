@@ -73,3 +73,5 @@ Completed: M0 plus manual case creation -> persisted event -> queued fake assign
 2026-11-14 phase 1: independent challenge lifecycle, deadline escalation and exact-version assessment gates implemented; see ADR 0007 and STATUS. Trusted policy and external escalation remain next.
 
 2026-11-14: Phase 2 trusted configuration implemented; external escalation is the remaining M2 delivery dependency.
+
+2026-11-14: Bounded M2 mechanisms implemented for fake workers and fixture notifications; live activation remains blocked on explicit destinations/secrets. M3 fixture slice follows.

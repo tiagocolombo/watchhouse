@@ -6,6 +6,7 @@ pub mod error;
 pub mod execution;
 pub mod http;
 pub mod intake;
+pub mod notifications;
 pub mod policy;
 pub mod qualification;
 pub mod store;

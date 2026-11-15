@@ -2,6 +2,14 @@
 
 Last updated: 2026-11-14.
 
+## Phase 3: human escalation
+
+Branch `dev/m2-human-escalation`, depends on phase 2 [PR #3](https://github.com/tiagocolombo/watchhouse/pull/3). [ADR 0009](adrs/0009-human-escalation.md), [notification contract](../contracts/v1/notifications/README.md).
+
+Implemented explicitly configured versioned Slack webhook destinations by secret reference, frozen bounded human fallback chains, leased/fenced delivery tracking, known-rejection retries, uncertain-send reconciliation, acknowledgment/response deadlines, exhaustion visibility, and evidence-backed explicit resolution. CLI/API/web observe persisted delivery/resolution. The scheduler operates without models. Underlying challenge/blocker state remains independent.
+
+Verification on Linux passed: formatting, Clippy with warnings denied, all 53 Rust tests, native build, strict TypeScript, 4 Chromium scenarios and whitespace checks. Includes concurrent send claims, rate-limit/rejection/uncertainty contract checks, restart, fallback, acknowledgment vs resolution, sender loss and post-effect persistence failure. Activation blocker: actual verified human destinations and Slack webhook secrets/authority have not been supplied or installed. No live Slack integration was verified. Next: authenticated Sentry intake, enrichment/reconciliation and structured incident declaration with sanitized fixtures. Broader real-worker containment remains M4 work.
+
 ## Phase 2: trusted policy configuration
 
 Branch `dev/m2-trusted-policy`, depends on phase 1 [PR #2](https://github.com/tiagocolombo/watchhouse/pull/2). [ADR 0008](adrs/0008-trusted-policy.md) and [policy contract](../policy/README.md).

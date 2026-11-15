@@ -195,6 +195,8 @@ pub struct Escalation {
     pub state: String,
     pub acknowledged_at: Option<String>,
     pub next_action: String,
+    #[serde(default)]
+    pub resolution: Option<serde_json::Value>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunStatus {

@@ -71,6 +71,14 @@ pub fn router(app: Application, token: String, authority: String) -> Router {
         .route("/cases/{id}/team/handoffs", post(team_handoff))
         .route("/cases/{id}/team/accept-handoff", post(team_accept))
         .route("/cases/{id}/team/escalation-ack", post(team_escalation_ack))
+        .route(
+            "/cases/{id}/team/escalation-resolve",
+            post(escalation_resolve),
+        )
+        .route(
+            "/cases/{id}/team/delivery-reconcile",
+            post(delivery_reconcile),
+        )
         .route("/team/claim", post(team_claim))
         .route("/team/heartbeat", post(team_heartbeat))
         .route("/team/progress", post(team_progress))
@@ -198,6 +206,16 @@ macro_rules! worker_command {
 }
 case_command!(challenge, crate::challenges::ChallengeCommand, challenge);
 case_command!(case_gate, crate::challenges::GateCommand, record_gate);
+case_command!(
+    escalation_resolve,
+    crate::notifications::ResolveEscalation,
+    resolve_escalation
+);
+case_command!(
+    delivery_reconcile,
+    crate::notifications::ReconcileDelivery,
+    reconcile_delivery
+);
 case_command!(team_message, PostMessage, post_team_message);
 case_command!(team_message_ack, AcknowledgeMessage, acknowledge_message);
 case_command!(team_handoff, OfferHandoff, offer_handoff);

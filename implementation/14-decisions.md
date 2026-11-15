@@ -92,3 +92,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 2026-11-14: [ADR 0007](adrs/0007-independent-challenges.md) implements independent fake review and version-bound assessment gates.
 
 2026-11-14: [ADR 0008](adrs/0008-trusted-policy.md) replaces scattered development timer/budget constants with immutable case-pinned operator policy.
+
+2026-11-14: [ADR 0009](adrs/0009-human-escalation.md) adds explicit human delivery/fallback/acknowledgment/resolution, with uncertainty reconciliation.

@@ -43,6 +43,12 @@ enum Command {
         #[arg(long)]
         operator: String,
     },
+    Notifications {
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long)]
+        operator: String,
+    },
     /// Apply and validate migrations without starting workers.
     Migrate,
     /// Reconsider up to 100 persisted deadlines without invoking any executor.
@@ -104,6 +110,16 @@ enum CaseCommand {
 }
 #[derive(Subcommand)]
 enum TeamCommand {
+    ResolveEscalation {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+    ReconcileDelivery {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
     Challenge {
         id: String,
         #[arg(long)]
@@ -182,6 +198,7 @@ async fn work(
         let previous = held.clone();
         let heartbeat_due = heartbeat_at.elapsed() >= Duration::from_secs(5);
         let outcome = tokio::task::spawn_blocking(move || -> watchhouse::error::Result<_> {
+            worker.process_notifications(&watchhouse::notifications::SlackWebhook)?;
             if manual {
                 return Ok((
                     worker.process_due_obligations()? + worker.supervise_team()? > 0,
@@ -260,10 +277,20 @@ async fn main() -> anyhow::Result<()> {
                 )?)?
             );
         }
-        Command::Migrate => println!("Schema version 5 validated"),
+        Command::Notifications { file, operator } => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(
+                    &app.configure_notifications(read_command(file)?, &operator)?
+                )?
+            );
+        }
+        Command::Migrate => println!("Schema version 6 validated"),
         Command::Tick => println!(
             "{} obligation(s) became due",
-            app.process_due_obligations()? + app.supervise_team()?
+            app.process_due_obligations()?
+                + app.supervise_team()?
+                + app.process_notifications(&watchhouse::notifications::SlackWebhook)?
         ),
         Command::Team { action } => {
             let value = match action {
@@ -283,6 +310,12 @@ async fn main() -> anyhow::Result<()> {
                 }
                 TeamCommand::Gate { id, file } => {
                     serde_json::to_value(app.record_gate(&id, read_command(file)?)?)?
+                }
+                TeamCommand::ResolveEscalation { id, file } => {
+                    serde_json::to_value(app.resolve_escalation(&id, read_command(file)?)?)?
+                }
+                TeamCommand::ReconcileDelivery { id, file } => {
+                    serde_json::to_value(app.reconcile_delivery(&id, read_command(file)?)?)?
                 }
                 TeamCommand::Inbox => serde_json::to_value(app.escalation_inbox()?)?,
                 TeamCommand::Finish { file } => {
