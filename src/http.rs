@@ -66,6 +66,9 @@ pub fn router(app: Application, token: String, authority: String) -> Router {
         .route("/cases/{id}/rename", post(rename))
         .route("/cases/{id}/challenges", post(challenge))
         .route("/cases/{id}/gate", post(case_gate))
+        .route("/cases/{id}/incident", post(declare_incident))
+        .route("/cases/{id}/incident/markdown", get(incident_markdown))
+        .route("/sources/sentry", get(source_health))
         .route("/cases/{id}/team/messages", post(team_message))
         .route("/cases/{id}/team/message-ack", post(team_message_ack))
         .route("/cases/{id}/team/handoffs", post(team_handoff))
@@ -93,6 +96,7 @@ pub fn router(app: Application, token: String, authority: String) -> Router {
         .route_layer(middleware::from_fn_with_state(state.clone(), authenticate));
     Router::new()
         .nest("/api/v1", api)
+        .route("/integrations/sentry", post(sentry_intake))
         .route(
             "/",
             get(|| async {
@@ -216,6 +220,11 @@ case_command!(
     crate::notifications::ReconcileDelivery,
     reconcile_delivery
 );
+case_command!(
+    declare_incident,
+    crate::incidents::DeclareIncident,
+    declare_incident
+);
 case_command!(team_message, PostMessage, post_team_message);
 case_command!(team_message_ack, AcknowledgeMessage, acknowledge_message);
 case_command!(team_handoff, OfferHandoff, offer_handoff);
@@ -336,4 +345,33 @@ async fn stream(
         }
     };
     Ok(Sse::new(stream).keep_alive(KeepAlive::new().interval(Duration::from_secs(10))))
+}
+
+async fn sentry_intake(
+    State(s): State<HttpState>,
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> Result<impl IntoResponse, ApiError> {
+    let signature = headers
+        .get("sentry-hook-signature")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("")
+        .to_owned();
+    let id = blocking(move || s.app.receive_sentry(&body, &signature)).await?;
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(serde_json::json!({"delivery_id":id})),
+    ))
+}
+async fn source_health(State(s): State<HttpState>) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(blocking(move || s.app.sentry_health()).await?))
+}
+async fn incident_markdown(
+    State(s): State<HttpState>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok((
+        [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+        blocking(move || s.app.incident_markdown(&id)).await?,
+    ))
 }

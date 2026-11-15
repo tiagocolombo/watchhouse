@@ -49,6 +49,14 @@ enum Command {
         #[arg(long)]
         operator: String,
     },
+    Sentry {
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long)]
+        operator: String,
+    },
+    SourceStatus,
+    SourceSync,
     /// Apply and validate migrations without starting workers.
     Migrate,
     /// Reconsider up to 100 persisted deadlines without invoking any executor.
@@ -60,6 +68,14 @@ enum Command {
 }
 #[derive(Subcommand)]
 enum CaseCommand {
+    DeclareIncident {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+    IncidentMarkdown {
+        id: String,
+    },
     Create {
         #[arg(long)]
         title: String,
@@ -198,7 +214,6 @@ async fn work(
         let previous = held.clone();
         let heartbeat_due = heartbeat_at.elapsed() >= Duration::from_secs(5);
         let outcome = tokio::task::spawn_blocking(move || -> watchhouse::error::Result<_> {
-            worker.process_notifications(&watchhouse::notifications::SlackWebhook)?;
             if manual {
                 return Ok((
                     worker.process_due_obligations()? + worker.supervise_team()? > 0,
@@ -248,11 +263,34 @@ async fn work(
             heartbeat_at = tokio::time::Instant::now();
         }
         if once {
+            let notifier = app.clone();
+            tokio::task::spawn_blocking(move || {
+                notifier.process_notifications(&watchhouse::notifications::SlackWebhook)
+            })
+            .await??;
             return Ok(());
         }
         if !ran {
             tokio::time::sleep(Duration::from_millis(250)).await;
         }
+    }
+}
+async fn sources(app: Application) -> anyhow::Result<()> {
+    loop {
+        let a = app.clone();
+        tokio::task::spawn_blocking(move || a.sentry_tick(&watchhouse::sentry::LiveSentry))
+            .await??;
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+}
+async fn notifications(app: Application) -> anyhow::Result<()> {
+    loop {
+        let a = app.clone();
+        tokio::task::spawn_blocking(move || {
+            a.process_notifications(&watchhouse::notifications::SlackWebhook)
+        })
+        .await??;
+        tokio::time::sleep(Duration::from_millis(250)).await;
     }
 }
 #[tokio::main]
@@ -285,7 +323,18 @@ async fn main() -> anyhow::Result<()> {
                 )?
             );
         }
-        Command::Migrate => println!("Schema version 6 validated"),
+        Command::Sentry { file, operator } => println!(
+            "{}",
+            serde_json::to_string_pretty(&app.configure_sentry(read_command(file)?, &operator)?)?
+        ),
+        Command::SourceStatus => {
+            println!("{}", serde_json::to_string_pretty(&app.sentry_health()?)?)
+        }
+        Command::SourceSync => println!(
+            "{} source observations processed",
+            app.sentry_tick(&watchhouse::sentry::LiveSentry)?
+        ),
+        Command::Migrate => println!("Schema version 7 validated"),
         Command::Tick => println!(
             "{} obligation(s) became due",
             app.process_due_obligations()?
@@ -382,6 +431,13 @@ async fn main() -> anyhow::Result<()> {
                         serde_json::from_slice::<ReconsiderCase>(&std::fs::read(file)?)?,
                     )?)?
                 }
+                CaseCommand::DeclareIncident { id, file } => {
+                    serde_json::to_value(app.declare_incident(&id, read_command(file)?)?)?
+                }
+                CaseCommand::IncidentMarkdown { id } => {
+                    print!("{}", app.incident_markdown(&id)?);
+                    return Ok(());
+                }
                 CaseCommand::List => serde_json::to_value(app.list_cases()?)?,
                 CaseCommand::Show { id } => serde_json::to_value(app.snapshot(&id)?)?,
                 CaseCommand::Rename {
@@ -411,7 +467,11 @@ async fn main() -> anyhow::Result<()> {
             block,
             stall,
         } => {
-            tokio::select! { result = work(app,once,false,identity,block,stall) => result?, _ = tokio::signal::ctrl_c() => {} }
+            if once {
+                work(app, true, false, identity, block, stall).await?;
+            } else {
+                tokio::select! { result = work(app.clone(),false,false,identity,block,stall) => result?, result=sources(app.clone())=>result?, result=notifications(app)=>result?, _ = tokio::signal::ctrl_c() => {} }
+            }
         }
         Command::Serve {
             port,
@@ -432,7 +492,9 @@ async fn main() -> anyhow::Result<()> {
             let router = watchhouse::http::router(app.clone(), token, authority);
             tokio::select! {
                 result = axum::serve(listener,router).with_graceful_shutdown(async { let _ = tokio::signal::ctrl_c().await; }) => result?,
-                result = work(app,false,manual_workers,"fake-investigator".into(),false,false) => result?,
+                result = work(app.clone(),false,manual_workers,"fake-investigator".into(),false,false) => result?,
+                result = sources(app.clone()) => result?,
+                result = notifications(app) => result?,
             }
         }
     }

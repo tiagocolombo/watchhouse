@@ -10,7 +10,7 @@ Connect an observability tool such as Sentry or Datadog. Watchhouse assesses wha
 
 The team keeps the records a real incident organization needs: incident details, investigation logs, escalation and handoff records, change plans, recovery assessments, postmortems, corrective actions, and runbooks.
 
-**Status: M0/M1 and the first bounded M2 core coordination slice are implemented.** Manual intake → durable fake investigation → evidence → operator disposition → owned deadline/recurrence → reopened review works through CLI and web. The broader team described below remains the intended product; no real harness, production integration, or merge automation is implemented.
+**Status: bounded M0/M1/M2 mechanisms and the first M3 Sentry/incident slice are implemented.** The Rust core owns durable fake execution, independent review, trusted policy, escalation delivery and incident records. Slack and Sentry adapters are fixture-verified; live activation needs explicit mappings, credentials, destinations and trusted ingress. Real harnesses, production mutation and merge automation remain ahead.
 
 ## Run the local slice
 
@@ -45,7 +45,7 @@ npx playwright install chromium
 npm test
 ```
 
-Browser tests use only a temporary local database and fake execution. Standard checks never invoke a live harness or production system. Linux was validated locally; CI also configures Rust checks on macOS and Windows. The fake-team slice now includes directed messages, stalled-worker supervision, checkpoints, acknowledged handoff, and a local escalation inbox. Independent fake challenges and version-bound assessment validation/closure are available through the [review contract](contracts/v1/challenges/README.md). Real notification delivery and real execution remain ahead. See [current status](implementation/STATUS.md) for evidence and the exact next task.
+Browser tests use only a temporary local database and fake execution. Standard checks never invoke a live harness or production system. Linux was validated locally; CI also configures Rust checks on macOS and Windows. The fake-team slice now includes directed messages, stalled-worker supervision, checkpoints, acknowledged handoff, and a local escalation inbox. Independent fake challenges and version-bound assessment validation/closure are available through the [review contract](contracts/v1/challenges/README.md). Configured Slack escalation is implemented; see the [notification contract](contracts/v1/notifications/README.md). The [Sentry/incident contract](contracts/v1/sentry/README.md) covers the first M3 slice. No live integration has been verified. See [current status](implementation/STATUS.md) for evidence and the exact next task.
 
 ## Qualification commands
 
@@ -136,3 +136,7 @@ Start with the [implementation guide](implementation/README.md), then the [curre
 The [agent instructions](AGENTS.md) explain how to continue across sessions. The implementation documents preserve requirements, proposed architecture, interfaces, acceptance scenarios, and unresolved decisions without relying on chat history.
 
 [Icon and logo assets](assets/README.md).
+
+## Source intake and incident records
+
+Use the [Sentry configuration and incident contract](contracts/v1/sentry/README.md). Signed issue notifications enter a durable queue; independent source processing enriches and reconciles observations before explicit operator declaration. `source-status` shows incomplete coverage and missing enrichment; `source-sync` advances one bounded page/item without models. Incident JSON and Markdown preserve roles, impact uncertainty, evidence, update duties and separate unknown recovery.

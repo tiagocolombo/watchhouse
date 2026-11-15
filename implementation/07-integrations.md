@@ -71,3 +71,7 @@ Current Hallmark integration is a proposal. Its Claude-specific runner and evide
 Provide a durable relay or polling/reconciliation option for machines that are not always online. Relay delivery identity and retention must survive coordinator downtime. Duplicate delivery is expected. Show the oldest unprocessed event, reconciliation coverage, and source lag.
 
 A provider outage must be distinguishable from healthy silence.
+
+## Current implementation
+
+The Slack notification adapter and first read-only Sentry Cloud adapter are implemented. Executable contracts are in contracts/v1/notifications and contracts/v1/sentry; ADRs 0009–0010 and STATUS record fixture evidence and activation blockers. The broader interfaces above remain design proposals. No live integration is verified.
