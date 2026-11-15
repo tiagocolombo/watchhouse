@@ -5,6 +5,7 @@ pub mod domain;
 pub mod error;
 pub mod execution;
 pub mod http;
+pub mod incident_artifacts;
 pub mod incident_ops;
 pub mod incidents;
 pub mod intake;

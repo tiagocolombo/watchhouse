@@ -98,3 +98,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 2026-11-15: [ADR 0010](adrs/0010-first-sentry-incident-slice.md) implements the first authenticated Sentry/enrichment/reconciliation/incident slice. Live activation and broader M3/M5 workflows remain separate.
 
 2026-11-15: [ADR 0011](adrs/0011-versioned-incident-operations.md) implements versioned incident operations, accepted role handoffs and recurring update duties.
+
+2026-11-15: [ADR 0012](adrs/0012-investigations-and-draft-review.md) implements versioned investigations and independent, context-bound communication draft review.

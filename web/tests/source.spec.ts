@@ -27,5 +27,10 @@ test('signed Sentry intake leads to an explicit incident while credentials and m
   await page.locator('#review-command-json').fill(JSON.stringify({command:{meta:{schema_version:1,idempotency_key:crypto.randomUUID(),actor:'operator',reason:'Versioned incident update'},expected_version:current.case.version},action:{type:'update',severity:'critical',impact:'Fixture workflow impact under review',uncertainty:'Recovery not established',objective:'Collect independent evidence',evidence_refs:sourceEvent.payload.evidence_refs}}));
   await page.getByRole('button',{name:'Submit review command',exact:true}).click();await expect(page.locator('#challenge-records')).toContainText('Collect independent evidence');await page.reload();await expect(page.locator('#challenge-records')).toContainText('update_cycle');
 
+
+  const artifactContext=await(await context.request.get(`/api/v1/cases/${id}`,{headers:auth})).json();
+  await page.getByText('Submit versioned review command',{exact:true}).click();await page.locator('#review-command-kind').selectOption('incident/artifacts');
+  await page.locator('#review-command-json').fill(JSON.stringify({command:{meta:{schema_version:1,idempotency_key:crypto.randomUUID(),actor:'operator',reason:'Structured investigation'},expected_version:artifactContext.case.version},action:{type:'hypothesis',id:null,expected_revision:null,claim:'<script>window.artifactInjected=true</script> Fixture hypothesis',scope:'checkout/test',state:'proposed',supporting:[],counterevidence:[],uncertainty:'No causal conclusion',next_experiment:'Compare discriminating fixture outcomes',experiment_id:null}}));
+  await page.getByRole('button',{name:'Submit review command',exact:true}).click();await expect(page.locator('#challenge-records')).toContainText('Fixture hypothesis');expect(await page.evaluate(()=>('artifactInjected' in window))).toBe(false);await page.reload();await expect(page.locator('#challenge-records')).toContainText('next_experiment');
   await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
 });

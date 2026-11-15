@@ -68,6 +68,7 @@ pub fn router(app: Application, token: String, authority: String) -> Router {
         .route("/cases/{id}/gate", post(case_gate))
         .route("/cases/{id}/incident", post(declare_incident))
         .route("/cases/{id}/incident/operations", post(incident_operation))
+        .route("/cases/{id}/incident/artifacts", post(incident_artifact))
         .route("/cases/{id}/incident/markdown", get(incident_markdown))
         .route("/sources/sentry", get(source_health))
         .route("/cases/{id}/team/messages", post(team_message))
@@ -230,6 +231,11 @@ case_command!(
     incident_operation,
     crate::incident_ops::IncidentOperation,
     operate_incident
+);
+case_command!(
+    incident_artifact,
+    crate::incident_artifacts::ArtifactCommand,
+    record_incident_artifact
 );
 case_command!(team_message, PostMessage, post_team_message);
 case_command!(team_message_ack, AcknowledgeMessage, acknowledge_message);
