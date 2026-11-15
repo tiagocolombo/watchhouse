@@ -101,3 +101,15 @@ test('operator qualifications retain evidence and reopen on review and offline d
   await page.screenshot({path:'test-results/watchhouse-qualifications.png',fullPage:true});
   await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
 });
+test('challenge commands persist independent dissent and replay safely',async({page,context})=>{
+  await page.goto('/');await page.getByLabel('Operator token').fill(token);await page.getByRole('button',{name:'Connect',exact:true}).click();
+  await expect(page.locator('#login')).toBeHidden();
+  const headers={Authorization:`Bearer ${token}`};
+  const created=await context.request.post('/api/v1/cases',{headers,data:{schema_version:1,idempotency_key:crypto.randomUUID(),actor:'operator',reason:'review fixture',title:'Independent challenge browser fixture',description:''}});const c=await created.json();
+  await page.reload();await page.getByRole('button',{name:/Independent challenge browser fixture/}).click();await expect(page.locator('#case-status')).toHaveText('awaiting review');
+  const s=await(await context.request.get(`/api/v1/cases/${c.id}`,{headers})).json();
+  const command={command:{meta:{schema_version:1,idempotency_key:crypto.randomUUID(),actor:'fake-challenger',reason:'Independent browser review'},expected_version:s.case.version},action:{type:'open',target_event_id:s.events[0].event_id,target_version:s.events[0].aggregate_version,recipient:'fake-investigator',arbiter:'fake-verifier',requested_evidence:'<script>window.reviewInjected=true</script> Reproduce exact finding',uncertainty:'Fixture only',blocking:true,acknowledge_seconds:30,response_seconds:120}};
+  await page.getByText('Submit versioned review command',{exact:true}).click();await page.locator('#review-command-json').fill(JSON.stringify(command));await page.getByRole('button',{name:'Submit review command',exact:true}).click();
+  await expect(page.locator('#challenge-records')).toContainText('Reproduce exact finding');expect(await page.evaluate(()=>('reviewInjected' in window))).toBe(false);
+  await page.reload();await expect(page.locator('#challenge-records')).toContainText('fake-verifier');await expect(page.locator('#challenge-records')).toContainText('open');
+});

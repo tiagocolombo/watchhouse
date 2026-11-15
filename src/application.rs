@@ -225,6 +225,8 @@ impl Application {
             results,
             qualification: crate::qualification::snapshot(&tx, id)?,
             team: crate::team::snapshot(&tx, id)?,
+            challenges: crate::challenges::snapshot(&tx, id)?,
+            gate: crate::challenges::gate(&tx, id)?,
         })
     }
     pub fn timeline(&self, id: &str, after: i64) -> Result<Vec<Event>> {

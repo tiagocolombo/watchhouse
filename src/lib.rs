@@ -1,4 +1,5 @@
 pub mod application;
+pub mod challenges;
 pub mod contracts;
 pub mod domain;
 pub mod error;

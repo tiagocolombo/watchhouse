@@ -53,7 +53,8 @@
 <details id="reconsider-panel" hidden><summary>Reconsider decision</summary>
 <p class="muted">For a new recurrence, select only new operator evidence not used by this decision or a previous recurrence.</p><form id="reconsider-form"><label for="reconsider-trigger">Trigger</label><select id="reconsider-trigger"><option value="operator_review">Operator review</option><option value="recurrence">New recurrence</option><option value="contradictory_evidence">Contradictory evidence</option><option value="scope_changed">Scope changed</option></select>
 <label>Reconsideration reason<input id="reconsider-reason" required maxlength="2000"></label><button>Reconsider current decision</button></form></details>
-<h3>Activity timeline</h3><ol id="timeline"></ol></div></section></div>
+<h3>Independent challenges and validation</h3><pre id="challenge-records" style="white-space:pre-wrap"></pre>
+<details><summary>Submit versioned review command</summary><p>Use the challenge contract. The command retains its expected version; reload and review conflicts. Validation and closure refer to this case version, never service recovery.</p><form id="challenge-command"><label>Command<select id="review-command-kind"><option value="challenges">Challenge</option><option value="gate">Validation / closure</option></select></label><label>JSON command<textarea id="review-command-json" required rows="8"></textarea></label><button>Submit review command</button></form></details><h3>Activity timeline</h3><ol id="timeline"></ol></div></section></div>
 </div>
 </main><footer>Watchhouse · The incident record lives here.</footer>
 </body></html>

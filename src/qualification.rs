@@ -276,6 +276,7 @@ impl Application {
             return Ok(response);
         }
         let case = expected(&tx, case_id, cmd.expected_version)?;
+        crate::challenges::ensure_clear(&tx, case_id)?;
         if case.status != CaseStatus::AwaitingReview {
             return Err(Error::Conflict(
                 "investigation must finish before an operator records a disposition".into(),

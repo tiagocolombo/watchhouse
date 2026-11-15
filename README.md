@@ -45,7 +45,7 @@ npx playwright install chromium
 npm test
 ```
 
-Browser tests use only a temporary local database and fake execution. Standard checks never invoke a live harness or production system. Linux was validated locally; CI also configures Rust checks on macOS and Windows. The fake-team slice now includes directed messages, stalled-worker supervision, checkpoints, acknowledged handoff, and a local escalation inbox. Independent challenges, real notification delivery, and real execution remain ahead. See [current status](implementation/STATUS.md) for evidence and the exact next task.
+Browser tests use only a temporary local database and fake execution. Standard checks never invoke a live harness or production system. Linux was validated locally; CI also configures Rust checks on macOS and Windows. The fake-team slice now includes directed messages, stalled-worker supervision, checkpoints, acknowledged handoff, and a local escalation inbox. Independent fake challenges and version-bound assessment validation/closure are available through the [review contract](contracts/v1/challenges/README.md). Real notification delivery and real execution remain ahead. See [current status](implementation/STATUS.md) for evidence and the exact next task.
 
 ## Qualification commands
 

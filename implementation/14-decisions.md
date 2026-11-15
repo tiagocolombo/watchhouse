@@ -88,3 +88,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 2026-11-14: remaining M1 qualification/reopening slice implemented under ADR 0005; no real-execution or production authority was added.
 
 2026-11-14: ADR 0006 implements the first bounded M2 core slice; full challenges, external notification chains and real-worker authority remain open.
+
+2026-11-14: [ADR 0007](adrs/0007-independent-challenges.md) implements independent fake review and version-bound assessment gates.
