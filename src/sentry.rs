@@ -1,6 +1,6 @@
 //! Authenticated Sentry v1 intake and bounded, resumable, read-only source processing.
 use crate::{
-    application::{Application, operator, text},
+    application::{Application, text},
     contracts::*,
     error::{Error, Result},
     store,
@@ -26,6 +26,17 @@ pub struct SentryConfig {
     pub incident_update_seconds: BTreeMap<String, u32>,
     pub webhook_secret_env: String,
     pub api_token_env: String,
+    #[serde(
+        default = "default_refresh",
+        skip_serializing_if = "is_default_refresh"
+    )]
+    pub refresh_seconds: u32,
+}
+fn default_refresh() -> u32 {
+    60
+}
+fn is_default_refresh(value: &u32) -> bool {
+    *value == 60
 }
 fn slug(s: &str) -> bool {
     !s.is_empty()
@@ -38,7 +49,8 @@ fn digits(s: &str) -> bool {
 }
 impl SentryConfig {
     fn validate(&self) -> Result<()> {
-        if self.revision < 1
+        if !(1..=86400).contains(&self.refresh_seconds)
+            || self.revision < 1
             || !slug(&self.organization)
             || !digits(&self.project_id)
             || !self
@@ -245,7 +257,7 @@ fn field<'a>(v: &'a Value, k: &str) -> Result<&'a str> {
         .and_then(Value::as_str)
         .ok_or_else(|| Error::Invalid(format!("missing Sentry field {k}")))
 }
-fn normalize(v: &Value, cfg: &SentryConfig) -> Result<Signal> {
+pub(crate) fn normalize(v: &Value, cfg: &SentryConfig) -> Result<Signal> {
     let id = field(v, "id")?;
     let project = v
         .pointer("/project/id")
@@ -276,7 +288,7 @@ fn normalize(v: &Value, cfg: &SentryConfig) -> Result<Signal> {
         count,
     })
 }
-fn config(db: &Connection) -> Result<Option<SentryConfig>> {
+pub(crate) fn config(db: &Connection) -> Result<Option<SentryConfig>> {
     let raw: Option<String> = db
         .query_row(
             "SELECT record FROM source_configs ORDER BY revision DESC LIMIT 1",
@@ -413,19 +425,21 @@ impl Application {
             |r| Ok((r.get(0)?, r.get(1)?)),
         )?;
         Ok(
-            json!({"api_credential_present":cfg.as_ref().is_some_and(|c|std::env::var(&c.api_token_env).is_ok_and(|s|!s.trim().is_empty())),"webhook_credential_present":cfg.as_ref().is_some_and(|c|std::env::var(&c.webhook_secret_env).is_ok()),"configuration":cfg,"reconciliation":rows,"pending":pending.0,"oldest_pending":pending.1,"coverage_limit":"Issue snapshots in requested window; not complete historical event coverage or recovery evidence"}),
+            json!({"known_issue_freshness":crate::sentry_refresh::all_health(&db,self.clock.now())?,"api_credential_present":cfg.as_ref().is_some_and(|c|std::env::var(&c.api_token_env).is_ok_and(|s|!s.trim().is_empty())),"webhook_credential_present":cfg.as_ref().is_some_and(|c|std::env::var(&c.webhook_secret_env).is_ok()),"configuration":cfg,"reconciliation":rows,"pending":pending.0,"oldest_pending":pending.1,"coverage_limit":"Issue snapshots in requested window; not complete historical event coverage or recovery evidence"}),
         )
     }
     pub fn sentry_tick(&self, api: &dyn SentryApi) -> Result<usize> {
         let n = match self.reconcile_sentry(api) {
             Ok(n) => n,
             Err(Error::Invalid(_) | Error::Conflict(_)) => {
-                self.store.connect()?.execute("UPDATE source_sync SET error='Invalid or conflicting page; coverage incomplete',next_at=?1",[(self.clock.now()+Duration::seconds(60)).to_rfc3339_opts(SecondsFormat::Millis,true)])?;
+                if let Some(cfg) = config(&self.store.connect()?)? {
+                    self.store.connect()?.execute("UPDATE source_sync SET error='Invalid or conflicting page; coverage incomplete',next_at=?1 WHERE revision=?2",params![(self.clock.now()+Duration::seconds(cfg.refresh_seconds.into())).to_rfc3339_opts(SecondsFormat::Millis,true),cfg.revision])?;
+                }
                 0
             }
             Err(e) => return Err(e),
         };
-        Ok(n + self.process_sentry_intake(api)?)
+        Ok(n + self.process_sentry_intake(api)? + self.refresh_known_sentry(api)?)
     }
     pub fn reconcile_sentry(&self, api: &dyn SentryApi) -> Result<usize> {
         let Some(cfg) = config(&self.store.connect()?)? else {
@@ -465,7 +479,7 @@ impl Application {
         let page = match api.page(&cfg, &start, &end, c.as_deref()) {
             Ok(p) => p,
             Err(_) => {
-                self.store.connect()?.execute("UPDATE source_sync SET error='Source API unavailable; coverage incomplete',next_at=?1 WHERE revision=?2",params![(self.clock.now()+Duration::seconds(60)).to_rfc3339_opts(SecondsFormat::Millis,true),cfg.revision])?;
+                self.store.connect()?.execute("UPDATE source_sync SET error='Source API unavailable; coverage incomplete',next_at=?1 WHERE revision=?2",params![(self.clock.now()+Duration::seconds(cfg.refresh_seconds.into())).to_rfc3339_opts(SecondsFormat::Millis,true),cfg.revision])?;
                 return Ok(0);
             }
         };
@@ -505,128 +519,14 @@ impl Application {
         for signal in &signals {
             queue(&tx, &cfg, signal, &now)?;
         }
-        tx.execute("UPDATE source_sync SET cursor=?1,covered_until=CASE WHEN ?1 IS NULL THEN window_end ELSE covered_until END,next_at=?2,error=NULL WHERE revision=?3",params![page.next_cursor,if page.next_cursor.is_some(){now}else{(self.clock.now()+Duration::seconds(60)).to_rfc3339_opts(SecondsFormat::Millis,true)},cfg.revision])?;
+        tx.execute("UPDATE source_sync SET cursor=?1,covered_until=CASE WHEN ?1 IS NULL THEN window_end ELSE covered_until END,next_at=?2,error=NULL WHERE revision=?3",params![page.next_cursor,if page.next_cursor.is_some(){now}else{(self.clock.now()+Duration::seconds(cfg.refresh_seconds.into())).to_rfc3339_opts(SecondsFormat::Millis,true)},cfg.revision])?;
         tx.commit()?;
         Ok(signals.len())
     }
     pub fn process_sentry_intake(&self, api: &dyn SentryApi) -> Result<usize> {
-        let db = self.store.connect()?;
-        let row:Option<(String,String,String,String)>=db.query_row("SELECT d.id,d.record,c.record,d.received_at FROM source_deliveries d JOIN source_configs c ON c.revision=d.revision WHERE d.state IN ('pending','needs_enrichment') AND d.next_at<=?1 ORDER BY d.rowid LIMIT 1",[self.now()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional()?;
-        let Some((delivery, raw, cfg, received_at)) = row else {
-            return Ok(0);
-        };
-        let signal: Signal = serde_json::from_str(&raw)?;
-        let cfg: SentryConfig = serde_json::from_str(&cfg)?;
-        let (observed, authoritative, event) = match api.enrich(&cfg, &signal.issue_id) {
-            Ok(e) => match normalize(&e.issue, &cfg) {
-                Ok(s) if s.issue_id == signal.issue_id => (
-                    s,
-                    true,
-                    if e.event.get("environment").and_then(Value::as_str)
-                        == Some(cfg.environment.as_str())
-                    {
-                        e.event
-                    } else {
-                        Value::Null
-                    },
-                ),
-                _ => (signal, false, Value::Null),
-            },
-            Err(_) => (signal, false, Value::Null),
-        };
-        let key = format!(
-            "sentry:{}/{}/{}",
-            cfg.organization, cfg.project_id, observed.issue_id
-        );
-        let case=self.create_case(CreateCase{schema_version:V1,idempotency_key:store::digest(&format!("source-case:{key}")),actor:"operator".into(),reason:"Authenticated observation requires qualification, not automatic incident declaration".into(),title:format!("Sentry issue {}",observed.issue_id),description:format!("{key}. Imported source data is untrusted; source status is not recovery evidence.")})?;
-        let release = event
-            .get("release")
-            .and_then(|r| r.as_str().or_else(|| r.get("version")?.as_str()))
-            .filter(|s| s.len() <= 128)
-            .map(str::to_owned);
-        let exceptions = event
-            .get("entries")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter(|e| e.get("type").and_then(Value::as_str) == Some("exception"))
-            .flat_map(|e| {
-                e.pointer("/data/values")
-                    .and_then(Value::as_array)
-                    .into_iter()
-                    .flatten()
-            })
-            .filter_map(|v| v.get("type").and_then(Value::as_str))
-            .filter(|s| s.len() <= 128)
-            .take(10)
-            .map(str::to_owned)
-            .collect();
-        let observation=SourceObservation{source_key:key.clone(),signal:observed,authoritative,observed_at:if authoritative{self.now()}else{received_at},configuration_revision:cfg.revision,service:cfg.service,environment:cfg.environment,repository:cfg.repository,deployed_revision:release.as_ref().and_then(|r|cfg.releases.get(r)).cloned(),release,exceptions,uncertainty:if authoritative{"API snapshot; traffic denominator and recovery are unknown. Representative event fields may be unavailable."}else{"Enrichment unavailable; webhook status is an unverified hint, not current state. No cause or recovery inferred."}.into()};
-        let raw = serde_json::to_string(&observation)?;
-        let digest = store::digest(&raw);
-        let mut db = self.store.connect()?;
-        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let state: String = tx.query_row(
-            "SELECT state FROM source_deliveries WHERE id=?1",
-            [&delivery],
-            |r| r.get(0),
-        )?;
-        if state == "processed" {
-            return Ok(0);
-        }
-        tx.execute(
-            "INSERT OR IGNORE INTO evidence VALUES (?1,'application/json',?2,?3,?4)",
-            params![
-                digest,
-                raw,
-                if authoritative {
-                    "sentry-api-v1"
-                } else {
-                    "sentry-webhook-v1"
-                },
-                self.now()
-            ],
-        )?;
-        let inserted = tx.execute(
-            "INSERT OR IGNORE INTO case_evidence VALUES (?1,?2)",
-            params![case.id, digest],
-        )?;
-        let old = snapshot(&tx, &case.id)?;
-        if old.as_ref().is_none_or(|o| {
-            (!o.authoritative || authoritative)
-                && o.signal.last_seen <= observation.signal.last_seen
-        }) {
-            tx.execute("INSERT INTO source_cases VALUES (?1,?2,?3,?4) ON CONFLICT(source_key) DO UPDATE SET record=excluded.record,digest=excluded.digest",params![key,case.id,raw,digest])?;
-        }
-        if inserted > 0 {
-            store::emit(
-                &tx,
-                &case.id,
-                operator("source-adapter"),
-                &delivery,
-                &self.now(),
-                EventData::SourceObserved {
-                    evidence_refs: vec![digest],
-                    source_key: key,
-                    authoritative,
-                    reason: observation.uncertainty,
-                },
-            )?;
-        }
-        tx.execute(
-            "UPDATE source_deliveries SET state=?1,next_at=?2 WHERE id=?3",
-            params![
-                if authoritative {
-                    "processed"
-                } else {
-                    "needs_enrichment"
-                },
-                (self.clock.now() + Duration::seconds(60))
-                    .to_rfc3339_opts(SecondsFormat::Millis, true),
-                delivery
-            ],
-        )?;
-        tx.commit()?;
-        Ok(1)
+        crate::sentry_refresh::intake(self, api)
+    }
+    pub fn refresh_known_sentry(&self, api: &dyn SentryApi) -> Result<usize> {
+        crate::sentry_refresh::refresh_known(self, api)
     }
 }

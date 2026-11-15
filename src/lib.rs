@@ -13,5 +13,6 @@ pub mod notifications;
 pub mod policy;
 pub mod qualification;
 pub mod sentry;
+pub mod sentry_refresh;
 pub mod store;
 pub mod team;

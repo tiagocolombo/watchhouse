@@ -100,3 +100,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 2026-11-15: [ADR 0011](adrs/0011-versioned-incident-operations.md) implements versioned incident operations, accepted role handoffs and recurring update duties.
 
 2026-11-15: [ADR 0012](adrs/0012-investigations-and-draft-review.md) implements versioned investigations and independent, context-bound communication draft review.
+
+2026-11-15: [ADR 0013](adrs/0013-source-freshness-and-known-issue-recovery.md) adds fenced source reads, known-issue recovery beyond discovery windows and separate freshness tracking.

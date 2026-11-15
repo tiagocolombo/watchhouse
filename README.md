@@ -140,3 +140,9 @@ The [agent instructions](AGENTS.md) explain how to continue across sessions. The
 ## Source intake and incident records
 
 Use the [Sentry configuration and incident contract](contracts/v1/sentry/README.md). Signed issue notifications enter a durable queue; independent source processing enriches and reconciles observations before explicit operator declaration. `source-status` shows incomplete coverage and missing enrichment; `source-sync` advances one bounded page/item without models. Incident JSON and Markdown preserve roles, impact uncertainty, evidence, update duties and separate unknown recovery.
+
+## Operate an incident
+
+[Incident operations and artifacts](contracts/v1/incidents/README.md) add versioned commander updates, accepted role handoffs, hypothesis/experiment records and independent review of unsent communication drafts. `case operate-incident` and `case record-incident-artifact` share CLI/API/web contracts. Evidence and review deadlines escalate without models. `case investigation-markdown` renders retained findings and failed attempts.
+
+The source pump also refreshes known issues beyond discovery windows. Read health is separate from source fact history: unchanged polling refreshes freshness without spamming case events, while fenced overlapping results cannot overwrite newer observations. Source status and communication approval never assert service recovery or grant production authority.

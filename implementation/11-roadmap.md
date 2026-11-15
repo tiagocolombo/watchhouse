@@ -79,3 +79,5 @@ Completed: M0 plus manual case creation -> persisted event -> queued fake assign
 2026-11-15: first M3 source/incident slice implemented; current coverage limits and exact remaining work are in STATUS and ADR 0010.
 
 2026-11-15 next M3 batch: versioned incident operations/roles, investigation and communication records, then known-issue reconciliation/freshness. PRs #2–#5 are merged; see STATUS.
+
+2026-11-15 M3 next batch: incident operations/roles, versioned investigation/draft review, and known-issue read reliability are implemented with fixture evidence. Actual service-specific qualification/correlation, live activation and M4+ remain open; current STATUS supersedes historical next-task text above.

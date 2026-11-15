@@ -10,11 +10,14 @@ interface TeamBlock {id:string;state:string;owner:string;response_due_at:string;
 interface TeamHandoff {id:string;state:string;previous_owner:string;successor:string;next_owner:string;acknowledge_by:string;briefing:{remaining_attempts:number;overall_deadline:string;checkpoint_digest:string|null;message_refs:string[]}}
 interface TeamEscalation {id:string;state:string;owner:string;reason:string;next_action:string}
 interface Team {control:{state:string;executor:string;overall_deadline:string|null;max_attempts:number}|null;messages:TeamMessage[];blocks:TeamBlock[];handoffs:TeamHandoff[];escalations:TeamEscalation[];runs:{run_id:string;state:string;executor:string;progress_deadline:string;heartbeat_at:string;progress_at:string}[];late_results:{run_id:string;digest:string}[]}
-interface Snapshot { case:Case; events:TimelineEvent[]; cursor:number; results:{summary:string;conclusion:string}[]; qualification:Qualification; team:Team; challenges:unknown[]; gate:{validated_version:number;closed_version:number|null}|null; policy:unknown; notifications:unknown[]; source:unknown; incident:unknown; incident_operations:unknown; incident_role_offers:unknown[]; incident_artifacts:unknown[] }
+interface SourceFreshness {source_key:string;state:string;age_seconds:number|null;last_success_at:string|null;error:string|null}
+interface Snapshot { case:Case; events:TimelineEvent[]; cursor:number; results:{summary:string;conclusion:string}[]; qualification:Qualification; team:Team; challenges:unknown[]; gate:{validated_version:number;closed_version:number|null}|null; policy:unknown; notifications:unknown[]; source:unknown; source_freshness:SourceFreshness|null; incident:unknown; incident_operations:unknown; incident_role_offers:unknown[]; incident_artifacts:unknown[] }
 const el = <T extends HTMLElement = HTMLElement>(id:string) => document.getElementById(id) as T;
 const input = (id:string) => el<HTMLInputElement>(id).value;
 let token = sessionStorage.getItem('watchhouse-token') ?? '';
 let selected:Case | undefined;
+let selectedSourceKey="";
+let healthPolling=false;
 let qualification:Qualification = {dispositions:[],obligations:[],evidence:[]};
 let evidenceCase = "";
 let team:Team|undefined;
@@ -55,6 +58,8 @@ function renderEvent(event:TimelineEvent) {
 }
 function renderState(snapshot:Snapshot) {
   selected=snapshot.case;
+  selectedSourceKey=snapshot.source_freshness?.source_key??"";
+  renderFreshness(snapshot.source_freshness);
   el('case-id').textContent=selected.id; el('case-title').textContent=selected.title;
   el('case-status').textContent=selected.status.replaceAll('_',' ');
   el('version').textContent=`Version ${selected.version}`; el('owner').textContent=`Owner: ${selected.owner}`;
@@ -65,7 +70,7 @@ function renderState(snapshot:Snapshot) {
   if (!snapshot.results.length) el('results').textContent='No result recorded yet.';
   renderQualification(snapshot);
   renderTeam(snapshot);
-  el('challenge-records').textContent=JSON.stringify({incident_artifacts:snapshot.incident_artifacts,incident_operations:snapshot.incident_operations,incident_role_offers:snapshot.incident_role_offers,source:snapshot.source,incident:snapshot.incident,notifications:snapshot.notifications,policy:snapshot.policy,challenges:snapshot.challenges,gate:snapshot.gate,gateCurrent:snapshot.gate?.closed_version===snapshot.case.version},null,2);
+  el('challenge-records').textContent=JSON.stringify({incident_artifacts:snapshot.incident_artifacts,incident_operations:snapshot.incident_operations,incident_role_offers:snapshot.incident_role_offers,source:snapshot.source,source_freshness:snapshot.source_freshness,incident:snapshot.incident,notifications:snapshot.notifications,policy:snapshot.policy,challenges:snapshot.challenges,gate:snapshot.gate,gateCurrent:snapshot.gate?.closed_version===snapshot.case.version},null,2);
 }
 async function follow(id:string,cursor:number,current:number,signal:AbortSignal) {
   while(!signal.aborted && current===generation) {
@@ -305,3 +310,10 @@ handleForm('handoff-form',(id,version)=>command(id,'team/handoffs',{
 if(token) void connect().catch(fail);
 
 el<HTMLFormElement>('challenge-command').onsubmit=e=>{e.preventDefault();if(!selected)return;const id=selected.id;void api(`/cases/${id}/${input('review-command-kind')}`,JSON.parse(input('review-command-json'))).then(()=>openCase(id)).catch(fail);};
+
+function renderFreshness(value:SourceFreshness|null) {
+  el('source-freshness-summary').textContent=value?`Source read: ${value.state.replaceAll('_',' ')} · ${value.age_seconds===null?'No successful API read tracked':`Last successful API read ${value.age_seconds}s ago`} · ${value.error??'Source status does not establish service recovery'}`:'';
+}
+setInterval(()=>{if(!token||healthPolling||!el('login').hidden)return;healthPolling=true;
+  void api<{known_issue_freshness:SourceFreshness[]}>('/sources/sentry').then(health=>{el('source-health').textContent=JSON.stringify(health,null,2);const value=health.known_issue_freshness.find(v=>v.source_key===selectedSourceKey);if(value)renderFreshness(value);}).catch(()=>{if(selectedSourceKey)el('source-freshness-summary').textContent='Source health unavailable; retained observations may be stale.';}).finally(()=>{healthPolling=false;});
+},5000);

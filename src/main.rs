@@ -347,7 +347,7 @@ async fn main() -> anyhow::Result<()> {
             "{} source observations processed",
             app.sentry_tick(&watchhouse::sentry::LiveSentry)?
         ),
-        Command::Migrate => println!("Schema version 9 validated"),
+        Command::Migrate => println!("Schema version 10 validated"),
         Command::Tick => println!(
             "{} obligation(s) became due",
             app.process_due_obligations()?
