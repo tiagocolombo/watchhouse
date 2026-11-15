@@ -1,3 +1,7 @@
+# M3 investigation and draft review slice
+
+Branch `dev/m3-investigation-records`, stacked on [PR #6](https://github.com/tiagocolombo/watchhouse/pull/6). Implements immutable hypothesis/experiment/draft versions, exact-claim experiment binding, independent draft review with context invalidation, owned evidence/review deadlines, deterministic escalation and assessment closure gates. CLI/API/web and Markdown expose the same records. [ADR 0012](adrs/0012-investigations-and-draft-review.md) records the boundary. Validation passed on Linux: formatting, Clippy with warnings denied, 69 Rust tests, strict TypeScript, native build, five Chromium scenarios and whitespace checks. Next: strengthen source reconciliation/freshness for known issues. No live sending, production execution or verified service recovery is implied.
+
 # Next M3 batch
 
 Current branch `dev/m3-incident-operations`, based on main `1cab931` after PRs #2–#5 merged in order. This batch continues with three stacked slices: incident operations/roles, investigations/communication drafts, then known-issue source reliability.

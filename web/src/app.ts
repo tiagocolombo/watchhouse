@@ -10,7 +10,7 @@ interface TeamBlock {id:string;state:string;owner:string;response_due_at:string;
 interface TeamHandoff {id:string;state:string;previous_owner:string;successor:string;next_owner:string;acknowledge_by:string;briefing:{remaining_attempts:number;overall_deadline:string;checkpoint_digest:string|null;message_refs:string[]}}
 interface TeamEscalation {id:string;state:string;owner:string;reason:string;next_action:string}
 interface Team {control:{state:string;executor:string;overall_deadline:string|null;max_attempts:number}|null;messages:TeamMessage[];blocks:TeamBlock[];handoffs:TeamHandoff[];escalations:TeamEscalation[];runs:{run_id:string;state:string;executor:string;progress_deadline:string;heartbeat_at:string;progress_at:string}[];late_results:{run_id:string;digest:string}[]}
-interface Snapshot { case:Case; events:TimelineEvent[]; cursor:number; results:{summary:string;conclusion:string}[]; qualification:Qualification; team:Team; challenges:unknown[]; gate:{validated_version:number;closed_version:number|null}|null; policy:unknown; notifications:unknown[]; source:unknown; incident:unknown; incident_operations:unknown; incident_role_offers:unknown[] }
+interface Snapshot { case:Case; events:TimelineEvent[]; cursor:number; results:{summary:string;conclusion:string}[]; qualification:Qualification; team:Team; challenges:unknown[]; gate:{validated_version:number;closed_version:number|null}|null; policy:unknown; notifications:unknown[]; source:unknown; incident:unknown; incident_operations:unknown; incident_role_offers:unknown[]; incident_artifacts:unknown[] }
 const el = <T extends HTMLElement = HTMLElement>(id:string) => document.getElementById(id) as T;
 const input = (id:string) => el<HTMLInputElement>(id).value;
 let token = sessionStorage.getItem('watchhouse-token') ?? '';
@@ -65,7 +65,7 @@ function renderState(snapshot:Snapshot) {
   if (!snapshot.results.length) el('results').textContent='No result recorded yet.';
   renderQualification(snapshot);
   renderTeam(snapshot);
-  el('challenge-records').textContent=JSON.stringify({incident_operations:snapshot.incident_operations,incident_role_offers:snapshot.incident_role_offers,source:snapshot.source,incident:snapshot.incident,notifications:snapshot.notifications,policy:snapshot.policy,challenges:snapshot.challenges,gate:snapshot.gate,gateCurrent:snapshot.gate?.closed_version===snapshot.case.version},null,2);
+  el('challenge-records').textContent=JSON.stringify({incident_artifacts:snapshot.incident_artifacts,incident_operations:snapshot.incident_operations,incident_role_offers:snapshot.incident_role_offers,source:snapshot.source,incident:snapshot.incident,notifications:snapshot.notifications,policy:snapshot.policy,challenges:snapshot.challenges,gate:snapshot.gate,gateCurrent:snapshot.gate?.closed_version===snapshot.case.version},null,2);
 }
 async function follow(id:string,cursor:number,current:number,signal:AbortSignal) {
   while(!signal.aborted && current===generation) {

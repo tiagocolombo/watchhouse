@@ -353,6 +353,7 @@ impl Application {
         }
         crate::qualification::evidence_refs(&tx, case_id, &cmd.evidence_refs, true)?;
         let g = if cmd.close {
+            crate::incident_artifacts::ensure_no_open(&tx, case_id)?;
             let mut g = gate(&tx, case_id)?
                 .ok_or_else(|| Error::Conflict("independent validation required".into()))?;
             if m.actor != case.owner

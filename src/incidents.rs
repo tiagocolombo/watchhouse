@@ -71,9 +71,9 @@ pub(crate) fn snapshot(db: &Connection, id: &str) -> Result<Option<Incident>> {
     raw.map(|s| Ok(serde_json::from_str(&s)?)).transpose()
 }
 pub(crate) fn supervise(tx: &Transaction<'_>, now: &str) -> Result<usize> {
-    crate::incident_ops::due(tx, now)
+    Ok(crate::incident_ops::due(tx, now)? + crate::incident_artifacts::due(tx, now)?)
 }
-fn safe(s: &str) -> String {
+pub(crate) fn safe(s: &str) -> String {
     let mut out = String::new();
     for c in s.chars() {
         match c {
@@ -242,6 +242,7 @@ impl Application {
             .replace('`', "\\u0060")
             .replace('<', "\\u003c");
         report.push_str(&format!("\n## Continuing work\n\nCause, mitigation, deployment validation, recovery observation, postmortem applicability and corrective actions require subsequent evidence-backed records. Declaration closes none of these duties.\n\n## Authoritative structured record\n\n```json\n{raw}\n```\n"));
+        report.push_str(&self.investigation_markdown(id)?);
         Ok(report)
     }
 }
