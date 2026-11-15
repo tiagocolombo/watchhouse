@@ -22,5 +22,10 @@ test('signed Sentry intake leads to an explicit incident while credentials and m
   await expect(page.locator('#challenge-records')).toContainText('recovery_assessment');await expect(page.locator('#challenge-records')).toContainText('Not assessed');
   const markdown=await context.request.get(`/api/v1/cases/${id}/incident/markdown`,{headers:auth});expect(markdown.ok()).toBe(true);expect(await markdown.text()).toContain('Recovery: not assessed');
   await page.reload();await expect(page.locator('#challenge-records')).toContainText('Coordinated fixture response');
+  const current=await(await context.request.get(`/api/v1/cases/${id}`,{headers:auth})).json();
+  await page.getByText('Submit versioned review command',{exact:true}).click();await page.locator('#review-command-kind').selectOption('incident/operations');
+  await page.locator('#review-command-json').fill(JSON.stringify({command:{meta:{schema_version:1,idempotency_key:crypto.randomUUID(),actor:'operator',reason:'Versioned incident update'},expected_version:current.case.version},action:{type:'update',severity:'critical',impact:'Fixture workflow impact under review',uncertainty:'Recovery not established',objective:'Collect independent evidence',evidence_refs:sourceEvent.payload.evidence_refs}}));
+  await page.getByRole('button',{name:'Submit review command',exact:true}).click();await expect(page.locator('#challenge-records')).toContainText('Collect independent evidence');await page.reload();await expect(page.locator('#challenge-records')).toContainText('update_cycle');
+
   await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
 });

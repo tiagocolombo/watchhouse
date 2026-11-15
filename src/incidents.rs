@@ -71,24 +71,7 @@ pub(crate) fn snapshot(db: &Connection, id: &str) -> Result<Option<Incident>> {
     raw.map(|s| Ok(serde_json::from_str(&s)?)).transpose()
 }
 pub(crate) fn supervise(tx: &Transaction<'_>, now: &str) -> Result<usize> {
-    let mut s=tx.prepare("SELECT id,case_id FROM incidents WHERE update_escalated=0 AND next_update_at<=?1 LIMIT 100")?;
-    let rows = s
-        .query_map([now], |r| {
-            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
-        })?
-        .collect::<std::result::Result<Vec<_>, _>>()?;
-    for (id, case) in &rows {
-        crate::team::escalate(
-            tx,
-            case,
-            "incident_update",
-            id,
-            "Incident update overdue; commander must provide an evidence-backed update",
-            now,
-        )?;
-        tx.execute("UPDATE incidents SET update_escalated=1 WHERE id=?1", [id])?;
-    }
-    Ok(rows.len())
+    crate::incident_ops::due(tx, now)
 }
 fn safe(s: &str) -> String {
     let mut out = String::new();
@@ -203,7 +186,13 @@ impl Application {
     pub fn incident_markdown(&self, id: &str) -> Result<String> {
         let db = self.store.connect()?;
         let i = snapshot(&db, id)?.ok_or(Error::NotFound)?;
-        let d = &i.declaration;
+        let operations = crate::incident_ops::snapshot(&db, id)?.ok_or(Error::NotFound)?;
+        let mut d = i.declaration.clone();
+        d.severity = operations.severity.clone();
+        d.impact = operations.impact.clone();
+        d.uncertainty = operations.uncertainty.clone();
+        d.objective = operations.objective.clone();
+        d.roles = operations.roles.clone();
         let mut report = format!(
             "# Incident {}\n\nState: declared. Recovery: not assessed.\n\n## Current brief\n\n- Objective: {}\n- Severity: {:?}\n- Rationale: {}\n- Impact: {}\n- Uncertainty: {}\n- Service / environment: {} / {}\n- Source: {}\n- Repository: {}\n- Release / deployed revision: {} / {}\n\n## Command roles\n\n| Responsibility | Owner |\n| --- | --- |\n| Commander | {} |\n| Operations | {} |\n| Communications | {} |\n| Scribe | {} |\n\n## Impact and timing\n\nKnown start: {}. Declared: {}. Mitigation and recovery: unknown. Traffic denominator and observation coverage are not established.\n\n## Response and communications\n\n{}\n\nNext update: {}. Draft only; no stakeholder communication sent.\n\n## Recovery assessment\n\n{}\n\n## Investigation evidence\n\n{}\n\n## Live timeline\n\n| Recorded at | Actor | Transition | Reason |\n| --- | --- | --- | --- |\n",
             i.id,
@@ -230,7 +219,7 @@ impl Application {
             safe(d.known_start.as_deref().unwrap_or("unknown")),
             i.declared_at,
             safe(&i.communication_draft),
-            i.next_update_at,
+            operations.next_update_at,
             i.recovery_assessment,
             i.investigation_register
                 .iter()
@@ -248,6 +237,7 @@ impl Application {
                 safe(data["payload"]["reason"].as_str().unwrap_or("unknown"))
             ));
         }
+        report.push_str(&format!("\n## Current coordination revision {}\n\nNext update: {}. Declaration below remains immutable.\n",operations.revision,operations.next_update_at));
         let raw = serde_json::to_string_pretty(&i)?
             .replace('`', "\\u0060")
             .replace('<', "\\u003c");
