@@ -1,3 +1,9 @@
+# Next M3 batch
+
+Current branch `dev/m3-incident-operations`, based on main `1cab931` after PRs #2–#5 merged in order. This batch continues with three stacked slices: incident operations/roles, investigations/communication drafts, then known-issue source reliability.
+
+Slice 1 implements versioned incident briefs, evidence-backed severity updates, accepted role transfers, recurring update deadlines and durable overdue duty escalation. Original declarations remain immutable; reports show current coordination separately. See [ADR 0011](adrs/0011-versioned-incident-operations.md) and the [operations contract](../contracts/v1/incidents/README.md). Validation passed on Linux: formatting, Clippy with warnings denied, 64 Rust tests, strict TypeScript, bundled native build, all five Chromium scenarios and whitespace checks. No live integration or production authority was added.
+
 # Current status
 
 Last updated: 2026-11-15.
@@ -6,7 +12,7 @@ Last updated: 2026-11-15.
 
 M0/M1 and bounded fake-only M2 mechanisms are implemented. The first M3 Sentry/incident vertical slice is implemented and fixture-verified. Live activation remains incomplete. No real harness, production mutation, repair-to-PR workflow, automatic merge, verified service recovery or accepted-knowledge workflow exists.
 
-The four-phase stack starts at main `a744d35`. No PR was merged.
+The previous four-phase stack started at main `a744d35`. PRs #2–#5 were merged in order on 2026-11-15; current batch starts at main `1cab931`.
 
 | Phase | Branch | Base / dependency | Delivered |
 | --- | --- | --- | --- |
@@ -57,4 +63,4 @@ Remote CI passed at current phase 1 `c039519` ([run](https://github.com/tiagocol
 
 [ADR 0007](adrs/0007-independent-challenges.md), [0008](adrs/0008-trusted-policy.md), [0009](adrs/0009-human-escalation.md) and [0010](adrs/0010-first-sentry-incident-slice.md) document the implemented proposals and limits. Executable contracts are under `contracts/v1/challenges`, `policy`, `contracts/v1/notifications` and `contracts/v1/sentry`.
 
-Review the four PRs in order without merging during this task. Next independent development: strengthen M3 incident revision/investigation/communications artifacts and source coverage using these fixtures. Prepare a concrete live activation drill when actual service ownership, credentials and ingress are available. These PRs grant no production authority.
+The previous stack is merged. Next independent development: strengthen M3 incident revision/investigation/communications artifacts and source coverage using these fixtures. Prepare a concrete live activation drill when actual service ownership, credentials and ingress are available. These PRs grant no production authority.

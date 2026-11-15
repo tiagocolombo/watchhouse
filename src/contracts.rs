@@ -48,6 +48,17 @@ pub struct Actor {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload", deny_unknown_fields)]
 pub enum EventData {
+    #[serde(rename = "incident.updated")]
+    IncidentUpdated {
+        operations: Box<crate::incident_ops::IncidentOperations>,
+        reason: String,
+    },
+    #[serde(rename = "incident.role_changed")]
+    IncidentRoleChanged {
+        offer_id: String,
+        state: String,
+        reason: String,
+    },
     #[serde(rename = "source.observed")]
     SourceObserved {
         evidence_refs: Vec<String>,
@@ -256,6 +267,10 @@ pub struct Snapshot {
     pub source: Option<crate::sentry::SourceObservation>,
     #[serde(default)]
     pub incident: Option<crate::incidents::Incident>,
+    #[serde(default)]
+    pub incident_operations: Option<crate::incident_ops::IncidentOperations>,
+    #[serde(default)]
+    pub incident_role_offers: Vec<crate::incident_ops::RoleOffer>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

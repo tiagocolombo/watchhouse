@@ -77,3 +77,5 @@ Completed: M0 plus manual case creation -> persisted event -> queued fake assign
 2026-11-14: Bounded M2 mechanisms implemented for fake workers and fixture notifications; live activation remains blocked on explicit destinations/secrets. M3 fixture slice follows.
 
 2026-11-15: first M3 source/incident slice implemented; current coverage limits and exact remaining work are in STATUS and ADR 0010.
+
+2026-11-15 next M3 batch: versioned incident operations/roles, investigation and communication records, then known-issue reconciliation/freshness. PRs #2–#5 are merged; see STATUS.

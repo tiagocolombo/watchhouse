@@ -68,6 +68,11 @@ enum Command {
 }
 #[derive(Subcommand)]
 enum CaseCommand {
+    OperateIncident {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
     DeclareIncident {
         id: String,
         #[arg(long)]
@@ -334,7 +339,7 @@ async fn main() -> anyhow::Result<()> {
             "{} source observations processed",
             app.sentry_tick(&watchhouse::sentry::LiveSentry)?
         ),
-        Command::Migrate => println!("Schema version 7 validated"),
+        Command::Migrate => println!("Schema version 8 validated"),
         Command::Tick => println!(
             "{} obligation(s) became due",
             app.process_due_obligations()?
@@ -437,6 +442,9 @@ async fn main() -> anyhow::Result<()> {
                 CaseCommand::IncidentMarkdown { id } => {
                     print!("{}", app.incident_markdown(&id)?);
                     return Ok(());
+                }
+                CaseCommand::OperateIncident { id, file } => {
+                    serde_json::to_value(app.operate_incident(&id, read_command(file)?)?)?
                 }
                 CaseCommand::List => serde_json::to_value(app.list_cases()?)?,
                 CaseCommand::Show { id } => serde_json::to_value(app.snapshot(&id)?)?,
