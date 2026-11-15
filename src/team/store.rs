@@ -104,6 +104,7 @@ pub(crate) fn snapshot(db: &Connection, case_id: &str) -> Result<TeamSnapshot> {
         case_id,
     )?;
     for e in &mut escalations {
+        crate::notifications::resolution_state(db, e)?;
         e.acknowledged_at = db.query_row(
             "SELECT acknowledged_at FROM escalations WHERE id=?1",
             [&e.id],

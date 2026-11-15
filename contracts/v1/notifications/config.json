@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "recipients": [
+    {"owner":"primary-human","webhook_env":"WATCHHOUSE_NOTIFY_PRIMARY"},
+    {"owner":"backup-human","webhook_env":"WATCHHOUSE_NOTIFY_BACKUP"}
+  ],
+  "acknowledge_seconds": 60,
+  "response_seconds": 300,
+  "retry_seconds": 10,
+  "max_attempts": 3
+}

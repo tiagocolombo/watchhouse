@@ -48,6 +48,19 @@ pub struct Actor {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload", deny_unknown_fields)]
 pub enum EventData {
+    #[serde(rename = "escalation.delivery_changed")]
+    DeliveryChanged {
+        delivery_id: String,
+        state: String,
+        recipient: String,
+        reason: String,
+    },
+    #[serde(rename = "escalation.resolved")]
+    EscalationResolved {
+        escalation_id: String,
+        evidence_refs: Vec<String>,
+        reason: String,
+    },
     #[serde(rename = "challenge.changed")]
     ChallengeChanged {
         challenge: Box<crate::challenges::Challenge>,
@@ -225,6 +238,8 @@ pub struct Snapshot {
     pub gate: Option<crate::challenges::Gate>,
     #[serde(default)]
     pub policy: Option<crate::policy::Policy>,
+    #[serde(default)]
+    pub notifications: Vec<crate::notifications::Delivery>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

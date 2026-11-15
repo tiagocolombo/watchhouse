@@ -374,7 +374,7 @@ pub(crate) fn escalate(
     if exists {
         return Ok(false);
     }
-    let e=Escalation{schema_version:V1,id:db::id("esc"),case_id:case_id.into(),source_type:kind.into(),source_id:id.into(),owner:"operator".into(),reason:reason.into(),recorded_at:now.into(),state:"open".into(),acknowledged_at:None,next_action:"Operator must review the blocker and arrange an accepted handoff or explicit decision. No external notification was sent".into()};
+    let e=Escalation{schema_version:V1,id:db::id("esc"),case_id:case_id.into(),source_type:kind.into(),source_id:id.into(),owner:"operator".into(),reason:reason.into(),recorded_at:now.into(),state:"open".into(),acknowledged_at:None,next_action:"Operator must review the blocker and arrange an accepted handoff or explicit decision. Delivery and human acknowledgment are tracked separately".into(),resolution:None};
     tx.execute(
         "INSERT INTO escalations VALUES (?1,?2,?3,?4,?5,'open',NULL)",
         params![e.id, case_id, kind, id, serde_json::to_string(&e)?],
@@ -929,14 +929,16 @@ impl Application {
             return Ok(r);
         }
         read::expected(&tx, case_id, cmd.command.expected_version)?;
-        let e: Escalation = read::records(
+        let mut e: Escalation = read::records(
             &tx,
             "SELECT record,state FROM escalations WHERE id=?1",
             &cmd.escalation_id,
         )?
         .pop()
         .ok_or(Error::NotFound)?;
-        if e.case_id != case_id || e.owner != cmd.command.meta.actor {
+        crate::notifications::resolution_state(&tx, &mut e)?;
+        if e.case_id != case_id || !crate::notifications::can_ack(&tx, &e, &cmd.command.meta.actor)?
+        {
             return Err(Error::Invalid(
                 "only the local inbox owner can acknowledge this escalation".into(),
             ));
@@ -981,6 +983,7 @@ impl Application {
             let mut e: Escalation = serde_json::from_str(&raw)?;
             e.state = state;
             e.acknowledged_at = acknowledged_at;
+            crate::notifications::resolution_state(&db, &mut e)?;
             Ok(e)
         })
         .collect()

@@ -76,7 +76,7 @@ cargo run --locked -- team inbox
 
 Use the [handoff command example](contracts/v1/team/handoff.json), replacing its block ID and expected version from the case snapshot. The first worker stores a blocker/checkpoint; the successor discovers and accepts the durable handoff before ownership changes. A late old result is retained as unaccepted evidence and cannot complete the task.
 
-`worker --stall` simulates a live fake process with heartbeats but no useful progress. `serve --manual-workers` runs the scheduler and operating interface while separate CLI workers dispatch. `tick` supervises due work without an executor. Trusted versioned fake deadlines and budgets are configured through the [operator policy contract](policy/README.md); handoff cannot reset them. No external escalation delivery, real harness, installer, or OS service registration is implemented yet.
+`worker --stall` simulates a live fake process with heartbeats but no useful progress. `serve --manual-workers` runs the scheduler and operating interface while separate CLI workers dispatch. `tick` supervises due work without an executor. Trusted versioned fake deadlines and budgets are configured through the [operator policy contract](policy/README.md); handoff cannot reset them. The [Slack escalation adapter](contracts/v1/notifications/README.md) supports configured human fallback, delivery tracking and explicit resolution; no live destination is configured or verified. Real harnesses, installers and OS service registration remain ahead.
 
 ## A typical response
 
