@@ -67,3 +67,7 @@ Before read I/O, a durable per-source generation and retry deadline are claimed.
 Unchanged accepted facts refresh the read ledger without creating evidence/timeline spam or invalidating communication review. The source snapshot's observation time is the time of its retained fact version; `last_success_at` is the latest successful reread. Changes to actual normalized facts still append evidence and invalidate context-bound review. Repeated unchanged failure hints are deduplicated; errors retain the last usable snapshot and expose incomplete freshness.
 
 Case snapshots expose `source_freshness`; source health exposes known-issue read generations, configuration revision, next check, last success, age and error (newest 200 tracked sources). States distinguish current snapshot, refresh due, unavailable, refreshing/interrupted and untracked legacy records. The web polls read-only health independently of case events; this observation poll does not schedule core work. Fair due-time ordering prevents one failing old source from permanently occupying the intake/refresh head.
+
+## Diagnostic context and case correlations
+
+The [correlation contract](../correlations/README.md) documents bounded module/function symbols and category-only breadcrumbs, conservative suggestions, reversible reviewed links and escaped qualification reports. Provider grouping remains distinct from semantic correlation; linked cases retain their independent duties.

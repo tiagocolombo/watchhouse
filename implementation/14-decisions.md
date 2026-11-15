@@ -102,3 +102,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 2026-11-15: [ADR 0012](adrs/0012-investigations-and-draft-review.md) implements versioned investigations and independent, context-bound communication draft review.
 
 2026-11-15: [ADR 0013](adrs/0013-source-freshness-and-known-issue-recovery.md) adds fenced source reads, known-issue recovery beyond discovery windows and separate freshness tracking.
+
+2026-11-15: [ADR 0014](adrs/0014-scoped-case-correlation.md) adds bounded diagnostic context and reversible scoped case correlations without suppressing duties.

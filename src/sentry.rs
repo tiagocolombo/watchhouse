@@ -124,6 +124,8 @@ pub struct SourceObservation {
     pub release: Option<String>,
     pub deployed_revision: Option<String>,
     pub exceptions: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub diagnostic: Option<crate::source_context::DiagnosticContext>,
     pub uncertainty: String,
 }
 pub struct Enrichment {

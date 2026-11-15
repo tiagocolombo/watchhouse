@@ -146,3 +146,7 @@ Use the [Sentry configuration and incident contract](contracts/v1/sentry/README.
 [Incident operations and artifacts](contracts/v1/incidents/README.md) add versioned commander updates, accepted role handoffs, hypothesis/experiment records and independent review of unsent communication drafts. `case operate-incident` and `case record-incident-artifact` share CLI/API/web contracts. Evidence and review deadlines escalate without models. `case investigation-markdown` renders retained findings and failed attempts.
 
 The source pump also refreshes known issues beyond discovery windows. Read health is separate from source fact history: unchanged polling refreshes freshness without spamming case events, while fenced overlapping results cannot overwrite newer observations. Source status and communication approval never assert service recovery or grant production authority.
+
+## Qualify and correlate source cases
+
+The [case correlation contract](contracts/v1/correlations/README.md) adds bounded diagnostic context, scoped comparison suggestions and evidence-backed related/duplicate links. Links are reversible and preserve every case and duty. Use `case correlate CASE_ID --file FILE` and `case qualification-markdown CASE_ID`, or inspect the web correlation panel. Synthetic checkout-contract fixtures prove scoped expected-behavior review; actual service history and the [prepared live activation drill](implementation/16-m3-activation-drill.md) remain unverified.

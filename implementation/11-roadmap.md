@@ -2,9 +2,9 @@
 
 Every milestone delivers a usable vertical slice with evidence and a STATUS.md update. A checked document is not an implemented feature.
 
-## Current delivery state (2026-11-14)
+## Current delivery state (2026-11-15)
 
-M0/M1 and bounded fake-only M2 mechanisms are implemented, including independent challenges, trusted policy and human escalation/fallback/resolution. The first M3 Sentry/enrichment/reconciliation/incident-declaration slice is fixture-verified. Live activation remains blocked on actual configuration, credentials, destinations and trusted ingress. Broader M3 workflows and M4–M8 remain unfinished; see [STATUS](STATUS.md) and ADRs 0007–0010.
+M0/M1 and bounded fake-only M2 mechanisms are implemented. PRs #2–#8 are merged. M3 now includes source intake/reconciliation/freshness, incident operations/roles, investigations/draft review and scoped correlation/diagnostic evidence (current slice under review). Synthetic service-specific qualification is tested; actual sanitized service-history acceptance and live activation remain blocked on operator inputs. M3 is not fully accepted. M4–M8 remain unfinished; see [STATUS](STATUS.md).
 
 ## M0 — Bootstrap and contracts
 
@@ -81,3 +81,5 @@ Completed: M0 plus manual case creation -> persisted event -> queued fake assign
 2026-11-15 next M3 batch: versioned incident operations/roles, investigation and communication records, then known-issue reconciliation/freshness. PRs #2–#5 are merged; see STATUS.
 
 2026-11-15 M3 next batch: incident operations/roles, versioned investigation/draft review, and known-issue read reliability are implemented with fixture evidence. Actual service-specific qualification/correlation, live activation and M4+ remain open; current STATUS supersedes historical next-task text above.
+
+2026-11-15: M3 scoped case correlation and bounded diagnostic evidence implemented with synthetic checkout-contract acceptance; see ADR 0014 and the prepared, unexecuted [activation drill](16-m3-activation-drill.md). Actual sanitized service history and configured live drill remain open; M4 isolation/execution is the next independent milestone.
