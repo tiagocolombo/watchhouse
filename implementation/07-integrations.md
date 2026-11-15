@@ -75,3 +75,7 @@ A provider outage must be distinguishable from healthy silence.
 ## Current implementation
 
 The Slack notification adapter and first read-only Sentry Cloud adapter are implemented. Executable contracts are in contracts/v1/notifications and contracts/v1/sentry; ADRs 0009–0010 and STATUS record fixture evidence and activation blockers. The broader interfaces above remain design proposals. No live integration is verified.
+
+## Implemented bounded correlation
+
+M3 now retains allowlisted representative-event diagnostic symbols and offers conservative same-scope suggestions. Evidence-backed reversible links catalogue related/duplicate cases without merging or suppressing duties. See the [executable correlation contract](../contracts/v1/correlations/README.md) and ADR 0014. Cross-service correlation, arbitrary agent-proposed graph merges/splits and full historical evidence remain planned.

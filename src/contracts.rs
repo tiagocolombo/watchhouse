@@ -48,6 +48,11 @@ pub struct Actor {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload", deny_unknown_fields)]
 pub enum EventData {
+    #[serde(rename = "case.correlated")]
+    CaseCorrelated {
+        relation: Box<crate::correlation::Relation>,
+        reason: String,
+    },
     #[serde(rename = "incident.artifact_recorded")]
     IncidentArtifactRecorded {
         artifact: Box<crate::incident_artifacts::Artifact>,
@@ -287,6 +292,8 @@ pub struct Snapshot {
     pub incident_role_offers: Vec<crate::incident_ops::RoleOffer>,
     #[serde(default)]
     pub incident_artifacts: Vec<crate::incident_artifacts::Artifact>,
+    #[serde(default)]
+    pub correlations: crate::correlation::Correlations,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

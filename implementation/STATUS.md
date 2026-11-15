@@ -2,29 +2,22 @@
 
 Last updated: 2026-11-15.
 
-## Main and next batch
+## Merged baseline and current slice
 
-PRs [#2](https://github.com/tiagocolombo/watchhouse/pull/2), [#3](https://github.com/tiagocolombo/watchhouse/pull/3), [#4](https://github.com/tiagocolombo/watchhouse/pull/4) and [#5](https://github.com/tiagocolombo/watchhouse/pull/5) were checked and merged in order using merge commits. Main at `1cab931` contains the complete original stack; no feature was discarded by squashing or retargeting.
+PRs [#2](https://github.com/tiagocolombo/watchhouse/pull/2)–[#8](https://github.com/tiagocolombo/watchhouse/pull/8) are merged into main. The latest merged baseline is `33da6d9` (PR #8). It contains M0/M1, bounded fake-only M2, and M3 source intake/reconciliation/freshness, incident operations/roles, structured investigations and independently reviewed unsent communications drafts.
 
-The next M3 batch starts at that main and has three reviewable slices. Each slice was validated/committed before the next began; these new PRs have not been merged.
+Current branch `dev/m3-service-qualification` starts at that main. This reviewable M3 slice adds bounded diagnostic context, conservative case correlation and synthetic service-specific qualification acceptance. It is not merged. [ADR 0014](adrs/0014-scoped-case-correlation.md), the [executable contract](../contracts/v1/correlations/README.md) and the [prepared activation drill](16-m3-activation-drill.md) define its boundaries.
 
-| Slice | Branch | Dependency | Delivered |
-| --- | --- | --- | --- |
-| Incident operations | `dev/m3-incident-operations` | `main` | Versioned briefs, accepted role handoffs, repeating update duties |
-| Investigations and drafts | `dev/m3-investigation-records` | [#6](https://github.com/tiagocolombo/watchhouse/pull/6) | Immutable hypotheses/experiments/drafts, independent review and owned obligations |
-| Source reliability | `dev/m3-source-reliability` | [#7](https://github.com/tiagocolombo/watchhouse/pull/7) | Known-issue recovery, fenced reads, separate freshness and unchanged-fact deduplication |
+M3 remains partially accepted: actual sanitized service history and configured live activation are missing. M4 real execution/repair-to-PR and M5–M8 remain unimplemented. Repository PR merges performed by the operator's coding assistant do not constitute Watchhouse merge automation.
 
-M0/M1 and bounded fake-only M2 mechanisms remain implemented. M3 now has source intake/reconciliation plus operational incident/investigation/communication records. Live operational activation and remaining M3 acceptance on actual sanitized service history are still incomplete. Real harnesses, production mutation, repair-to-PR automation, automatic merging, verified recovery and accepted knowledge are not implemented.
+## Implemented in this slice
 
-## Actual implementation
-
-- Migrations 001–007 and historical event bytes remain unchanged. Existing challenge independence, policy provenance/pinned budgets, fake supervision/handoff, notification delivery/fallback/reconciliation and incident declaration contracts remain intact.
-- Migration 008 adds current incident operations separately from immutable declaration. Commander updates bind evidence and versions; the original source configuration governs severity/update intervals. Role offers require addressed acceptance and retain prior accountability until then. Expiry escalates. A handoff cannot reset update deadlines. Every overdue update cycle has its own escalation identity, including an update arriving after deadline but before a tick. New updates never resolve old escalations. Due-row filtering prevents resolved earlier duties from starving later incidents.
-- Migration 009 adds immutable hypothesis/experiment/draft versions. Supported/refuted interpretations require a completed discriminating experiment bound to the exact unchanged claim/scope revision and its evidence. Results retain failed and inconclusive attempts. Plans record methods/risk/scope but execute nothing and grant no authority. Owned evidence/review deadlines survive restart, escalate without models and block assessment closure while pending/due. Late completion does not resolve past escalation.
-- Communication drafts are unsent records. A distinct current commander/operations reviewer must approve the exact draft under unchanged incident/source context and clear blocking challenges. Approval is conservatively invalidated by later case events, and never authorizes sending. Role handoffs permit distinct authors/reviewers without inventing remote identity authentication.
-- Migration 010 claims source read generations and retry deadlines before I/O. Only current generations can advance source projection/freshness; late output is unaccepted evidence. Known-issue sweeps recover status-only changes beyond discovery windows. Older API data cannot supersede retained newer occurrence evidence or prematurely complete a newer webhook's collection duty. Failures/interrupted reads retain old snapshots with visible uncertainty.
-- Unchanged facts update freshness without case-event/evidence spam or review invalidation. Actual source changes retain normal case history. `observed_at` describes the retained fact snapshot, while read state shows latest successful reread. Configuration revisions accept a bounded refresh interval while preserving legacy default serialization. Due-time ordering and one page/item/known-source per tick bound work. Source/model unavailability cannot disable deterministic supervision and human notification duties.
-- CLI/API/web share all services. Snapshots show current operations/offers/artifacts/approval currency/read freshness; Markdown renders current brief, roles, hypothesis register, experiments/drafts, original declaration and timeline. Imported text is inert. Web health polling observes freshness independently of case-event scheduling.
+- Sentry representative-event evidence adds an optional diagnostic record: validated event ID, at most 20 module/function symbol pairs and category-only breadcrumbs. Traversal/strings are bounded. Paths, source code, variables, messages, request/user data and breadcrumb data are excluded. Symbols remain untrusted; the allowlist does not guarantee arbitrary identifiers contain no sensitive text. Missing/wrong-environment events have no diagnostic record. Legacy observations retain their serialized shape when the optional field is absent.
+- Read-only suggestions require matching configured service/environment/repository, exact mapped release/revision, exception/frame signature, occurrences within one hour and current successful source reads. An indexed scan reads at most the newest 200 same-scope source records and emits at most 20 candidates. This deliberately incomplete heuristic grants no authority and changes no case or incident.
+- A trusted operator owning both cases can record related/duplicate catalogue links against both case versions and current source evidence. Duplicate judgments additionally require operator-reported evidence on each case; status codes, matching diagnostics and fake results alone are insufficient. Blocking challenges prevent acceptance. Cross-service links are rejected.
+- Migration 011 stores immutable unordered-pair revisions. Both case events, the relation revision and command receipt commit atomically. Exact retries return the historical receipt. Revocation works during challenges/outages; changed source facts make an active link's context stale, while unchanged rereads preserve it. No link suppresses intake, transfers ownership, merges cases or closes an incident/assessment/escalation/obligation.
+- CLI `case correlate` / API `.../correlations` / web review commands share the application service. The web provides comparison/link status and explicit refresh/navigation. `case qualification-markdown` / API `.../qualification/markdown` render escaped diagnostics, freshness, dispositions/obligations and correlations. Target-only changes become visible on refresh without fabricated source-case events.
+- A synthetic checkout-service contract distinguishes intentional unauthenticated rejection from a submit failure and a duplicate observation. Expected behavior requires operator-reported contract evidence and remains subject to deterministic reassessment. This is invented fixture history, not a claim of customer-history or live acceptance.
 
 ## Verification actually run
 
@@ -34,25 +27,24 @@ Linux, 2026-11-15:
 | --- | --- |
 | `cargo fmt --all -- --check` | Passed |
 | `cargo clippy --locked --all-targets -- -D warnings` | Passed |
-| `cargo test --locked` | Slice 1: 64; slice 2: 69; slice 3: 74 tests passed |
-| `npm run build --prefix web` and `cargo build --locked` | Strict TypeScript and bundled native binary passed |
-| `npm test --prefix web` | All five Chromium scenarios passed per slice |
-| `git diff --check` | Passed |
+| `cargo test --locked` | 84 Rust tests passed |
+| `npm run build --prefix web` | Strict TypeScript passed |
+| `cargo build --locked` | Bundled native binary passed |
+| `npm test --prefix web` | All five Chromium scenarios passed |
+| `git diff --check` and local Markdown link validation | Passed |
 
-New coverage includes evidence/version/role admission, accepted/wrong/late handoff and restart, repeating deadlines, late update materialization, concurrent commands and event rollback; exact-claim experiment binding, failed hypotheses, self/stale/delayed review, source-context review invalidation, pending-duty closure gates, immutable history, case-bound evidence and inert artifact replay; known status changes outside discovery windows, unchanged reads preserving review, outage/restart, interrupted reads, stale overlapping response rejection, canonical configuration compatibility and atomic source projection retry. Browser acceptance extends signed intake → incident → current update → hypothesis → reload/mobile layout and visible missing read freshness.
+Ten new Rust tests cover bounded/sanitized diagnostic evidence and old observation serialization, matching/misleading/stale scopes, no automatic declarations, link caps (including active links beyond the display cap), explicit duplicate evidence, source drift, revocation/restart/history immutability, independent duties, foreign evidence, blocking challenges, competing commands, transaction rollback, shared CLI/HTTP receipts, authorization and literal reports. Existing crash/recovery and offline timer/escalation tests remain green. The browser source scenario now compares two offline source cases, rejects unsupported links without API evidence, renders qualification Markdown and replays the interface on reload/mobile.
 
-Standard tests use synthetic sanitized fixtures and injected read transports. No live Sentry, Slack destination, model subscription or production service was exercised. Each PR records its own current-head remote CI result; do not infer that from local checks or an older commit.
+Ordinary tests use only synthetic fixtures/fake execution/injected source and notification transports. No live Sentry, Slack destination, subscription model or production service was exercised. Remote CI results belong to the exact PR head and must be checked separately.
 
-## Activation blockers and limits
+## Remaining work and blockers
 
-- Slack still needs verified human destinations, webhook secrets and explicit operator configuration. Sentry still needs actual service/release mappings, app/client secret, API token/permissions/plan coverage and trusted reachable ingress. No live integration was verified.
-- Actor labels remain attribution under one trusted operator-token/OS boundary. A hostile process with operator database access is outside this fake-only boundary. Real-worker authentication, isolation, scoped credentials/revocation and external-effect containment remain prerequisites for M4.
-- Recovery, mitigation, deployment, repair, postmortem acceptance and follow-up completion remain separate future lifecycles. Source 'resolved', an approved unsent draft, a supported hypothesis or absent telemetry establishes none of them.
-- Source coverage is bounded discovery plus direct known-issue snapshots, not complete historical per-error/lifecycle replay. Only Sentry Cloud's fixed API host is supported. Real sanitized workload/retention coverage and live activation drills remain unverified.
-- Snapshots include the newest 200 artifact heads/known read states; full event history remains authoritative and unpaginated. Retention/redaction, backup/restore, fleet backpressure, clock-jump hardening, installers/services and license remain open. Old binaries reject unknown newer schemas.
+- **M3 acceptance:** the operator must provide one real, sanitized service-history corpus and explicit scope/mappings. Additional disposition categories (external dependency, operational/configuration problem, application defect), richer frequency/user/request windows and cross-service correlation remain planned. The synthetic contract test does not satisfy actual-history acceptance.
+- **Live activation:** verified Sentry install/plan permissions, client secret/read-only API token, trusted reachable ingress, actual service/release mappings, and authorized Slack destinations/secrets/fallback participants are absent. Follow the prepared drill only after these inputs/authority exist. No live delivery, intake or read coverage has been verified.
+- **M4 next independent work:** isolated workspace/test executor and installed-version capability admission for the first real harness, followed by bounded engineer/verifier/reviewer repair and reconciled PR delivery. Real-worker authentication, scoped credentials, revocation and containment are prerequisites; local actor labels are not remote authentication.
+- **M5–M8:** mitigation authority, deployment/recovery observation, postmortems, accepted knowledge, automatic merging, second source/harness, packaging, remote RBAC, backup/restore, retention/redaction and backpressure remain ahead. Recovery is never inferred from Sentry status, an accepted hypothesis, a link or an approved unsent draft.
+- Current source coverage is bounded Sentry Cloud issue snapshots plus one representative event, not complete historical per-error/lifecycle replay. Snapshot caps, fleet hardening, clock jumps, installers/services and license remain open. A hostile process with operator database access remains outside the current single-operator boundary.
 
-## Decisions and exact next step
+## Exact next step
 
-[ADR 0011](adrs/0011-versioned-incident-operations.md), [0012](adrs/0012-investigations-and-draft-review.md) and [0013](adrs/0013-source-freshness-and-known-issue-recovery.md) capture this batch. Executable contracts: [incident operations/artifacts](../contracts/v1/incidents/README.md), [Sentry/read reliability](../contracts/v1/sentry/README.md). Earlier ADRs 0001–0010 remain historical decisions.
-
-Review the three new PRs in stack order. Next independent M3 work: strengthen qualification/correlation and richer bounded evidence using sanitized service-specific fixtures, then prepare the concrete live activation drill. M4 real execution must satisfy the documented adapter/isolation admission boundary; this batch adds no production authority.
+Review this M3 slice against main. Supply sanitized actual service history and activation inputs to complete the documented acceptance/drill; meanwhile M4 isolation and execution admission can proceed independently without live notification or observability credentials. Preserve fake-only CI and separate proposal/execution, merge/deployment and recovery boundaries.

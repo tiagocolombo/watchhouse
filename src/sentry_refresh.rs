@@ -77,7 +77,7 @@ fn observation(
         .take(10)
         .map(str::to_owned)
         .collect();
-    SourceObservation{source_key:key(cfg,&signal.issue_id),signal,authoritative,observed_at,configuration_revision:cfg.revision,service:cfg.service.clone(),environment:cfg.environment.clone(),repository:cfg.repository.clone(),deployed_revision:release.as_ref().and_then(|r|cfg.releases.get(r)).cloned(),release,exceptions,uncertainty:if authoritative{"API snapshot; traffic denominator and recovery are unknown. Representative event fields may be unavailable."}else{"Enrichment unavailable; webhook status is an unverified hint, not current state. No cause or recovery inferred."}.into()}
+    SourceObservation{source_key:key(cfg,&signal.issue_id),signal,authoritative,observed_at,configuration_revision:cfg.revision,service:cfg.service.clone(),environment:cfg.environment.clone(),repository:cfg.repository.clone(),deployed_revision:release.as_ref().and_then(|r|cfg.releases.get(r)).cloned(),release,exceptions,diagnostic:crate::source_context::normalize(&event),uncertainty:if authoritative{"API snapshot; traffic denominator and recovery are unknown. Representative event fields may be unavailable."}else{"Enrichment unavailable; webhook status is an unverified hint, not current state. No cause or recovery inferred."}.into()}
 }
 fn validated(cfg: &SentryConfig, expected: &str, e: Enrichment) -> Result<(Signal, Value)> {
     let signal = sentry::normalize(&e.issue, cfg)?;

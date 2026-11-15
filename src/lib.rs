@@ -1,6 +1,7 @@
 pub mod application;
 pub mod challenges;
 pub mod contracts;
+pub mod correlation;
 pub mod domain;
 pub mod error;
 pub mod execution;
@@ -14,5 +15,6 @@ pub mod policy;
 pub mod qualification;
 pub mod sentry;
 pub mod sentry_refresh;
+pub mod source_context;
 pub mod store;
 pub mod team;

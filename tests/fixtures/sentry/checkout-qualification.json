@@ -1,0 +1,18 @@
+{
+  "provenance": "Synthetic checkout-service contract examples; invented operational history, not customer data or verified production behavior.",
+  "scope": "checkout / test / fixture-release-1",
+  "expected": {
+    "exception_type": "AuthorizationDenied",
+    "module": "checkout.auth",
+    "function": "require_session",
+    "statement": "Fixture test submitted an unauthenticated request. The documented contract rejects it without executing checkout; the fixture runner observed the rejection and no checkout call.",
+    "uncertainty": "No claim about all 401/403 responses; only this fixture contract and scope were checked."
+  },
+  "defect": {
+    "exception_type": "TimeoutError",
+    "module": "checkout",
+    "function": "submit",
+    "statement": "Fixture replay shows two provider issue IDs share the same checkout submit failure and mapped build. They remain distinct observations; no deployment, fix or recovery was exercised.",
+    "uncertainty": "Shared diagnostic symbols alone cannot establish common cause or actual user impact."
+  }
+}

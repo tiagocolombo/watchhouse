@@ -66,6 +66,11 @@ pub fn router(app: Application, token: String, authority: String) -> Router {
         .route("/cases/{id}/rename", post(rename))
         .route("/cases/{id}/challenges", post(challenge))
         .route("/cases/{id}/gate", post(case_gate))
+        .route("/cases/{id}/correlations", post(case_correlation))
+        .route(
+            "/cases/{id}/qualification/markdown",
+            get(qualification_markdown),
+        )
         .route("/cases/{id}/incident", post(declare_incident))
         .route("/cases/{id}/incident/operations", post(incident_operation))
         .route("/cases/{id}/incident/artifacts", post(incident_artifact))
@@ -210,6 +215,11 @@ macro_rules! worker_command {
         }
     };
 }
+case_command!(
+    case_correlation,
+    crate::correlation::RelationCommand,
+    correlate_case
+);
 case_command!(challenge, crate::challenges::ChallengeCommand, challenge);
 case_command!(case_gate, crate::challenges::GateCommand, record_gate);
 case_command!(
@@ -385,5 +395,15 @@ async fn incident_markdown(
     Ok((
         [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
         blocking(move || s.app.incident_markdown(&id)).await?,
+    ))
+}
+
+async fn qualification_markdown(
+    State(s): State<HttpState>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok((
+        [(header::CONTENT_TYPE, "text/markdown; charset=utf-8")],
+        blocking(move || s.app.qualification_markdown(&id)).await?,
     ))
 }

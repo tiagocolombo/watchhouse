@@ -237,6 +237,7 @@ impl Application {
             incident_operations: crate::incident_ops::snapshot(&tx, id)?,
             incident_role_offers: crate::incident_ops::offers(&tx, id)?,
             incident_artifacts: crate::incident_artifacts::snapshot(&tx, id)?,
+            correlations: crate::correlation::snapshot(&tx, id, self.clock.now())?,
         })
     }
     pub fn timeline(&self, id: &str, after: i64) -> Result<Vec<Event>> {

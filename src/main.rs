@@ -101,6 +101,15 @@ enum CaseCommand {
         #[arg(long, default_value = "Manual intake")]
         reason: String,
     },
+    /// Record or revoke an evidence-backed correlation without merging cases.
+    Correlate {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+    QualificationMarkdown {
+        id: String,
+    },
     /// Record an attributed observation from a versioned JSON command file.
     RecordEvidence {
         id: String,
@@ -431,6 +440,13 @@ async fn main() -> anyhow::Result<()> {
                         &id,
                         serde_json::from_slice::<RecordEvidence>(&std::fs::read(file)?)?,
                     )?)?
+                }
+                CaseCommand::Correlate { id, file } => {
+                    serde_json::to_value(app.correlate_case(&id, read_command(file)?)?)?
+                }
+                CaseCommand::QualificationMarkdown { id } => {
+                    print!("{}", app.qualification_markdown(&id)?);
+                    return Ok(());
                 }
                 CaseCommand::RecordDisposition { id, file } => {
                     serde_json::to_value(app.record_disposition(

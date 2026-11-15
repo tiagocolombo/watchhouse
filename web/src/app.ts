@@ -11,7 +11,8 @@ interface TeamHandoff {id:string;state:string;previous_owner:string;successor:st
 interface TeamEscalation {id:string;state:string;owner:string;reason:string;next_action:string}
 interface Team {control:{state:string;executor:string;overall_deadline:string|null;max_attempts:number}|null;messages:TeamMessage[];blocks:TeamBlock[];handoffs:TeamHandoff[];escalations:TeamEscalation[];runs:{run_id:string;state:string;executor:string;progress_deadline:string;heartbeat_at:string;progress_at:string}[];late_results:{run_id:string;digest:string}[]}
 interface SourceFreshness {source_key:string;state:string;age_seconds:number|null;last_success_at:string|null;error:string|null}
-interface Snapshot { case:Case; events:TimelineEvent[]; cursor:number; results:{summary:string;conclusion:string}[]; qualification:Qualification; team:Team; challenges:unknown[]; gate:{validated_version:number;closed_version:number|null}|null; policy:unknown; notifications:unknown[]; source:unknown; source_freshness:SourceFreshness|null; incident:unknown; incident_operations:unknown; incident_role_offers:unknown[]; incident_artifacts:unknown[] }
+interface Correlations {relations:{source_case:string;target_case:string;kind:string;active:boolean;context_current:boolean;reason:string;revision:number}[];candidates:{case_id:string;reason:string}[];limitation:string}
+interface Snapshot { case:Case; events:TimelineEvent[]; cursor:number; results:{summary:string;conclusion:string}[]; qualification:Qualification; team:Team; challenges:unknown[]; gate:{validated_version:number;closed_version:number|null}|null; policy:unknown; notifications:unknown[]; source:unknown; source_freshness:SourceFreshness|null; incident:unknown; incident_operations:unknown; incident_role_offers:unknown[]; incident_artifacts:unknown[]; correlations:Correlations }
 const el = <T extends HTMLElement = HTMLElement>(id:string) => document.getElementById(id) as T;
 const input = (id:string) => el<HTMLInputElement>(id).value;
 let token = sessionStorage.getItem('watchhouse-token') ?? '';
@@ -68,9 +69,10 @@ function renderState(snapshot:Snapshot) {
   el('results').replaceChildren();
   for(const result of snapshot.results) { const p=document.createElement('p');p.textContent=result.summary; el('results').append(p); }
   if (!snapshot.results.length) el('results').textContent='No result recorded yet.';
+  renderCorrelations(snapshot.correlations);
   renderQualification(snapshot);
   renderTeam(snapshot);
-  el('challenge-records').textContent=JSON.stringify({incident_artifacts:snapshot.incident_artifacts,incident_operations:snapshot.incident_operations,incident_role_offers:snapshot.incident_role_offers,source:snapshot.source,source_freshness:snapshot.source_freshness,incident:snapshot.incident,notifications:snapshot.notifications,policy:snapshot.policy,challenges:snapshot.challenges,gate:snapshot.gate,gateCurrent:snapshot.gate?.closed_version===snapshot.case.version},null,2);
+  el('challenge-records').textContent=JSON.stringify({correlations:snapshot.correlations,incident_artifacts:snapshot.incident_artifacts,incident_operations:snapshot.incident_operations,incident_role_offers:snapshot.incident_role_offers,source:snapshot.source,source_freshness:snapshot.source_freshness,incident:snapshot.incident,notifications:snapshot.notifications,policy:snapshot.policy,challenges:snapshot.challenges,gate:snapshot.gate,gateCurrent:snapshot.gate?.closed_version===snapshot.case.version},null,2);
 }
 async function follow(id:string,cursor:number,current:number,signal:AbortSignal) {
   while(!signal.aborted && current===generation) {
@@ -317,3 +319,18 @@ function renderFreshness(value:SourceFreshness|null) {
 setInterval(()=>{if(!token||healthPolling||!el('login').hidden)return;healthPolling=true;
   void api<{known_issue_freshness:SourceFreshness[]}>('/sources/sentry').then(health=>{el('source-health').textContent=JSON.stringify(health,null,2);const value=health.known_issue_freshness.find(v=>v.source_key===selectedSourceKey);if(value)renderFreshness(value);}).catch(()=>{if(selectedSourceKey)el('source-freshness-summary').textContent='Source health unavailable; retained observations may be stale.';}).finally(()=>{healthPolling=false;});
 },5000);
+
+function renderCorrelations(value:Correlations) {
+  el('correlation-limits').textContent=value.limitation;
+  const links=el('correlation-links');links.replaceChildren();
+  for(const r of value.relations) {
+    const li=document.createElement('li');li.textContent=`${r.kind} · revision ${r.revision} · ${!r.active?'revoked':r.context_current?'reviewed fact snapshots unchanged':'source facts changed; review required'} · ${r.source_case} → ${r.target_case} · ${r.reason}`;links.append(li);
+  }
+  if(!value.relations.length) links.textContent='No recorded links.';
+  const candidates=el('correlation-candidates');candidates.replaceChildren();
+  for(const c of value.candidates) {
+    const li=document.createElement('li');const button=document.createElement('button');button.textContent=`Compare case ${c.case_id}`;button.onclick=()=>{void openCase(c.case_id).catch(fail);};li.append(button);const text=document.createElement('p');text.textContent=c.reason;li.append(text);candidates.append(li);
+  }
+  if(!value.candidates.length) candidates.textContent='No current suggestions in the bounded scan. This does not establish uniqueness.';
+}
+el<HTMLButtonElement>('refresh-correlations').onclick=()=>{if(selected)void openCase(selected.id).catch(fail);};
