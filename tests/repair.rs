@@ -430,17 +430,12 @@ async fn corrupted_git_object_cannot_be_frozen_under_an_unrelated_blob_identity(
             .join(&oid[2..])
     };
     let original_path = object(&original);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&original_path, fs::Permissions::from_mode(0o600)).unwrap();
-    }
-    #[cfg(windows)]
-    {
-        let mut permissions = fs::metadata(&original_path).unwrap().permissions();
-        permissions.set_readonly(false);
-        fs::set_permissions(&original_path, permissions).unwrap();
-    }
+    let writable = tempfile::NamedTempFile::new_in(&cfg.source_path).unwrap();
+    fs::set_permissions(
+        &original_path,
+        writable.as_file().metadata().unwrap().permissions(),
+    )
+    .unwrap();
     fs::copy(object(&forged), &original_path).unwrap();
     assert!(a.install_repair_source(cfg, "operator").await.is_err());
     assert!(a.repair_source_status().unwrap().is_none());
@@ -474,4 +469,47 @@ async fn observed_source_case_requires_an_exact_explicit_base_mapping() {
         .unwrap_err();
     assert!(error.to_string().contains("base does not match"));
     assert!(a.snapshot(&id).unwrap().repairs.is_empty());
+}
+#[tokio::test]
+async fn corrupted_tree_cannot_relabel_otherwise_valid_blobs_as_the_original_base() {
+    let (_d, a, cfg, _) = setup();
+    let original = git(
+        &cfg.source_path,
+        &["rev-parse", &format!("{}^{{tree}}", cfg.base_commit)],
+    );
+    fs::write(
+        cfg.source_path.join("src/logic.txt"),
+        "fixture bug: add(2,2)=9\n",
+    )
+    .unwrap();
+    git(&cfg.source_path, &["add", "src/logic.txt"]);
+    git(
+        &cfg.source_path,
+        &[
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "commit",
+            "-qm",
+            "Another fixture tree",
+        ],
+    );
+    let forged = git(&cfg.source_path, &["rev-parse", "HEAD^{tree}"]);
+    let object = |oid: &str| {
+        cfg.source_path
+            .join(".git/objects")
+            .join(&oid[..2])
+            .join(&oid[2..])
+    };
+    let original_path = object(&original);
+    let writable = tempfile::NamedTempFile::new_in(&cfg.source_path).unwrap();
+    fs::set_permissions(
+        &original_path,
+        writable.as_file().metadata().unwrap().permissions(),
+    )
+    .unwrap();
+    fs::copy(object(&forged), original_path).unwrap();
+    assert!(a.install_repair_source(cfg, "operator").await.is_err());
+    assert!(a.repair_source_status().unwrap().is_none());
 }

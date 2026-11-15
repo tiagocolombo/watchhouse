@@ -126,6 +126,21 @@ fn portable(path: &str) -> bool {
                     && stem.as_bytes()[3].is_ascii_digit())
         })
 }
+fn object_identity(kind: &str, bytes: &[u8], oid: &str) -> bool {
+    let header = format!("{kind} {}\0", bytes.len());
+    let actual = if oid.len() == 40 {
+        let mut hash = sha1::Sha1::new();
+        hash.update(header.as_bytes());
+        hash.update(bytes);
+        format!("{:x}", hash.finalize())
+    } else {
+        let mut hash = Sha256::new();
+        hash.update(header.as_bytes());
+        hash.update(bytes);
+        format!("{:x}", hash.finalize())
+    };
+    actual == oid
+}
 pub(crate) async fn prepare(cfg: &RepairSourceConfig) -> Result<(tempfile::TempDir, BaseSnapshot)> {
     let deadline = Instant::now() + Duration::from_secs(cfg.preparation_seconds.into());
     let tree = output(
@@ -141,8 +156,26 @@ pub(crate) async fn prepare(cfg: &RepairSourceConfig) -> Result<(tempfile::TempD
     if !oid(&tree) {
         return Err(Error::Invalid("invalid Git tree identity".into()));
     }
+    let commit = output(
+        git(cfg, &["cat-file", "commit", &cfg.base_commit]),
+        65536,
+        deadline,
+    )
+    .await?;
+    if !object_identity("commit", &commit, &cfg.base_commit) {
+        return Err(Error::Conflict(
+            "Git commit identity does not match its bytes".into(),
+        ));
+    }
+    let declared_tree =
+        std::str::from_utf8(commit.split(|b| *b == b'\n').next().unwrap_or_default())
+            .map_err(io)?;
+    if declared_tree != format!("tree {tree}") {
+        return Err(Error::Conflict("Git commit/tree linkage changed".into()));
+    }
+    let mut trees = HashSet::from([tree.clone()]);
     let listing = output(
-        git(cfg, &["ls-tree", "-rlz", &cfg.base_commit]),
+        git(cfg, &["ls-tree", "-rltz", &cfg.base_commit]),
         cfg.max_files as usize * 1200,
         deadline,
     )
@@ -157,14 +190,21 @@ pub(crate) async fn prepare(cfg: &RepairSourceConfig) -> Result<(tempfile::TempD
             .ok_or_else(|| Error::Invalid("invalid Git entry".into()))?;
         let parts = meta.split_whitespace().collect::<Vec<_>>();
         if parts.len() != 4
-            || !matches!(parts[0], "100644" | "100755")
-            || parts[1] != "blob"
             || !oid(parts[2])
             || !portable(path)
             || !names.insert(path.to_ascii_lowercase())
         {
             return Err(Error::Invalid(
                 "repository has unsupported paths, symlinks, submodules or case collisions".into(),
+            ));
+        }
+        if parts[0] == "040000" && parts[1] == "tree" && parts[3] == "-" {
+            trees.insert(parts[2].to_owned());
+            continue;
+        }
+        if !matches!(parts[0], "100644" | "100755") || parts[1] != "blob" {
+            return Err(Error::Invalid(
+                "repository has unsupported symlinks or submodules".into(),
             ));
         }
         let size = parts[3].parse::<u64>().map_err(io)?;
@@ -190,6 +230,19 @@ pub(crate) async fn prepare(cfg: &RepairSourceConfig) -> Result<(tempfile::TempD
     if files.is_empty() {
         return Err(Error::Invalid("empty base tree".into()));
     }
+    for oid in trees {
+        let bytes = output(
+            git(cfg, &["cat-file", "tree", &oid]),
+            cfg.max_files as usize * 1200,
+            deadline,
+        )
+        .await?;
+        if !object_identity("tree", &bytes, &oid) {
+            return Err(Error::Conflict(
+                "Git tree identity does not match its bytes".into(),
+            ));
+        }
+    }
     let dir = tempfile::Builder::new()
         .prefix("watchhouse-base-")
         .tempdir_in(&cfg.workspace_root)
@@ -204,19 +257,7 @@ pub(crate) async fn prepare(cfg: &RepairSourceConfig) -> Result<(tempfile::TempD
         if bytes.len() as u64 != f.bytes {
             return Err(Error::Conflict("Git blob length changed".into()));
         }
-        let header = format!("blob {}\0", bytes.len());
-        let actual = if f.git_blob.len() == 40 {
-            let mut hash = sha1::Sha1::new();
-            hash.update(header.as_bytes());
-            hash.update(&bytes);
-            format!("{:x}", hash.finalize())
-        } else {
-            let mut hash = Sha256::new();
-            hash.update(header.as_bytes());
-            hash.update(&bytes);
-            format!("{:x}", hash.finalize())
-        };
-        if actual != f.git_blob {
+        if !object_identity("blob", &bytes, &f.git_blob) {
             return Err(Error::Conflict(
                 "Git blob identity does not match its bytes".into(),
             ));
