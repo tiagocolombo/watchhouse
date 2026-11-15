@@ -2,6 +2,14 @@
 
 Last updated: 2026-11-14.
 
+## Phase 2: trusted policy configuration
+
+Branch `dev/m2-trusted-policy`, depends on phase 1 [PR #2](https://github.com/tiagocolombo/watchhouse/pull/2). [ADR 0008](adrs/0008-trusted-policy.md) and [policy contract](../policy/README.md).
+
+Implemented strict versioned immutable operator policy, pinned case/assignment budgets, policy provenance on new events and in snapshots/web, monotonic installation audit, and policy-backed lease/progress/response/assignment/attempt, acknowledgment/challenge/review limits. No worker or HTTP policy-editing route exists. Legacy runs keep their original proof, deadlines and budgets. Policy changes apply to new cases only.
+
+Verification on Linux passed: formatting, Clippy with warnings denied, all 48 Rust tests, native build, strict TypeScript, 4 Chromium scenarios and whitespace checks. Next: configured human notification adapter, fallback delivery, acknowledgment/retry/resolution, then first Sentry/incident slice. OS-level operator access remains trusted; real-worker isolation is not implemented.
+
 ## Phase 1: independent challenges
 
 Branch `dev/m2-independent-challenges`, based on main `a744d35`; first branch of the four-phase stack. [ADR 0007](adrs/0007-independent-challenges.md) records the boundary.

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "name": "local-fake-only-v1",
+  "lease_seconds": 30,
+  "progress_seconds": 60,
+  "response_seconds": 120,
+  "assignment_seconds": 300,
+  "max_attempts": 3,
+  "max_ack_seconds": 86400,
+  "max_challenge_seconds": 86400,
+  "max_review_seconds": 2592000
+}

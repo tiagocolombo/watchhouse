@@ -28,6 +28,7 @@ impl Store {
             (2, include_str!("../migrations/002_qualification.sql")),
             (3, include_str!("../migrations/003_team.sql")),
             (4, include_str!("../migrations/004_challenges.sql")),
+            (5, include_str!("../migrations/005_policy.sql")),
         ];
         let applied: Vec<(i64, String)> = {
             let mut stmt =
@@ -58,6 +59,7 @@ impl Store {
                 params![version, migration_digest(sql)],
             )?;
         }
+        crate::policy::bootstrap(&tx)?;
         tx.commit()?;
         Ok(store)
     }
@@ -128,7 +130,7 @@ pub fn emit(
         actor,
         correlation_id: case_id.into(),
         causation_id: cause.into(),
-        policy_version: "local-fake-only-v1".into(),
+        policy_version: crate::policy::for_case(tx, case_id)?.provenance(),
         data,
     };
     tx.execute(

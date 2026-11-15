@@ -71,3 +71,5 @@ Do not defer all UI to M8. Every milestone has a visible operating surface. Do n
 Completed: M0 plus manual case creation -> persisted event -> queued fake assignment -> observed result -> web timeline. Completed: versioned disposition/reconsideration commands, case-bound evidence, configurable review/monitoring/collection deadlines, and deterministic reopening in CLI/web. Completed first M2 slice: durable directed messages, owned blockers/checkpoints, progress/heartbeat supervision, acknowledged fake-worker handoff, stale-result evidence, and a local escalation inbox. Next: independent challenge lifecycle and scoped validation gates; then complete trusted policy configuration and an explicitly configured human notification/fallback channel before real execution.
 
 2026-11-14 phase 1: independent challenge lifecycle, deadline escalation and exact-version assessment gates implemented; see ADR 0007 and STATUS. Trusted policy and external escalation remain next.
+
+2026-11-14: Phase 2 trusted configuration implemented; external escalation is the remaining M2 delivery dependency.

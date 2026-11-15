@@ -276,6 +276,11 @@ impl Application {
             return Ok(response);
         }
         let case = expected(&tx, case_id, cmd.expected_version)?;
+        if cmd.plan.after_seconds() > crate::policy::for_case(&tx, case_id)?.max_review_seconds {
+            return Err(Error::Invalid(
+                "review timer exceeds governing policy".into(),
+            ));
+        }
         crate::challenges::ensure_clear(&tx, case_id)?;
         if case.status != CaseStatus::AwaitingReview {
             return Err(Error::Conflict(

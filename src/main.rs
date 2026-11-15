@@ -36,6 +36,13 @@ enum Command {
         #[command(subcommand)]
         action: TeamCommand,
     },
+    /// Install a trusted policy only through the OS-level operator control plane.
+    Policy {
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long)]
+        operator: String,
+    },
     /// Apply and validate migrations without starting workers.
     Migrate,
     /// Reconsider up to 100 persisted deadlines without invoking any executor.
@@ -239,7 +246,21 @@ async fn main() -> anyhow::Result<()> {
     }
     let app = Application::new(Store::open(cli.db)?, Arc::new(SystemClock));
     match cli.command {
-        Command::Migrate => println!("Schema version 3 validated"),
+        Command::Policy { file, operator } => {
+            let source = std::fs::canonicalize(&file)?;
+            let bytes = std::fs::read(&source)?;
+            anyhow::ensure!(bytes.len() <= 16384, "policy exceeds 16KiB");
+            let policy = serde_json::from_slice(&bytes)?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&app.install_policy(
+                    policy,
+                    &operator,
+                    &source.to_string_lossy()
+                )?)?
+            );
+        }
+        Command::Migrate => println!("Schema version 5 validated"),
         Command::Tick => println!(
             "{} obligation(s) became due",
             app.process_due_obligations()? + app.supervise_team()?

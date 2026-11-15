@@ -103,6 +103,7 @@ impl Application {
             "INSERT INTO cases VALUES (?1,?2,?3,?4,'queued',0,?5)",
             params![case_id, cmd.title, cmd.description, cmd.actor, now],
         )?;
+        crate::policy::bind(&tx, &case_id)?;
         store::emit(
             &tx,
             &case_id,
@@ -123,6 +124,7 @@ impl Application {
             "INSERT INTO jobs(id,assignment_id,state) VALUES (?1,?2,'queued')",
             params![store::id("job"), assignment_id],
         )?;
+        crate::policy::bind(&tx, &case_id)?;
         store::emit(
             &tx,
             &case_id,
@@ -227,6 +229,7 @@ impl Application {
             team: crate::team::snapshot(&tx, id)?,
             challenges: crate::challenges::snapshot(&tx, id)?,
             gate: crate::challenges::gate(&tx, id)?,
+            policy: Some(crate::policy::for_case(&tx, id)?),
         })
     }
     pub fn timeline(&self, id: &str, after: i64) -> Result<Vec<Event>> {
