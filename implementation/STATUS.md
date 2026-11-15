@@ -27,13 +27,13 @@ Linux, 2026-11-15:
 | --- | --- |
 | `cargo fmt --all -- --check` | Passed |
 | `cargo clippy --locked --all-targets -- -D warnings` | Passed |
-| `cargo test --locked` | 83 Rust tests passed |
+| `cargo test --locked` | 84 Rust tests passed |
 | `npm run build --prefix web` | Strict TypeScript passed |
 | `cargo build --locked` | Bundled native binary passed |
 | `npm test --prefix web` | All five Chromium scenarios passed |
 | `git diff --check` and local Markdown link validation | Passed |
 
-Nine new Rust tests cover bounded/sanitized diagnostic evidence and old observation serialization, matching/misleading/stale scopes, no automatic declarations, link caps, explicit duplicate evidence, source drift, revocation/restart/history immutability, independent duties, foreign evidence, blocking challenges, competing commands, transaction rollback, shared CLI/HTTP receipts, authorization and literal reports. Existing crash/recovery and offline timer/escalation tests remain green. The browser source scenario now compares two offline source cases, rejects unsupported links without API evidence, renders qualification Markdown and replays the interface on reload/mobile.
+Ten new Rust tests cover bounded/sanitized diagnostic evidence and old observation serialization, matching/misleading/stale scopes, no automatic declarations, link caps (including active links beyond the display cap), explicit duplicate evidence, source drift, revocation/restart/history immutability, independent duties, foreign evidence, blocking challenges, competing commands, transaction rollback, shared CLI/HTTP receipts, authorization and literal reports. Existing crash/recovery and offline timer/escalation tests remain green. The browser source scenario now compares two offline source cases, rejects unsupported links without API evidence, renders qualification Markdown and replays the interface on reload/mobile.
 
 Ordinary tests use only synthetic fixtures/fake execution/injected source and notification transports. No live Sentry, Slack destination, subscription model or production service was exercised. Remote CI results belong to the exact PR head and must be checked separately.
 

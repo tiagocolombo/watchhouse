@@ -151,10 +151,7 @@ pub(crate) fn snapshot(
             || source.release != other.release
             || source.deployed_revision != other.deployed_revision
             || signature(&other).as_ref() != Some(&sig)
-            || result
-                .relations
-                .iter()
-                .any(|r| r.active && (r.source_case == target || r.target_case == target))
+            || latest(db, id, &target)?.is_some_and(|r| r.active)
         {
             continue;
         }

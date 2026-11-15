@@ -584,3 +584,15 @@ async fn http_and_cli_share_correlation_versions_receipts_and_literal_reports() 
     assert!(!text.contains("<script>"));
     assert!(text.contains("linkInjected"));
 }
+#[test]
+fn snapshot_link_cap_does_not_resuggest_an_older_active_pair() {
+    let (_d, a, _t, id) = fixture();
+    for n in 3000..3101 {
+        let target = ingest(&a, &n.to_string(), event(), None);
+        a.correlate_case(&id, link(&a, &id, &target, &format!("pair-{n}")))
+            .unwrap();
+    }
+    let s = a.snapshot(&id).unwrap();
+    assert_eq!(s.correlations.relations.len(), 100);
+    assert!(s.correlations.candidates.is_empty());
+}
