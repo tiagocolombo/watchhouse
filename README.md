@@ -58,7 +58,7 @@ cargo run --locked -- case reconsider CASE_ID --file reconsideration.json
 cargo run --locked -- tick
 ```
 
-Start from the [qualification command examples](contracts/v1/README.md). Replace expected versions, evidence digests, and the current disposition ID with values returned by your case snapshot. Timers are explicit per decision (1 second–30 days). `serve`/`worker` process persisted deadlines automatically; `tick` processes them without an executor. Expected/transient decisions require operator-reported supporting evidence; synthetic results alone do not establish those facts. The UI keeps source attribution and uncertainty visible.
+Start from the [qualification command examples](contracts/v1/README.md). Replace expected versions, evidence digests, and the current disposition ID with values returned by your case snapshot. Timers are explicit per decision and bounded by the case’s pinned policy. `serve`/`worker` process persisted deadlines automatically; `tick` processes them without an executor. Expected/transient decisions require operator-reported supporting evidence; synthetic results alone do not establish those facts. The UI keeps source attribution and uncertainty visible.
 
 ## Run the core without a web server
 
@@ -76,7 +76,7 @@ cargo run --locked -- team inbox
 
 Use the [handoff command example](contracts/v1/team/handoff.json), replacing its block ID and expected version from the case snapshot. The first worker stores a blocker/checkpoint; the successor discovers and accepts the durable handoff before ownership changes. A late old result is retained as unaccepted evidence and cannot complete the task.
 
-`worker --stall` simulates a live fake process with heartbeats but no useful progress. `serve --manual-workers` runs the scheduler and operating interface while separate CLI workers dispatch. `tick` supervises due work without an executor. Development fake deadlines and budgets are documented in the [team contract](contracts/v1/team/README.md); handoff cannot reset them. No external escalation delivery, real harness, installer, or OS service registration is implemented yet.
+`worker --stall` simulates a live fake process with heartbeats but no useful progress. `serve --manual-workers` runs the scheduler and operating interface while separate CLI workers dispatch. `tick` supervises due work without an executor. Trusted versioned fake deadlines and budgets are configured through the [operator policy contract](policy/README.md); handoff cannot reset them. No external escalation delivery, real harness, installer, or OS service registration is implemented yet.
 
 ## A typical response
 

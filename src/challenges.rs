@@ -203,7 +203,9 @@ impl Application {
                 }
                 if acknowledge_seconds == 0
                     || response_seconds < acknowledge_seconds
-                    || response_seconds > 86400
+                    || response_seconds
+                        > crate::policy::for_case(&tx, case_id)?.max_challenge_seconds
+                    || acknowledge_seconds > crate::policy::for_case(&tx, case_id)?.max_ack_seconds
                 {
                     return Err(Error::Invalid(
                         "challenge deadlines must be ordered and bounded to one day".into(),

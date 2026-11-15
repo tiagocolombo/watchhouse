@@ -223,6 +223,8 @@ pub struct Snapshot {
     pub challenges: Vec<crate::challenges::Challenge>,
     #[serde(default)]
     pub gate: Option<crate::challenges::Gate>,
+    #[serde(default)]
+    pub policy: Option<crate::policy::Policy>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

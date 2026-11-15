@@ -14,10 +14,6 @@ pub(crate) use read::snapshot;
 use rusqlite::{OptionalExtension, Transaction, TransactionBehavior, params};
 use serde::Serialize;
 use std::collections::HashSet;
-const LEASE_SECONDS: i64 = 30;
-const PROGRESS_SECONDS: i64 = 60;
-const RESPONSE_SECONDS: i64 = 120;
-const ASSIGNMENT_SECONDS: i64 = 300;
 fn supervisor() -> Actor {
     Actor {
         kind: "supervisor".into(),
@@ -91,8 +87,11 @@ pub(crate) fn initialize(tx: &Transaction<'_>, case_id: &str, assignment_id: &st
         params![format!("thread_{case_id}"), case_id],
     )?;
     tx.execute(
-        "INSERT INTO assignment_control VALUES (?1,'fake-investigator','queued',NULL,3)",
-        [assignment_id],
+        "INSERT INTO assignment_control VALUES (?1,'fake-investigator','queued',NULL,?2)",
+        params![
+            assignment_id,
+            crate::policy::for_case(tx, case_id)?.max_attempts
+        ],
     )?;
     Ok(())
 }
@@ -210,8 +209,16 @@ fn start(
     let time = DateTime::parse_from_rfc3339(now)
         .unwrap()
         .with_timezone(&Utc);
-    let lease = bounded_time(time, LEASE_SECONDS, &manifest.overall_deadline)?;
-    let progress = bounded_time(time, PROGRESS_SECONDS, &manifest.overall_deadline)?;
+    let lease = bounded_time(
+        time,
+        crate::policy::for_case(tx, case_id)?.lease_seconds,
+        &manifest.overall_deadline,
+    )?;
+    let progress = bounded_time(
+        time,
+        crate::policy::for_case(tx, case_id)?.progress_seconds,
+        &manifest.overall_deadline,
+    )?;
     tx.execute(
         "UPDATE jobs SET state='running',attempt=attempt+1,lease_until=?1,fence=?2 WHERE id=?3",
         params![lease, fence, job_id],
@@ -297,7 +304,7 @@ fn make_block(
         DateTime::parse_from_rfc3339(now)
             .unwrap()
             .with_timezone(&Utc),
-        RESPONSE_SECONDS,
+        crate::policy::for_case(tx, &c.case_id)?.response_seconds,
         &c.briefing.overall_deadline,
     )?;
     let due = if c.briefing.remaining_attempts == 0 {
@@ -459,8 +466,9 @@ impl Application {
         let row:Option<(String,String,String)>=tx.query_row("SELECT a.id,a.case_id,a.objective FROM assignments a JOIN jobs j ON j.assignment_id=a.id JOIN assignment_control c ON c.assignment_id=a.id WHERE j.state='queued' AND c.state='queued' AND c.executor=?1 ORDER BY j.rowid LIMIT 1",[who],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional()?;
         let response = if let Some((assignment_id, case_id, objective)) = row {
             let now = self.now();
-            let deadline = (self.clock.now() + Duration::seconds(ASSIGNMENT_SECONDS))
-                .to_rfc3339_opts(SecondsFormat::Millis, true);
+            let deadline = (self.clock.now()
+                + Duration::seconds(crate::policy::for_case(&tx, &case_id)?.assignment_seconds))
+            .to_rfc3339_opts(SecondsFormat::Millis, true);
             let owner = db::case(&tx, &case_id)?.owner;
             let manifest = briefing(&tx, &case_id, &objective, who, &owner, None, &deadline)?;
             Some(start(&tx, &case_id, &assignment_id, who, manifest, &now)?)
@@ -510,6 +518,15 @@ impl Application {
             return Ok(response);
         }
         read::expected(&tx, case_id, cmd.command.expected_version)?;
+        let governing_policy = crate::policy::for_case(&tx, case_id)?;
+        if cmd
+            .ack_within_seconds
+            .is_some_and(|v| v > governing_policy.max_ack_seconds)
+        {
+            return Err(Error::Invalid(
+                "acknowledgment exceeds governing policy".into(),
+            ));
+        }
         refs(&tx, case_id, &cmd.evidence_refs)?;
         let mut reply = cmd.reply_to.clone();
         let mut depth = 0;
@@ -615,7 +632,7 @@ impl Application {
         }
         let lease = bounded_time(
             self.clock.now(),
-            LEASE_SECONDS,
+            crate::policy::for_case(&tx, &c.case_id)?.lease_seconds,
             &c.briefing.overall_deadline,
         )?;
         tx.execute(
@@ -645,7 +662,7 @@ impl Application {
             )?;
             let until = bounded_time(
                 self.clock.now(),
-                PROGRESS_SECONDS,
+                crate::policy::for_case(&tx, &c.case_id)?.progress_seconds,
                 &c.briefing.overall_deadline,
             )?;
             tx.execute("UPDATE run_control SET progress_at=?1,progress_deadline=?2,checkpoint_digest=?3 WHERE run_id=?4",params![now,until,digest,c.run_id])?;
@@ -735,8 +752,13 @@ impl Application {
         validate_meta(&cmd.command.meta)?;
         identity(&cmd.successor)?;
         text(&cmd.next_owner, "next_owner", 128)?;
-        if !(1..=120).contains(&cmd.acknowledge_within_seconds) {
-            return Err(Error::Invalid("handoff acknowledgment must be 1..120 seconds and cannot extend the assignment deadline".into()));
+        if !(1..=crate::policy::for_case(&self.store.connect()?, case_id)?.response_seconds as u32)
+            .contains(&cmd.acknowledge_within_seconds)
+        {
+            return Err(Error::Invalid(
+                "handoff acknowledgment exceeds governing response window or assignment deadline"
+                    .into(),
+            ));
         }
         let fp = fingerprint("handoff", case_id, &cmd)?;
         let mut db = self.store.connect()?;
