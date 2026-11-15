@@ -55,6 +55,14 @@ enum Command {
         #[arg(long)]
         operator: String,
     },
+    /// Prepare a frozen base and inspect a pinned runtime without model execution.
+    RepairSource {
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long)]
+        operator: String,
+    },
+    RepairSourceStatus,
     SourceStatus,
     SourceSync,
     /// Apply and validate migrations without starting workers.
@@ -68,6 +76,14 @@ enum Command {
 }
 #[derive(Subcommand)]
 enum CaseCommand {
+    RepairMarkdown {
+        id: String,
+    },
+    RequestRepair {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
     RecordIncidentArtifact {
         id: String,
         #[arg(long)]
@@ -349,6 +365,17 @@ async fn main() -> anyhow::Result<()> {
             "{}",
             serde_json::to_string_pretty(&app.configure_sentry(read_command(file)?, &operator)?)?
         ),
+        Command::RepairSource { file, operator } => println!(
+            "{}",
+            serde_json::to_string_pretty(
+                &app.install_repair_source(read_command(file)?, &operator)
+                    .await?
+            )?
+        ),
+        Command::RepairSourceStatus => println!(
+            "{}",
+            serde_json::to_string_pretty(&app.repair_source_status()?)?
+        ),
         Command::SourceStatus => {
             println!("{}", serde_json::to_string_pretty(&app.sentry_health()?)?)
         }
@@ -421,6 +448,13 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Case { action } => {
             let output = match action {
+                CaseCommand::RepairMarkdown { id } => {
+                    print!("{}", app.repair_markdown(&id)?);
+                    return Ok(());
+                }
+                CaseCommand::RequestRepair { id, file } => {
+                    serde_json::to_value(app.request_repair(&id, read_command(file)?)?)?
+                }
                 CaseCommand::Create {
                     title,
                     description,

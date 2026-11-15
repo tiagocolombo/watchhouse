@@ -1,0 +1,15 @@
+{
+  "schema_version":1,
+  "revision":1,
+  "repository":"fixture/checkout",
+  "source_path":"/REPLACE/operator/source-repository",
+  "base_commit":"0000000000000000000000000000000000000000",
+  "workspace_root":"/REPLACE/operator/frozen-bases",
+  "runtime_path":"/REPLACE/trusted/codex",
+  "runtime_digest":"sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "max_files":1000,
+  "max_blob_bytes":8388608,
+  "max_total_bytes":134217728,
+  "preparation_seconds":60,
+  "probe_seconds":10
+}

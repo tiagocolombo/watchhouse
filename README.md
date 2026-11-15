@@ -10,7 +10,7 @@ Connect an observability tool such as Sentry or Datadog. Watchhouse assesses wha
 
 The team keeps the records a real incident organization needs: incident details, investigation logs, escalation and handoff records, change plans, recovery assessments, postmortems, corrective actions, and runbooks.
 
-**Status: bounded M0/M1/M2 mechanisms and the first M3 Sentry/incident slice are implemented.** The Rust core owns durable fake execution, independent review, trusted policy, escalation delivery and incident records. Slack and Sentry adapters are fixture-verified; live activation needs explicit mappings, credentials, destinations and trusted ingress. Real harnesses, production mutation and merge automation remain ahead.
+**Status: bounded M0/M1/M2 mechanisms and M3 source/incident/qualification slices are implemented.** The Rust core owns durable fake execution, independent review, trusted policy, escalation delivery and incident records. Slack and Sentry adapters are fixture-verified; live activation needs explicit mappings, credentials, destinations and trusted ingress. Real harnesses, production mutation and merge automation remain ahead.
 
 ## Run the local slice
 
@@ -150,3 +150,7 @@ The source pump also refreshes known issues beyond discovery windows. Read healt
 ## Qualify and correlate source cases
 
 The [case correlation contract](contracts/v1/correlations/README.md) adds bounded diagnostic context, scoped comparison suggestions and evidence-backed related/duplicate links. Links are reversible and preserve every case and duty. Use `case correlate CASE_ID --file FILE` and `case qualification-markdown CASE_ID`, or inspect the web correlation panel. Synthetic checkout-contract fixtures prove scoped expected-behavior review; actual service history and the [prepared live activation drill](implementation/16-m3-activation-drill.md) remain unverified.
+
+## Prepare repair inputs
+
+The first [M4 preparation slice](contracts/v1/repair/README.md) freezes an explicitly configured local base, inspects pinned runtime version/help metadata and records evidence-backed blocked repair requests with owned escalation. Real execution remains denied until worker containment, cancellation and scoped authority are demonstrated. Use the [example generator](examples/README.md) to inspect current incident/investigation reports with synthetic data.
