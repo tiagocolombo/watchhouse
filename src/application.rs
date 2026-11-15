@@ -232,6 +232,7 @@ impl Application {
             policy: Some(crate::policy::for_case(&tx, id)?),
             notifications: crate::notifications::snapshot(&tx, id)?,
             source: crate::sentry::snapshot(&tx, id)?,
+            source_freshness: crate::sentry_refresh::snapshot(&tx, id, self.clock.now())?,
             incident: crate::incidents::snapshot(&tx, id)?,
             incident_operations: crate::incident_ops::snapshot(&tx, id)?,
             incident_role_offers: crate::incident_ops::offers(&tx, id)?,

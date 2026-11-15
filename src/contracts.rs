@@ -278,6 +278,8 @@ pub struct Snapshot {
     #[serde(default)]
     pub source: Option<crate::sentry::SourceObservation>,
     #[serde(default)]
+    pub source_freshness: Option<crate::sentry_refresh::SourceFreshness>,
+    #[serde(default)]
     pub incident: Option<crate::incidents::Incident>,
     #[serde(default)]
     pub incident_operations: Option<crate::incident_ops::IncidentOperations>,
