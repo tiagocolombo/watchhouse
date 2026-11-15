@@ -104,3 +104,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 2026-11-15: [ADR 0013](adrs/0013-source-freshness-and-known-issue-recovery.md) adds fenced source reads, known-issue recovery beyond discovery windows and separate freshness tracking.
 
 2026-11-15: [ADR 0014](adrs/0014-scoped-case-correlation.md) adds bounded diagnostic context and reversible scoped case correlations without suppressing duties.
+
+2026-11-15: [ADR 0015](adrs/0015-repair-inputs-and-denied-admission.md) begins M4 with trusted frozen repair inputs and explicit denied admission; no real worker is enabled.

@@ -74,3 +74,7 @@ This narrow synchronous trait is not the full start/events/cancel/reconcile prod
 Claim packets now include persisted executor/run/fence and an immutable bounded briefing. The core validates heartbeat/progress/block/result messages against current run authority, absolute assignment time, and progress deadline. Accepted handoffs create fresh attempts/fences. Known late results receive a distinct unaccepted-evidence wrapper; identical late output is retained once, not promoted to an accepted result. No actual model or provider credentials exist in these packets.
 
 The CLI supports fake completion, deterministic block, and alive-without-progress scenarios. These are local simulation modes, not new real runtime adapters. Database fencing is sufficient only because fake workers have no mutable workspace or external effects. Actual subprocess cancellation, credential revocation, isolation, uncertain-effect reconciliation, and installed-runtime admission remain required before M4 real execution.
+
+## First M4 preparation slice
+
+[Repair preparation v1](../contracts/v1/repair/README.md) adds immutable operator configuration, object-only frozen base copies, pinned version/help metadata and durable blocked repair requests with owned escalation. Snapshot copies and CLI flags do not establish isolation. Real adapter admission remains denied; start/events/cancel/result/reconcile, qualified worker isolation/revocation and actual model execution are not implemented. See ADR 0015 and STATUS for exact observed evidence.
