@@ -4,7 +4,7 @@ Every milestone delivers a usable vertical slice with evidence and a STATUS.md u
 
 ## Current delivery state (2026-11-14)
 
-M0 foundations are implemented, including the documented no-model protocol spike. The bounded M1 workflow now also includes operator-reported evidence, expected/transient/uncertain decisions, owned persisted deadlines, manual reconsideration, and recurrence/deadline reopening, with recovery/concurrency/browser evidence in [STATUS](STATUS.md). M1 exit scenarios are covered for local manual/fake fixtures; source automation and real execution are not implied. The first M2 communication/supervision/handoff slice is implemented for fake workers; full M2 and M3–M8 remain unfinished. Real runtime admission is still unverified; ADR 0004 records the bounded spike.
+M0/M1 and bounded fake-only M2 mechanisms are implemented, including independent challenges, trusted policy and human escalation/fallback/resolution. The first M3 Sentry/enrichment/reconciliation/incident-declaration slice is fixture-verified. Live activation remains blocked on actual configuration, credentials, destinations and trusted ingress. Broader M3 workflows and M4–M8 remain unfinished; see [STATUS](STATUS.md) and ADRs 0007–0010.
 
 ## M0 — Bootstrap and contracts
 
@@ -75,3 +75,5 @@ Completed: M0 plus manual case creation -> persisted event -> queued fake assign
 2026-11-14: Phase 2 trusted configuration implemented; external escalation is the remaining M2 delivery dependency.
 
 2026-11-14: Bounded M2 mechanisms implemented for fake workers and fixture notifications; live activation remains blocked on explicit destinations/secrets. M3 fixture slice follows.
+
+2026-11-15: first M3 source/incident slice implemented; current coverage limits and exact remaining work are in STATUS and ADR 0010.

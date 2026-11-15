@@ -1,0 +1,26 @@
+import { test, expect } from '@playwright/test';
+import { createHmac } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+const token='browser-test-operator-token-32-bytes';
+test('signed Sentry intake leads to an explicit incident while credentials and models are offline',async({page,context})=>{
+  execFileSync('../target/debug/watchhouse',['--db','test-results/browser.db','sentry','--file','../tests/fixtures/sentry/config.json','--operator','operator']);
+  const issue=JSON.parse(readFileSync('../tests/fixtures/sentry/issue.json','utf8'));
+  const body=JSON.stringify({action:'created',data:{issue}});
+  const signature=createHmac('sha256','sanitized-fixture-secret-32-bytes-only').update(body).digest('hex');
+  const invalid=await context.request.post('/integrations/sentry',{headers:{'Content-Type':'application/json','Sentry-Hook-Signature':'0'.repeat(64)},data:body});expect(invalid.status()).toBe(400);
+  const headers={'Content-Type':'application/json','Sentry-Hook-Signature':signature};
+  const first=await context.request.post('/integrations/sentry',{headers,data:body});expect(first.status()).toBe(202);const delivery=await first.json();
+  const duplicate=await context.request.post('/integrations/sentry',{headers,data:body});expect(await duplicate.json()).toEqual(delivery);
+  await page.goto('/');await page.getByLabel('Operator token').fill(token);await page.getByRole('button',{name:'Connect',exact:true}).click();await expect(page.locator('#login')).toBeHidden();
+  await expect.poll(async()=>{const r=await context.request.get('/api/v1/cases',{headers:{Authorization:`Bearer ${token}`}});return(await r.json()).filter((c:{title:string})=>c.title==='Sentry issue 1001').length;}).toBe(1);
+  await page.reload();await page.getByRole('button',{name:/Sentry issue 1001/}).click();await expect(page.locator('#challenge-records')).toContainText('Enrichment unavailable');await expect(page.locator('#case-status')).toHaveText('awaiting review');
+  const id=await page.locator('#case-id').textContent();const auth={Authorization:`Bearer ${token}`};const s=await(await context.request.get(`/api/v1/cases/${id}`,{headers:auth})).json();
+  const sourceEvent=s.events.find((e:{type:string})=>e.type==='source.observed');
+  const command={command:{meta:{schema_version:1,idempotency_key:crypto.randomUUID(),actor:'operator',reason:'Coordinated fixture response'},expected_version:s.case.version},severity:'high',rationale:'Workflow impact requires investigation',impact:'Three source events; traffic denominator unknown',uncertainty:'Synthetic fixture, no live API credentials',objective:'Reproduce and assess the workflow',roles:{commander:'operator',operations:'operator',communications:'operator',scribe:'operator'},evidence_refs:sourceEvent.payload.evidence_refs,known_start:null};
+  await page.getByText('Submit versioned review command',{exact:true}).click();await page.locator('#review-command-kind').selectOption('incident');await page.locator('#review-command-json').fill(JSON.stringify(command));await page.getByRole('button',{name:'Submit review command',exact:true}).click();
+  await expect(page.locator('#challenge-records')).toContainText('recovery_assessment');await expect(page.locator('#challenge-records')).toContainText('Not assessed');
+  const markdown=await context.request.get(`/api/v1/cases/${id}/incident/markdown`,{headers:auth});expect(markdown.ok()).toBe(true);expect(await markdown.text()).toContain('Recovery: not assessed');
+  await page.reload();await expect(page.locator('#challenge-records')).toContainText('Coordinated fixture response');
+  await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+});

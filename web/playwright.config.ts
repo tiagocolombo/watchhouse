@@ -5,6 +5,6 @@ export default defineConfig({
   webServer: {
     command: '../target/debug/watchhouse --db test-results/browser.db serve --port 8788',
     url: 'http://127.0.0.1:8788/', reuseExistingServer: false,
-    env: { WATCHHOUSE_TOKEN: 'browser-test-operator-token-32-bytes' },
+    env: { WATCHHOUSE_TOKEN: 'browser-test-operator-token-32-bytes', WATCHHOUSE_SENTRY_FIXTURE_WEBHOOK_SECRET:'sanitized-fixture-secret-32-bytes-only', WATCHHOUSE_SENTRY_FIXTURE_UNSET_TOKEN:'' },
   },
 });

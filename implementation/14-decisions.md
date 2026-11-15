@@ -94,3 +94,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 2026-11-14: [ADR 0008](adrs/0008-trusted-policy.md) replaces scattered development timer/budget constants with immutable case-pinned operator policy.
 
 2026-11-14: [ADR 0009](adrs/0009-human-escalation.md) adds explicit human delivery/fallback/acknowledgment/resolution, with uncertainty reconciliation.
+
+2026-11-15: [ADR 0010](adrs/0010-first-sentry-incident-slice.md) implements the first authenticated Sentry/enrichment/reconciliation/incident slice. Live activation and broader M3/M5 workflows remain separate.

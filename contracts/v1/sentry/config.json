@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "organization": "fixture-org",
+  "project_id": "42",
+  "service": "checkout",
+  "environment": "test",
+  "repository": "example/fixture-service",
+  "releases": {
+    "fixture-release-1": "abcdef1234567890"
+  },
+  "incident_update_seconds": {
+    "critical": 900,
+    "high": 1800,
+    "moderate": 3600
+  },
+  "webhook_secret_env": "WATCHHOUSE_SENTRY_WEBHOOK_SECRET",
+  "api_token_env": "WATCHHOUSE_SENTRY_API_TOKEN"
+}

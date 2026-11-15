@@ -92,3 +92,7 @@ The Rust core now persists one case coordination thread, typed directed messages
 A blocked/expired attempt is fenced immediately in the side-effect-free fake boundary. A successor receives a frozen briefing and the remaining shared budget; the prior owner stays accountable until acceptance. Late known results are retained as unaccepted evidence, with no state advancement. Heartbeat/progress/absolute and acknowledgment deadlines work without a model. CLI workers discover addressed handoffs themselves; the web app does not schedule the team.
 
 Default fake-only limits, exact contracts, and migration/recovery evidence are in [ADR 0006](adrs/0006-durable-fake-team-coordination.md) and [STATUS](STATUS.md). No external notification has been sent; inbox acknowledgment is not delivery to an external destination or resolution. Independent challenges, broader role assignment, true worker auth/isolation, escalation resolution/fallback chains, and human notification configuration remain unfinished M2 work.
+
+## Current implementation
+
+Independent challenges, immutable case-pinned policy and configured Slack human escalation/fallback/resolution now implement the subsequent M2 mechanisms. Earlier first-slice limits above are historical; see ADRs 0007–0009 and current STATUS.
