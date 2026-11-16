@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 use std::{path::PathBuf, sync::Arc, time::Duration};
 use watchhouse::{application::Application, contracts::*, domain::SystemClock, store::Store};
 #[derive(Parser)]
-#[command(version, about = "Watchhouse local fake-only coordinator")]
+#[command(version, about = "Watchhouse durable incident coordinator")]
 struct Cli {
     #[arg(long, default_value = ".watchhouse/watchhouse.db", global = true)]
     db: PathBuf,
@@ -63,6 +63,18 @@ enum Command {
         operator: String,
     },
     RepairSourceStatus,
+    /// Install an immutable, pinned local Docker boundary through the OS operator plane.
+    ContainerPolicy {
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long)]
+        operator: String,
+    },
+    /// Dispatch configured native container work; does not invoke a model.
+    ContainerWorker {
+        #[arg(long)]
+        once: bool,
+    },
     WorkerPolicyStatus,
     WorkerPolicy {
         #[arg(long)]
@@ -95,6 +107,36 @@ enum Command {
 }
 #[derive(Subcommand)]
 enum CaseCommand {
+    QualifyContainer {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+    ContainerJob {
+        id: String,
+        #[arg(long)]
+        job: String,
+    },
+    ManageContainer {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+    FreezeCandidate {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+    CheckCandidate {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+    ReviewCandidate {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
     Learning {
         id: String,
         #[arg(long)]
@@ -405,6 +447,25 @@ async fn main() -> anyhow::Result<()> {
     }
     let app = Application::new(Store::open(cli.db)?, Arc::new(SystemClock));
     match cli.command {
+        Command::ContainerPolicy { file, operator } => println!(
+            "{}",
+            serde_json::to_string_pretty(
+                &app.install_container_policy(read_command(file)?, &operator)?
+            )?
+        ),
+        Command::ContainerWorker { once } => loop {
+            let a = app.clone();
+            tokio::task::spawn_blocking(move || a.supervise_team()).await??;
+            let ran = app
+                .run_container_once(&watchhouse::real_execution::worker::Native)
+                .await?;
+            if once {
+                break;
+            }
+            if !ran {
+                tokio::time::sleep(Duration::from_millis(250)).await;
+            }
+        },
         Command::Policy { file, operator } => {
             let source = std::fs::canonicalize(&file)?;
             let bytes = std::fs::read(&source)?;
@@ -475,7 +536,7 @@ async fn main() -> anyhow::Result<()> {
             "{} source observations processed",
             app.sentry_tick(&watchhouse::sentry::LiveSentry)?
         ),
-        Command::Migrate => println!("Schema version 10 validated"),
+        Command::Migrate => println!("All registered migrations validated"),
         Command::Tick => println!(
             "{} obligation(s) became due",
             app.process_due_obligations()?
@@ -540,6 +601,29 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Case { action } => {
             let output = match action {
+                CaseCommand::QualifyContainer { id, file } => {
+                    serde_json::to_value(app.qualify_container(&id, read_command(file)?)?)?
+                }
+                CaseCommand::ContainerJob { id, job } => {
+                    serde_json::to_value(app.container_job(&id, &job)?)?
+                }
+                CaseCommand::ManageContainer { id, file } => serde_json::to_value(
+                    app.manage_container(
+                        &id,
+                        read_command(file)?,
+                        &watchhouse::real_execution::worker::Native,
+                    )
+                    .await?,
+                )?,
+                CaseCommand::FreezeCandidate { id, file } => {
+                    serde_json::to_value(app.freeze_candidate(&id, read_command(file)?)?)?
+                }
+                CaseCommand::CheckCandidate { id, file } => {
+                    serde_json::to_value(app.request_candidate_check(&id, read_command(file)?)?)?
+                }
+                CaseCommand::ReviewCandidate { id, file } => {
+                    serde_json::to_value(app.review_candidate(&id, read_command(file)?)?)?
+                }
                 CaseCommand::Learning { id, file } => {
                     serde_json::to_value(app.learning_command(&id, read_command(file)?)?)?
                 }
@@ -685,7 +769,7 @@ async fn main() -> anyhow::Result<()> {
                 tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port)).await?;
             let authority = listener.local_addr()?.to_string();
             eprintln!(
-                "Watchhouse: http://{authority}\nLocal operator token: {token}\nFake execution only; case results require operator review."
+                "Watchhouse: http://{authority}\nLocal operator token: {token}\nBuilt-in assignments are synthetic; native container checks require a separately configured container-worker."
             );
             let router = watchhouse::http::router(app.clone(), token, authority);
             tokio::select! {

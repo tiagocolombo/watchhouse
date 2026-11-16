@@ -43,3 +43,27 @@ test('repair readiness preserves denied real execution and accountable escalatio
     await page.reload();await expect(page.locator('#repair-readiness')).toContainText('blocked');await expect(page.locator('#adapter-trials')).toContainText('completed');await expect(page.locator('#worker-qualification')).toContainText('failed');await expect(page.locator('#owner')).toContainText('operator');await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
   } finally {rmSync(root,{recursive:true,force:true});}
 });
+
+test('native container commands show a blocked preflight without launching a workload',async({page,context})=>{
+  const root=mkdtempSync(join(tmpdir(),'watchhouse-native-ui-'));
+  try {
+    const auth={Authorization:`Bearer ${token}`};
+    const governing=JSON.parse(readFileSync('../policy/local-fake-v1.json','utf8'));governing.revision=2;governing.name='browser-explicit-v2';
+    const governingFile=join(root,'governing.json');writeFileSync(governingFile,JSON.stringify(governing));execFileSync('../target/debug/watchhouse',['--db','test-results/browser.db','policy','--file',governingFile,'--operator','operator']);
+    const git=process.env.PATH!.split(delimiter).map(p=>join(p,'git')).find(p=>existsSync(p))!;
+    const digest=`sha256:${createHash('sha256').update(readFileSync(git)).digest('hex')}`;
+    const configuration={schema_version:1,revision:1,docker_path:resolve(git),docker_digest:digest,socket:'/var/run/docker.sock',image:`sha256:${'0'.repeat(64)}`,runner_digest:digest,staging_root:root,program:'/watchhouse-worker-init',args:['fixture-regression'],memory_bytes:268435456,pids:32,cpu_micros:50000,work_bytes:16777216,wall_seconds:10,output_bytes:4096,proof_seconds:300,dispatch_grace_seconds:90,cleanup_attempts:3,cleanup_retry_seconds:2};
+    const file=join(root,'container.json');writeFileSync(file,JSON.stringify(configuration));execFileSync('../target/debug/watchhouse',['--db','test-results/browser.db','container-policy','--file',file,'--operator','operator']);
+    const created=await context.request.post('/api/v1/cases',{headers:auth,data:{schema_version:1,idempotency_key:randomUUID(),actor:'operator',reason:'Native preflight fixture',title:'Blocked native preflight',description:'Git is deliberately not a Docker engine; no workload can start'}});expect(created.status()).toBe(201);const id=(await created.json()).id;
+    const snapshot=async()=> (await context.request.get(`/api/v1/cases/${id}`,{headers:auth})).json();await expect.poll(async()=>(await snapshot()).case.status).toBe('awaiting_review');
+    await page.goto('/');await page.getByLabel('Operator token').fill(token);await page.getByRole('button',{name:'Connect',exact:true}).click();await page.getByRole('button',{name:/Blocked native preflight/}).click();
+    const state=await snapshot();const command={command:{meta:{schema_version:1,idempotency_key:randomUUID(),actor:'operator',reason:'<script>window.nativeInjected=true</script> Native preflight fixture'},expected_version:state.case.version},policy_revision:1};
+    await page.getByText('Submit versioned review command',{exact:true}).click();await page.locator('#review-command-kind').selectOption('container-qualification');await page.locator('#review-command-json').fill(JSON.stringify(command));await page.getByRole('button',{name:'Submit review command',exact:true}).click();
+    await expect(page.locator('#native-repair')).toContainText('qualification · queued');const queued=(await snapshot()).container_jobs[0];
+    execFileSync('../target/debug/watchhouse',['--db','test-results/browser.db','container-worker','--once']);
+    await expect(page.locator('#native-repair')).toContainText('qualification · blocked');await expect(page.locator('#native-repair')).toContainText('before effect dispatch');await expect(page.locator('#team-escalations')).toContainText('native execution');
+    const terminal=(await snapshot()).container_jobs[0];expect(terminal.create_dispatched).toBe(false);expect(terminal.quarantined).toBe(false);expect(terminal.result).toBeNull();
+    const retry=await context.request.post(`/api/v1/cases/${id}/container-qualification`,{headers:auth,data:command});expect(retry.ok()).toBe(true);expect((await retry.json()).id).toBe(queued.id);expect((await snapshot()).container_jobs).toHaveLength(1);
+    await page.reload();await expect(page.locator('#native-repair')).toContainText('qualification · blocked');expect(await page.evaluate(()=>('nativeInjected' in window))).toBe(false);await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+  } finally {rmSync(root,{recursive:true,force:true});}
+});

@@ -174,3 +174,7 @@ The [synthetic adapter lifecycle](contracts/v1/adapter-trials/README.md) exercis
 ## Review and reuse operational learning
 
 [Learning v1](contracts/v1/learning/README.md) adds postmortem impact/cause/action records and independently reviewed scoped lessons. Unknown causes remain explicit. Pending/imported proposals cannot replace accepted knowledge. Exact-scope retrieval excludes expired/stale/retired entries, and new fake worker briefings freeze accepted versions. Use `case learning`, `case learning-markdown`, and `knowledge`; the gallery exercises the complete operator-driven incident/recovery/learning flow without models.
+
+## Native container checks and candidate review
+
+[Native repair v1](contracts/v1/native-repair/README.md) adds an explicitly configured Linux container worker, measured boundary qualification, frozen operator-provided text candidates, base/candidate regression and independent attributed review. Native authority requires current physical proof; synthetic/controller observations cannot grant it. The CLI/API/web retain unknown effects, quarantine, bounded cleanup and stale review. This is test execution only; real model adapter and GitHub delivery remain separate M4 work. Local acceptance testing stays deferred under the completion ledger.

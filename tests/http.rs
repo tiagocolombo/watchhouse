@@ -330,3 +330,57 @@ async fn team_api_uses_run_proofs_operator_versions_and_late_evidence_without_mo
         assert!(serde_json::from_value::<Event>(serde_json::to_value(event).unwrap()).is_ok());
     }
 }
+
+#[tokio::test]
+async fn native_commands_remain_authenticated_and_cannot_install_governing_policy() {
+    let (_dir, app, router) = setup();
+    let case = app
+        .create_case(watchhouse::intake::FakeSource.manual_command("native-http"))
+        .unwrap();
+    for endpoint in [
+        "container-qualification",
+        "container-manage",
+        "candidates",
+        "candidate-checks",
+        "candidate-reviews",
+    ] {
+        let path = format!("/api/v1/cases/{}/{endpoint}", case.id);
+        let mut req = request("POST", &path, "{}");
+        req.headers_mut().remove("Authorization");
+        assert_eq!(
+            router.clone().oneshot(req).await.unwrap().status(),
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(
+            router
+                .clone()
+                .oneshot(request("POST", &path, "{}"))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::BAD_REQUEST
+        );
+    }
+    for path in ["/api/v1/container-policy", "/api/v1/container-worker"] {
+        assert_eq!(
+            router
+                .clone()
+                .oneshot(request("POST", path, "{}"))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::NOT_FOUND
+        );
+    }
+    let response = router
+        .oneshot(request("GET", &format!("/api/v1/cases/{}", case.id), ""))
+        .await
+        .unwrap();
+    let value: serde_json::Value =
+        serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    assert_eq!(value["container_jobs"], serde_json::json!([]));
+    assert_eq!(
+        value["repair_progress"]["candidates"],
+        serde_json::json!([])
+    );
+}

@@ -270,9 +270,18 @@ impl Application {
     pub fn repair_markdown(&self, id: &str) -> Result<String> {
         let s = self.snapshot(id)?;
         let mut report = format!(
-            "# Repair preparation {}\n\nThis is a blocked preparation record. No real worker, regression check, candidate, PR, merge, deployment or recovery is verified.\n\n",
+            "# Repair preparation {}\n\nPreparation, native checks, candidates and attributed review are separate records. Inspect each result and its provenance; this report does not establish model execution, PR delivery, merge, deployment or recovery.\n\n",
             id
         );
+        if !s
+            .container_jobs
+            .iter()
+            .any(|j| j.native && j.state == "passed")
+        {
+            report.push_str(
+                "No real worker or native regression has been verified for this case.\n\n",
+            );
+        }
         for r in s.repairs {
             let raw = serde_json::to_string_pretty(&r)?
                 .replace('`', "\\u0060")
@@ -283,6 +292,10 @@ impl Application {
                 r.id
             ));
         }
+        let raw = serde_json::to_string_pretty(&serde_json::json!({"container_jobs":s.container_jobs,"repair_progress":s.repair_progress}))?.replace('`', "\\u0060").replace('<', "\\u003c").replace('>', "\\u003e");
+        report.push_str(&format!(
+            "## Candidate validation and review\n\n```json\n{raw}\n```\n"
+        ));
         Ok(report)
     }
     pub fn request_repair(&self, id: &str, cmd: RequestRepair) -> Result<RepairRequest> {

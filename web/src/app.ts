@@ -17,7 +17,9 @@ interface LearningSnapshot {entries:{document:{id:string;revision:number;content
 interface RecoverySnapshot {recovery:{response_resolved:boolean;context_current:boolean;revision:number;observation:{outcome:string;basis:string}|null};actions:{id:string;title:string;owner:string;verifier:string;state:string;due_at:string;escalated:boolean}[];records:unknown[]}
 interface AdapterTrial {id:string;state:string;scope:string;reason:string;sequence:number;pending_operation:string|null;evidence_digest:string|null;envelope:{owner:string;deadline:string}}
 interface WorkerQualification {id:string;state:string;scope:string;owner:string;reason:string;real_execution_admitted:boolean;verified:string[];time_current:boolean;expires_at:string|null;quarantined:boolean;evidence_digest:string|null;reconciliation:{operator:string;reason:string}|null}
-interface Snapshot { case:Case; events:TimelineEvent[]; cursor:number; results:{summary:string;conclusion:string}[]; qualification:Qualification; team:Team; challenges:unknown[]; gate:{validated_version:number;closed_version:number|null}|null; policy:unknown; notifications:unknown[]; source:unknown; source_freshness:SourceFreshness|null; incident:unknown; incident_operations:unknown; incident_role_offers:unknown[]; incident_artifacts:unknown[]; correlations:Correlations; repairs:RepairRequest[]; worker_qualifications:WorkerQualification[]; adapter_trials:AdapterTrial[]; recovery:RecoverySnapshot; learning:LearningSnapshot }
+interface ContainerJob {id:string;kind:string;state:string;owner:string;deadline:string;reason:string;native:boolean;quarantined:boolean;evidence_digest:string|null}
+interface RepairProgress {candidates:{id:string;author:string;producer:string;digest:string;base_commit:string;deadline:string}[];reviews:{id:string;author:string;approve:boolean;current:boolean;findings:string}[]}
+interface Snapshot { case:Case; events:TimelineEvent[]; cursor:number; results:{summary:string;conclusion:string}[]; qualification:Qualification; team:Team; challenges:unknown[]; gate:{validated_version:number;closed_version:number|null}|null; policy:unknown; notifications:unknown[]; source:unknown; source_freshness:SourceFreshness|null; incident:unknown; incident_operations:unknown; incident_role_offers:unknown[]; incident_artifacts:unknown[]; correlations:Correlations; repairs:RepairRequest[]; worker_qualifications:WorkerQualification[]; adapter_trials:AdapterTrial[]; recovery:RecoverySnapshot; learning:LearningSnapshot; container_jobs:ContainerJob[]; repair_progress:RepairProgress }
 const el = <T extends HTMLElement = HTMLElement>(id:string) => document.getElementById(id) as T;
 const input = (id:string) => el<HTMLInputElement>(id).value;
 let token = sessionStorage.getItem('watchhouse-token') ?? '';
@@ -75,6 +77,7 @@ function renderState(snapshot:Snapshot) {
   for(const result of snapshot.results) { const p=document.createElement('p');p.textContent=result.summary; el('results').append(p); }
   if (!snapshot.results.length) el('results').textContent='No result recorded yet.';
   renderRepairReadiness(snapshot.repairs);
+  renderNativeRepair(snapshot.container_jobs,snapshot.repair_progress);
   renderWorkerQualification(snapshot.worker_qualifications);
   renderAdapterTrials(snapshot.adapter_trials);
   renderRecovery(snapshot.recovery);
@@ -368,3 +371,18 @@ function renderAdapterTrials(records:AdapterTrial[]) {
 function renderRecovery(s:RecoverySnapshot){const panel=el('recovery');panel.replaceChildren();paragraph(panel,`Response: ${s.recovery.response_resolved?(s.recovery.context_current?'resolved by reported review':'requires reassessment'):'active / not resolved'} · Recovery observation: ${s.recovery.observation?.outcome||'not assessed'}`);paragraph(panel,'Operator-reported records. Repair, deployment, recovery and follow-ups have separate states.');for(const a of s.actions){const card=document.createElement('article');card.className='team-card';paragraph(card,`${a.title} · ${a.state} · Owner: ${a.owner} · Verifier: ${a.verifier}`);paragraph(card,`Due: ${a.due_at}${a.escalated?' · Overdue: escalated':''}`);panel.append(card);}const detail=document.createElement('details');const summary=document.createElement('summary');summary.textContent='Recovery records';detail.append(summary);const pre=document.createElement('pre');pre.textContent=JSON.stringify(s,null,2);detail.append(pre);panel.append(detail);}
 
 function renderLearning(s:LearningSnapshot){const panel=el('learning');panel.replaceChildren();if(!s.entries.length){panel.textContent='No postmortem or knowledge proposals recorded.';return;}for(const e of s.entries){const card=document.createElement('article');card.className='team-card';paragraph(card,`${e.document.content.type}: ${e.document.content.draft.title} · Revision ${e.document.revision}`);paragraph(card,`${e.retired?'Retired':e.accepted_current?'Accepted in current context':'Proposed / acceptance missing or stale'} · Author: ${e.document.author} · Review/expiry: ${e.document.review_by}`);panel.append(card);}const detail=document.createElement('details');const summary=document.createElement('summary');summary.textContent='Learning records';detail.append(summary);const pre=document.createElement('pre');pre.textContent=JSON.stringify(s,null,2);detail.append(pre);panel.append(detail);}
+
+function renderNativeRepair(jobs:ContainerJob[],progress:RepairProgress) {
+  const panel=el('native-repair');panel.replaceChildren();
+  paragraph(panel,'Container checks have separate qualification, candidate, and review records. A native test pass does not establish a model run, PR delivery, deployment or recovery.');
+  if(!jobs.length&&!progress.candidates.length) paragraph(panel,'No container checks or frozen candidates recorded.');
+  for(const job of jobs) {
+    const card=document.createElement('article');card.className='team-card';card.dataset.containerJob=job.id;
+    paragraph(card,`${job.kind} · ${job.state} · ${job.native?'native controller observation':'synthetic / not admitted'} · Owner: ${job.owner}`);
+    paragraph(card,job.reason);paragraph(card,`Deadline: ${job.deadline} · ${job.id}`);
+    if(job.quarantined) paragraph(card,'Resources quarantined. Reconcile the reserved container; retrying a command does not repeat dispatch.');
+    if(job.evidence_digest) inspect(card,job.evidence_digest);panel.append(card);
+  }
+  for(const c of progress.candidates) {const card=document.createElement('article');card.className='team-card';paragraph(card,`Frozen candidate ${c.id} · Author: ${c.author} · Producer: ${c.producer}`);paragraph(card,`Base: ${c.base_commit} · Digest: ${c.digest} · Shared deadline: ${c.deadline}`);panel.append(card);}
+  for(const r of progress.reviews) {const card=document.createElement('article');card.className='team-card';paragraph(card,`Review ${r.id} · ${r.author} · ${r.current?'approval current':r.approve?'approval stale':'changes required'}`);paragraph(card,r.findings);panel.append(card);}
+}

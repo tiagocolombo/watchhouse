@@ -48,6 +48,19 @@ pub struct Actor {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload", deny_unknown_fields)]
 pub enum EventData {
+    #[serde(rename = "repair.candidate_changed")]
+    CandidateChanged {
+        candidate_id: String,
+        kind: String,
+        reason: String,
+    },
+    #[serde(rename = "execution.container_changed")]
+    ContainerJobChanged {
+        job_id: String,
+        kind: String,
+        state: String,
+        reason: String,
+    },
     #[serde(rename = "learning.changed")]
     LearningChanged {
         id: String,
@@ -346,6 +359,10 @@ pub struct Snapshot {
     pub recovery: crate::recovery::RecoverySnapshot,
     #[serde(default)]
     pub learning: crate::learning::LearningSnapshot,
+    #[serde(default)]
+    pub container_jobs: Vec<crate::real_execution::worker::ContainerJob>,
+    #[serde(default)]
+    pub repair_progress: crate::real_execution::pipeline::RepairProgress,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
