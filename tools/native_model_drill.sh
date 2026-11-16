@@ -36,7 +36,7 @@ PY
 # The parent shell stays outside so its trap can remove the entire owned subtree safely.
 cargo_path="$(command -v cargo)"
 sudo bash -c '
-  printf "%s" "$" > "$1/coordinator/cgroup.procs"
+  printf "%s" "$$" > "$1/coordinator/cgroup.procs"
   exec runuser -u "$2" -- env -i HOME="$3" PATH="$4" \
     WATCHHOUSE_MODEL_CGROUP="$1" WATCHHOUSE_MODEL_CODEX="$5" WATCHHOUSE_MODEL_INIT="$6" \
     "$7" test --locked --lib model_runtime::tests::native_codex_cgroup_qualification_and_coordinator_offline_watchdog -- --ignored --nocapture
