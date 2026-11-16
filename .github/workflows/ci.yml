@@ -35,6 +35,27 @@ jobs:
         if: runner.os == 'Linux'
         working-directory: web
         run: npm test
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Generate synthetic operator demo
+        run: cargo run --locked --example generate_gallery -- target/uat-demo
+      - name: Package native coordinator test build
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            native_binary="target/debug/watchhouse.exe"
+          else
+            native_binary="target/debug/watchhouse"
+          fi
+          python tools/package_test_build.py create --binary "$native_binary" --demo target/uat-demo --commit "$GITHUB_SHA" --output target/watchhouse-test.zip
+          python tools/package_test_build.py check --bundle target/watchhouse-test.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: watchhouse-test-${{ runner.os }}-${{ runner.arch }}
+          path: target/watchhouse-test.zip
+          if-no-files-found: error
+          retention-days: 14
       - uses: actions/upload-artifact@v4
         if: failure() && runner.os == 'Linux'
         with:
