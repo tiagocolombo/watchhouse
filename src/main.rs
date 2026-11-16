@@ -75,6 +75,18 @@ enum Command {
         #[arg(long)]
         once: bool,
     },
+    /// Install an immutable model-client profile through the local OS operator plane.
+    ModelPolicy {
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long)]
+        operator: String,
+    },
+    /// Run explicitly queued model work. May use paid authentication when configured.
+    ModelWorker {
+        #[arg(long)]
+        once: bool,
+    },
     WorkerPolicyStatus,
     WorkerPolicy {
         #[arg(long)]
@@ -113,6 +125,21 @@ enum CaseCommand {
         file: PathBuf,
     },
     ExportHallmark {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+    RequestModel {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+    ModelJob {
+        id: String,
+        #[arg(long)]
+        job: String,
+    },
+    ManageModel {
         id: String,
         #[arg(long)]
         file: PathBuf,
@@ -457,6 +484,29 @@ async fn main() -> anyhow::Result<()> {
     }
     let app = Application::new(Store::open(cli.db)?, Arc::new(SystemClock));
     match cli.command {
+        Command::ModelPolicy { file, operator } => {
+            let source = std::fs::canonicalize(&file)?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&app.install_model_policy(
+                    read_command(file)?,
+                    &operator,
+                    &source.to_string_lossy()
+                )?)?
+            );
+        }
+        Command::ModelWorker { once } => loop {
+            let a = app.clone();
+            tokio::task::spawn_blocking(move || a.supervise_team()).await??;
+            let ran = app
+                .run_model_once(&watchhouse::model_runtime::ops::Native)
+                .await?;
+            if once {
+                break;
+            }
+            // Polling a running client must not busy-loop; it never extends the original deadline.
+            tokio::time::sleep(Duration::from_millis(if ran { 100 } else { 250 })).await;
+        },
         Command::ContainerPolicy { file, operator } => println!(
             "{}",
             serde_json::to_string_pretty(
@@ -617,6 +667,20 @@ async fn main() -> anyhow::Result<()> {
                 CaseCommand::ExportHallmark { id, file } => {
                     serde_json::to_value(app.export_hallmark(&id, read_command(file)?)?)?
                 }
+                CaseCommand::RequestModel { id, file } => {
+                    serde_json::to_value(app.request_model(&id, read_command(file)?)?)?
+                }
+                CaseCommand::ModelJob { id, job } => {
+                    serde_json::to_value(app.model_job(&id, &job)?)?
+                }
+                CaseCommand::ManageModel { id, file } => serde_json::to_value(
+                    app.manage_model(
+                        &id,
+                        read_command(file)?,
+                        &watchhouse::model_runtime::ops::Native,
+                    )
+                    .await?,
+                )?,
                 CaseCommand::QualifyContainer { id, file } => {
                     serde_json::to_value(app.qualify_container(&id, read_command(file)?)?)?
                 }
@@ -785,7 +849,7 @@ async fn main() -> anyhow::Result<()> {
                 tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port)).await?;
             let authority = listener.local_addr()?.to_string();
             eprintln!(
-                "Watchhouse: http://{authority}\nLocal operator token: {token}\nBuilt-in assignments are synthetic; native container checks require a separately configured container-worker."
+                "Watchhouse: http://{authority}\nLocal operator token: {token}\nBuilt-in assignments are synthetic; native container checks and model roles require separately configured container-worker/model-worker processes."
             );
             let router = watchhouse::http::router(app.clone(), token, authority);
             tokio::select! {

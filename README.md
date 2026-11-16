@@ -177,8 +177,12 @@ The [synthetic adapter lifecycle](contracts/v1/adapter-trials/README.md) exercis
 
 ## Native container checks and candidate review
 
-[Native repair v1](contracts/v1/native-repair/README.md) adds an explicitly configured Linux container worker, measured boundary qualification, frozen operator-provided text candidates, base/candidate regression and independent attributed review. Native authority requires current physical proof; synthetic/controller observations cannot grant it. The CLI/API/web retain unknown effects, quarantine, bounded cleanup and stale review. This is test execution only; real model adapter and GitHub delivery remain separate M4 work. Local acceptance testing stays deferred under the completion ledger.
+[Native repair v1](contracts/v1/native-repair/README.md) adds an explicitly configured Linux container worker, measured boundary qualification, frozen operator-provided text candidates, base/candidate regression and independent attributed review. Native authority requires current physical proof; synthetic/controller observations cannot grant it. The CLI/API/web retain unknown effects, quarantine, bounded cleanup and stale review. Container tests and model work have separate admission. The bounded model-client adapter below is implemented; model-result adoption and GitHub delivery remain separate M4 work. Local acceptance testing stays deferred under the completion ledger.
 
 ## Exchange reviewed knowledge with Hallmark
 
 [Hallmark exchange v1](contracts/v1/hallmark/README.md) imports bounded JSON exports as immutable unreviewed source records and preserves exact bytes for re-export. Explicitly mapped local proposals still require normal independent evidence/context review. Current accepted Watchhouse knowledge can be exported as proposed Hallmark lessons with source identity and applicability retained. CLI/API/web share the same records; no Hallmark installation or external authority is required.
+
+## Bounded model workers
+
+[Model runtime v1](contracts/v1/model-runtime/README.md) adds immutable OS-installed client profiles, explicitly queued engineer/reviewer text roles, native cgroup resource/cancellation qualification, sealed result journals and no-replay recovery for uncertain launches. `model-policy`, `model-worker`, and `case request-model`/`model-job`/`manage-model` share durable state with authenticated API and web inspection. The server does not start paid work automatically. Synthetic transport qualification does not verify live authentication, account access or a real model; those remain explicit activation gates. Candidate programs run only in the separate credential-free container worker.

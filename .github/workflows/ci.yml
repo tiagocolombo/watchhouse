@@ -31,6 +31,14 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: bash tools/native_container_drill.sh
+      - name: Install pinned Codex for native text-client fixture drill
+        if: runner.os == 'Linux'
+        shell: bash
+        run: npm install --prefix "$RUNNER_TEMP/watchhouse-codex-runtime" --ignore-scripts --no-audit --no-fund @openai/codex@0.167.0-alpha.4
+      - name: Native model-client resource/protocol drill (no account or models)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: bash tools/native_model_drill.sh
       - name: Install browser
         if: runner.os == 'Linux'
         working-directory: web

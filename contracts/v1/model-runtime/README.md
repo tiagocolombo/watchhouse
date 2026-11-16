@@ -1,0 +1,23 @@
+# Bounded model-client transport v1
+
+This is a text-role adapter. The harness proposes JSON; the coordinator retains all workflow authority. It cannot run candidate code, install tools, publish changes or edit governing policy. Candidate programs belong in the separately qualified credential-free container worker.
+
+The OS operator installs an immutable `ModelPolicy` using `watchhouse model-policy --file PROFILE --operator NAME`. The JSON shape is defined by `src/model_runtime/policy.rs`: exact native client/initializer paths and SHA-256 pins, separate private job and harness-owned auth roots, explicitly delegated cgroup-v2 subtree, requested model, resource/deadline/proof/cleanup budgets and container profile revision. No API endpoint installs policy. `authority.type=fixture` can only use the internal synthetic loopback provider. `openai_auth_home` retains an existing supported Codex authentication directory in place; credentials are not copied into jobs. Installation and transport qualification do not verify account access, billing or a live model.
+
+Authenticated `POST /api/v1/cases/{id}/model-jobs` uses:
+
+```json
+{"command":{"meta":{"schema_version":1,"idempotency_key":"operator-unique-key","actor":"operator","reason":"Qualify the native transport without an account"},"expected_version":1},"policy_revision":1,"action":{"type":"qualification"}}
+```
+
+Other actions are `engineer` with `repair_id` and 1–20 explicit source `paths`, or `reviewer` with `candidate_id`, `base_check`, `candidate_check`. The current case owner and explicitly installed governing policy are required. Engineer/reviewer work additionally requires intact current native transport/container admission. A fixture authority requires an explicit `fixture_response` for those roles; its outputs remain simulated. Repair context, accepted knowledge and shared attempt/time budgets are frozen and revalidated. Reviewer briefings omit the author transcript. A role result alone is not a candidate, independent approval or publication.
+
+`watchhouse model-worker [--once]` dispatches only queued, explicitly authorized work. `serve` does not run a model worker. Qualification uses the actual client against a no-account synthetic Responses endpoint, validates the tool advertisement, exact nonce and advancing descendant, then requires a populated group followed by acknowledged whole-cgroup termination. The resulting proof has an expiry, host boot identity and exact profile/evidence binding; `live_model_verified` remains false. No fake backend can grant native admission.
+
+The adapter uses fixed arguments, ephemeral sessions, ignored repository/user instructions, disabled execution/integration features and an empty trusted cwd. This specific text-only profile permits the pinned client's advertised `request_user_input` function because it provides no execution authority. Actual interaction, tool, plan or unknown events reject the result. The earlier strictly tool-free profile remains denied. See ADR 0023; this is a distinct contract, not a tool-free claim.
+
+Effects progress through queued → reserved creation → created → reserved start → running/polling → output staged → reserved cleanup → terminal. Each reservation commits before external I/O. Starting/creating are never automatic replay states. Unknown outcomes quarantine resources and escalate to the recorded owner, without a second potentially charged call. Native detached initialization journals its identity and result, joins the resource group before launching the client, and has a coordinator-independent whole-group deadline watchdog. Cancellation fences delayed starts both before and after group attachment. Missing paths/PIDs are not cleanup acknowledgments.
+
+`GET /api/v1/cases/{id}/model-jobs/{job}` reads retained state. `POST /api/v1/cases/{id}/model-manage` accepts `{command,job_id,action,evidence_refs}`, with `action` equal to `cancel`, `reconcile` or `report_cleanup`. Reconciliation inspects the existing operation, never repeats a model launch. Cleanup retries share the installed bounded budget. Reported cleanup needs fresh attributable evidence, fences delayed starts, grants no capability and accepts no output. A model worker must run to perform scheduled kernel cleanup. Late/stale/cancelled output can be evidence only. Native cleanup requires the exact resource UUID, profile, inode, boot identity, resource limits and positive kernel `populated=0` observation.
+
+Private reasoning and stderr prose are discarded; stderr has a digest only. Usage stays unknown unless reported by the harness. Requested model is not reported model identity. API/UI inspection escapes data. Remote RBAC, publication, second harnesses and broader operational hardening remain separate gates.

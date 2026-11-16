@@ -24,7 +24,7 @@ CLI/API/timeline/snapshot/web inspection are wired. Raw Markdown stays inert. Lo
 
 PRs #2–#11 are merged; main is `823aa2c`. [PR #12](https://github.com/tiagocolombo/watchhouse/pull/12) remains open at `e6588a6`; its Linux/macOS/Windows CI passed. [PR #13](https://github.com/tiagocolombo/watchhouse/pull/13) adds recovery and passed exact-head Linux/macOS/Windows CI at `adcfacb`. [PR #14](https://github.com/tiagocolombo/watchhouse/pull/14) adds learning at `a5363ef`. PR #15 (`dev/native-test-bundles`, `d0e4605`) builds on PR #14; its exact-head Linux/macOS/Windows CI passed. The documentation completion-gates branch is stacked on PR #15. No pending PR was merged in this batch.
 
-M4 physical worker/runtime/credential admission remains blocked. This independent M5 slice completes operator-driven recovery and follow-through records without bypassing real-execution admission. See [ADR 0018](adrs/0018-recovery-and-follow-through.md) and [recovery contract](../contracts/v1/recovery/README.md).
+At the earlier recovery milestone, M4 physical admission was blocked; PR #17 subsequently verified the Docker boundary in native CI. Real model authentication and full M4 delivery remain open. The M5 recovery slice completes operator-driven recovery and follow-through records without bypassing real-execution admission. See [ADR 0018](adrs/0018-recovery-and-follow-through.md) and [recovery contract](../contracts/v1/recovery/README.md).
 
 ## Implemented recovery and learning
 
@@ -52,7 +52,7 @@ Local Linux validation: **140 Rust tests passed**, all **six Chromium scenarios 
 
 ## Retained activation blockers
 
-The prior native Bubblewrap drill failed closed (`Failed to create NETLINK_ROUTE socket: Operation not permitted`), with zero verified capabilities and quarantine. No successful physical isolation or real harness admission is claimed. Real Sentry/notification destinations, credentials, mappings and actual-history acceptance are still unavailable. Operator actor labels remain single-operator attribution, not remote RBAC.
+The prior native Bubblewrap drill failed closed (`Failed to create NETLINK_ROUTE socket: Operation not permitted`), with zero verified capabilities and quarantine. That historical failure does not negate PR #17's later native Docker verification. Live model authentication remains unverified. Real Sentry/notification destinations, credentials, mappings and actual-history acceptance are still unavailable. Operator actor labels remain single-operator attribution, not remote RBAC.
 
 ## Overall done and pending
 
@@ -62,7 +62,7 @@ The prior native Bubblewrap drill failed closed (`Failed to create NETLINK_ROUTE
 | M1 | Durable cases/events/evidence, qualification/reopening, CLI/API/web replay | Operational hardening belongs to M8 |
 | M2 | Bounded fake collaboration, supervision, handoffs, independent challenges/gates, trusted policy, Slack fallback/retry/ack/resolution adapter | Actual human destinations/credentials and live delivery drill |
 | M3 | Sentry intake/enrichment/reconciliation/freshness, incident operations/roles, investigations/drafts/review, scoped correlation/diagnostics | Actual sanitized service history, configured live activation, richer impact windows/disposition categories/cross-service correlation |
-| M4 | Frozen repair inputs/runtime metadata, denied repair requests, controlled qualification/evidence/loss/quarantine/reconciliation; durable fake adapter lifecycle | Qualified actual worker/runtime profile and real adapter; candidate/regression/review/PR delivery lifecycle |
+| M4 | Native-verified Docker isolation, cancellation/watchdog and regression; frozen candidates/operator review; bounded Codex text-role controller and explicit native test path | Native text-client CI and live authentication; candidate/model-review adoption and reconciled GitHub PR delivery |
 | M5 | Operator recovery criteria/windows/review/resolution, deployment reports, blocked mitigation proposals, independently verified corrective actions, Hallmark knowledge exchange | Actual mitigation/deployment/telemetry integrations, problem/known-error linkage and actual-history evaluation |
 | M6 | Design/policy requirements | Eligible automatic merging and effect reconciliation |
 | M7 | Adapter/portability design; native coordinator test-bundle workflow | Second harness/source, native worker routing, packaging/platform drills |
@@ -70,14 +70,22 @@ The prior native Bubblewrap drill failed closed (`Failed to create NETLINK_ROUTE
 
 M3 still needs real service/release mappings, Sentry install/client secret/token/plan permissions, trusted ingress, and authorized Slack destinations/secrets/participants; the prepared [activation drill](16-m3-activation-drill.md) is not executed. Synthetic fixtures do not meet actual-history/live acceptance.
 
-M4 still needs a properly provisioned worker for a real controlled drill, then stronger adversarial/FD/seccomp/cgroup/aggregate-budget/fatal-loss and host/tool identity validation, workspace sealing, scoped authentication/credentials and revocation, and a full start/events/cancel/result/reconcile harness adapter. Codex is the first candidate, not an admitted runtime. Only after those gates: independently frozen candidates, fail-on-base/pass-on-candidate regression, verification/review, and idempotent/reconciled PR delivery. No request/receipt/cleanup report/CLI flag grants any of these powers.
+M4 Docker containment/cancellation/regression has native CI proof. The bounded Codex text-client adapter has its own required native cgroup/protocol drill and cannot inherit Docker admission. Live account authentication, model-result adoption/independent-review lineage and reconciled GitHub delivery remain open. No request, receipt, reported cleanup or CLI flag grants these powers.
 
 Current actor labels are single-operator attribution, not remote RBAC. A hostile host administrator/DB owner or malicious operator-installed tool remains outside this boundary. Repo merges performed by the coding assistant are not Watchhouse automatic merging. Source status, a probe pass, patch merge or unsent draft never proves deployment/recovery.
 
 ## Exact next step
 
-Observe the native Linux container CI drill, then finish real harness authentication/lifecycle and reconciled PR delivery. Complete the remaining M3/M5–M8 gates in COMPLETION.md. Continue independent fixture/adapter work while named activation inputs are missing. Do not hand off local acceptance testing or mark a phase complete without its required evidence.
+Complete the new native Linux model-client CI drill, model-result adoption/independent-review lineage and reconciled PR delivery; retain the already-passing Docker CI evidence. Complete the remaining M3/M5–M8 gates in COMPLETION.md. Continue independent fixture/adapter work while named activation inputs are missing. Do not hand off local acceptance testing or mark a phase complete without its required evidence.
 
 ## Coordinator-loss watchdog follow-up
 
 The container initializer now starts its own hard-wall watchdog before input preparation. This closes the coordinator-loss gap: PID 1 exit terminates namespace descendants even without a host cancellation request. The native CI drill additionally starts a two-second sleeping workload, waits without cancelling it, verifies watchdog exit 124, then performs scoped cleanup. Qualification uses an explicit 30-second native test profile; production policy defaults were not changed. Ten controller/protocol tests, formatting and strict Clippy passed locally. The new physical watchdog case still needs its exact-head CI result; prior native proof covers the preceding implementation only.
+
+## Bounded model-client work (current stacked slice)
+
+Migration 019 adds immutable model profiles, durable jobs and expiring native transport admission. The Codex text-role adapter, sealed detached initializer, cgroup-v2 identities/resources/cancellation, coordinator-independent watchdog, delayed-start cancellation fence, no-replay reservation/reconciliation, bounded shared budgets and owner/context/knowledge checks are implemented. API/CLI/snapshot/timeline and inert web inspection are wired. `serve` does not start a model worker; explicit OS configuration and owned enqueueing are required.
+
+The strict tool-free spike remains denied. This is a distinct text-only adapter that permits only the inert question-function advertisement and rejects actual tool/interaction/plan events. Candidate execution remains credential-free in the Docker worker. Transport qualification uses actual Codex with synthetic loopback SSE and an empty auth home, not a live account/model. See [ADR 0023](adrs/0023-bounded-text-model-client.md) and [model runtime contract](../contracts/v1/model-runtime/README.md).
+
+Local validation: 166 Rust tests passed (including nine new model controller/protocol tests); strict Clippy/fmt, TypeScript and native build passed. Targeted model and HTTP tests also passed after boundary changes. All eight Chromium scenarios passed, including blocked model preflight, idempotency, reload and inert output inspection. The new native cgroup/actual-Codex CI drill is pending; no model-client native proof is claimed. This workspace has no mounted cgroup hierarchy, so it cannot run that physical drill. Live account authentication/model access, candidate/model-review adoption and reconciled GitHub delivery remain open M4 gates. M3/M5–M8 remain governed by COMPLETION.md. No PR was merged and no paid model/live integration was exercised.

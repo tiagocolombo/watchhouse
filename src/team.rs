@@ -1094,6 +1094,7 @@ impl Application {
         changed += crate::recovery::supervise(&tx, &now)?;
         changed += crate::learning::supervise(&tx, &now)?;
         changed += crate::real_execution::worker::supervise(&tx, &now)?;
+        changed += crate::model_runtime::ops::supervise(&tx, &now)?;
         tx.commit()?;
         Ok(changed)
     }

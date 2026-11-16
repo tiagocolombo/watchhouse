@@ -215,7 +215,7 @@ fn meta(m: &CommandMeta) -> Result<()> {
     text(&m.idempotency_key, "key", 128)?;
     text(&m.reason, "reason", 2000)
 }
-fn checks_match(
+pub(crate) fn checks_match(
     db: &Connection,
     c: &Candidate,
     base: &ContainerJob,
