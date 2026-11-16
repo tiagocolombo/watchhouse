@@ -655,7 +655,7 @@ impl Application {
                         self.container_unknown(&j.id,"Worker returned invalid or unaccepted output; reconcile the reserved resource")?;
                     }
                 },
-                Err(_) => self.container_unknown(&j.id,"Container start/result outcome unknown; inspect existing container without repeating start")?
+                Err(e) => self.container_unknown(&j.id,&format!("Container start/result outcome unknown; inspect existing container without repeating start: {}",diagnostic(e)))?
             }
         }
         Ok(true)

@@ -1,14 +1,16 @@
 //! Controller fixtures prove state handling, not physical containment or live model access.
 use super::{docker::*, protocol::*};
 use crate::{contracts::*, store};
-use std::path::PathBuf;
 fn sample_policy(root: &std::path::Path) -> ContainerPolicy {
     ContainerPolicy {
         schema_version: V1,
         revision: 1,
-        docker_path: PathBuf::from("/usr/bin/true"),
+        docker_path: std::env::current_exe().unwrap(),
         docker_digest: store::digest("client"),
-        socket: PathBuf::from("/var/run/docker.sock"),
+        socket: root
+            .parent()
+            .unwrap()
+            .join("watchhouse-fixture-docker.sock"),
         image: store::digest("image"),
         runner_digest: store::digest("runner"),
         staging_root: root.to_owned(),
@@ -209,6 +211,7 @@ mod controller {
             .unwrap()
             .id;
         let mut policy = sample_policy(root.path());
+        policy.socket = std::path::PathBuf::from("/var/run/docker.sock");
         policy.docker_path = fs::canonicalize("/usr/bin/true").unwrap();
         policy.docker_digest = crate::repair::snapshot::file_digest(&policy.docker_path).unwrap();
         app.install_container_policy(policy.clone(), "operator")
@@ -808,6 +811,12 @@ mod controller {
             for args in [
                 vec!["container", "logs"],
                 vec!["container", "inspect", "--format", "{{json .State}}"],
+                vec![
+                    "container",
+                    "inspect",
+                    "--format",
+                    "caps={{json .HostConfig.CapAdd}} drop={{json .HostConfig.CapDrop}} security={{json .HostConfig.SecurityOpt}}",
+                ],
             ] {
                 let mut c = Command::new(&f.policy.docker_path);
                 c.arg("--host")

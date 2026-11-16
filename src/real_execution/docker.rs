@@ -134,9 +134,7 @@ fn invalid(message: &str) -> Error {
 }
 fn exact(v: &Value, key: &str, expected: Value) -> Result<()> {
     if v.get(key) != Some(&expected) {
-        return Err(invalid(
-            "container inspection differs from the reserved boundary",
-        ));
+        return Err(invalid(&format!("container inspection differs at {key}")));
     }
     Ok(())
 }
@@ -635,7 +633,10 @@ pub(super) fn validate_inspect(
             .is_some_and(|v| v == &vec![json!("no-new-privileges:true")])
         || h["Devices"].as_array().is_some_and(|v| !v.is_empty())
     {
-        return Err(invalid("container privilege profile differs"));
+        return Err(invalid(&format!(
+            "container privilege profile differs: add={} drop={} security={}",
+            h["CapAdd"], h["CapDrop"], h["SecurityOpt"]
+        )));
     }
     let tmpfs = h["Tmpfs"]
         .as_object()

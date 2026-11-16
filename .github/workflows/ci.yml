@@ -67,3 +67,19 @@ jobs:
           path: |
             web/test-results
             web/team-test-results
+
+  codex-protocol:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install exact Codex runtime for a no-account local protocol drill
+        run: npm install --prefix "$RUNNER_TEMP/watchhouse-codex-runtime" --ignore-scripts --no-audit --no-fund @openai/codex@0.167.0-alpha.4
+      - name: Measure native tool-free structured-output protocol without models
+        shell: bash
+        run: python tools/codex_protocol_probe.py "$RUNNER_TEMP/watchhouse-codex-runtime/node_modules/.bin/codex"
