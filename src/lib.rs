@@ -14,6 +14,7 @@ pub mod intake;
 pub mod notifications;
 pub mod policy;
 pub mod qualification;
+pub mod recovery;
 pub mod repair;
 pub mod sentry;
 pub mod sentry_refresh;

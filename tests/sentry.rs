@@ -231,7 +231,7 @@ fn duplicates_out_of_order_enrichment_and_incident_declaration_have_one_case_and
     assert!(
         a.incident_markdown(&id)
             .unwrap()
-            .contains("Recovery: not assessed")
+            .contains("Recovery at declaration: not assessed")
     );
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_watchhouse"))
         .args([

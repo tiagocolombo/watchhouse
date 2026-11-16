@@ -48,6 +48,12 @@ pub struct Actor {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload", deny_unknown_fields)]
 pub enum EventData {
+    #[serde(rename = "incident.recovery_recorded")]
+    RecoveryRecorded {
+        record_id: String,
+        kind: String,
+        reason: String,
+    },
     #[serde(rename = "adapter.trial_changed")]
     AdapterTrialChanged {
         trial_id: String,
@@ -329,6 +335,8 @@ pub struct Snapshot {
     pub worker_qualifications: Vec<crate::worker_qualification::Qualification>,
     #[serde(default)]
     pub adapter_trials: Vec<crate::adapter_trials::Trial>,
+    #[serde(default)]
+    pub recovery: crate::recovery::RecoverySnapshot,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

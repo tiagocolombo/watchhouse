@@ -20,7 +20,7 @@ test('signed Sentry intake leads to an explicit incident while credentials and m
   const command={command:{meta:{schema_version:1,idempotency_key:crypto.randomUUID(),actor:'operator',reason:'Coordinated fixture response'},expected_version:s.case.version},severity:'high',rationale:'Workflow impact requires investigation',impact:'Three source events; traffic denominator unknown',uncertainty:'Synthetic fixture, no live API credentials',objective:'Reproduce and assess the workflow',roles:{commander:'operator',operations:'operator',communications:'operator',scribe:'operator'},evidence_refs:sourceEvent.payload.evidence_refs,known_start:null};
   await page.getByText('Submit versioned review command',{exact:true}).click();await page.locator('#review-command-kind').selectOption('incident');await page.locator('#review-command-json').fill(JSON.stringify(command));await page.getByRole('button',{name:'Submit review command',exact:true}).click();
   await expect(page.locator('#challenge-records')).toContainText('recovery_assessment');await expect(page.locator('#challenge-records')).toContainText('Not assessed');
-  const markdown=await context.request.get(`/api/v1/cases/${id}/incident/markdown`,{headers:auth});expect(markdown.ok()).toBe(true);expect(await markdown.text()).toContain('Recovery: not assessed');
+  const markdown=await context.request.get(`/api/v1/cases/${id}/incident/markdown`,{headers:auth});expect(markdown.ok()).toBe(true);expect(await markdown.text()).toContain('Recovery at declaration: not assessed');
   await page.reload();await expect(page.locator('#challenge-records')).toContainText('Coordinated fixture response');
   const current=await(await context.request.get(`/api/v1/cases/${id}`,{headers:auth})).json();
   await page.getByText('Submit versioned review command',{exact:true}).click();await page.locator('#review-command-kind').selectOption('incident/operations');
@@ -32,6 +32,27 @@ test('signed Sentry intake leads to an explicit incident while credentials and m
   await page.getByText('Submit versioned review command',{exact:true}).click();await page.locator('#review-command-kind').selectOption('incident/artifacts');
   await page.locator('#review-command-json').fill(JSON.stringify({command:{meta:{schema_version:1,idempotency_key:crypto.randomUUID(),actor:'operator',reason:'Structured investigation'},expected_version:artifactContext.case.version},action:{type:'hypothesis',id:null,expected_revision:null,claim:'<script>window.artifactInjected=true</script> Fixture hypothesis',scope:'checkout/test',state:'proposed',supporting:[],counterevidence:[],uncertainty:'No causal conclusion',next_experiment:'Compare discriminating fixture outcomes',experiment_id:null}}));
   await page.getByRole('button',{name:'Submit review command',exact:true}).click();await expect(page.locator('#challenge-records')).toContainText('Fixture hypothesis');expect(await page.evaluate(()=>('artifactInjected' in window))).toBe(false);await page.reload();await expect(page.locator('#challenge-records')).toContainText('next_experiment');
+
+  const snapshotRecovery=async()=> (await context.request.get(`/api/v1/cases/${id}`,{headers:auth})).json();
+  const recoveryCmd=async(action:unknown,actor='operator')=>({command:{meta:{schema_version:1,idempotency_key:crypto.randomUUID(),actor,reason:'Synthetic recovery workflow'},expected_version:(await snapshotRecovery()).case.version},action});
+  const postRecovery=async(action:unknown,actor='operator')=>{const response=await context.request.post(`/api/v1/cases/${id}/recovery`,{headers:auth,data:await recoveryCmd(action,actor)});expect(response.ok()).toBe(true);return response.json();};
+  await page.getByText('Submit versioned review command',{exact:true}).click();await page.locator('#review-command-kind').selectOption('recovery');
+  const planResponse=page.waitForResponse(response=>response.url().endsWith(`/api/v1/cases/${id}/recovery`)&&response.request().method()==='POST');
+  await page.locator('#review-command-json').fill(JSON.stringify(await recoveryCmd({type:'plan',criteria:{workflow:'checkout submit',min_requests:10,min_window_seconds:1,max_error_ppm:0,max_p95_ms:1000,max_source_lag_seconds:30},review_seconds:300})));await page.getByRole('button',{name:'Submit review command',exact:true}).click();
+  await expect(page.locator('#recovery')).toContainText('Recovery observation: not assessed');
+  const planned=await planResponse;expect(planned.ok()).toBe(true);
+  const plan=(await planned.json()).recovery.plan;expect(plan).not.toBeNull();
+  const report=async(actor:string)=>{const r=await context.request.post(`/api/v1/cases/${id}/evidence`,{headers:auth,data:{schema_version:1,idempotency_key:crypto.randomUUID(),actor,reason:'Synthetic manual observation',expected_version:(await snapshotRecovery()).case.version,scope:'checkout/test',statement:'Synthetic fixture: ten requests, zero errors. No live telemetry',collection_method:'Independent manual fixture inspection',observed_at:null,uncertainty:'Manual synthetic data only'}});expect(r.ok()).toBe(true);return (await r.json()).evidence.digest;};
+  await expect.poll(()=>Date.now()-Date.parse(plan.recorded_at)).toBeGreaterThan(1100);
+  const measured=await report('operator');const observed=await postRecovery({type:'observe',plan_id:plan.id,window:{started_at:plan.recorded_at,ended_at:new Date().toISOString(),requests:10,errors:0,p95_ms:100,coverage_complete:true,source_lag_seconds:0,collection_method:'Synthetic window',uncertainty:'No live telemetry',evidence_refs:[measured]}});
+  await expect(page.locator('#recovery')).toContainText('Recovery observation: met');
+  const proof=await report('reviewer');const reviewed=await postRecovery({type:'review',observation_id:observed.recovery.observation.id,evidence_refs:[proof]},'reviewer');
+  await postRecovery({type:'open_action',title:'<script>window.recoveryInjected=true</script> Add regression monitor',category:'detect',owner:'operator',verifier:'reviewer',acceptance:'Detect authenticated failure',due_seconds:300});
+  await postRecovery({type:'resolve',review_id:reviewed.recovery.review.id,evidence_refs:[proof]});
+  await expect(page.locator('#recovery')).toContainText('resolved by reported review');await expect(page.locator('#recovery')).toContainText('Add regression monitor');expect(await page.evaluate(()=>('recoveryInjected' in window))).toBe(false);
+  const recoveryReport=await context.request.get(`/api/v1/cases/${id}/recovery/markdown`,{headers:auth});expect(recoveryReport.ok()).toBe(true);expect(await recoveryReport.text()).toContain('operator_reported_review');
+  const noAuth=await context.request.post(`/api/v1/cases/${id}/recovery`,{data:await recoveryCmd({type:'reopen',evidence_refs:[proof]})});expect(noAuth.status()).toBe(401);
+  await page.reload();await expect(page.locator('#recovery')).toContainText('resolved by reported review');
 
   const secondIssue={...issue,id:'1002'};const secondBody=JSON.stringify({action:'created',data:{issue:secondIssue}});const secondSignature=createHmac('sha256','sanitized-fixture-secret-32-bytes-only').update(secondBody).digest('hex');
   expect((await context.request.post('/integrations/sentry',{headers:{'Content-Type':'application/json','Sentry-Hook-Signature':secondSignature},data:secondBody})).status()).toBe(202);

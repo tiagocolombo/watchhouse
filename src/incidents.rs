@@ -194,7 +194,7 @@ impl Application {
         d.objective = operations.objective.clone();
         d.roles = operations.roles.clone();
         let mut report = format!(
-            "# Incident {}\n\nState: declared. Recovery: not assessed.\n\n## Current brief\n\n- Objective: {}\n- Severity: {:?}\n- Rationale: {}\n- Impact: {}\n- Uncertainty: {}\n- Service / environment: {} / {}\n- Source: {}\n- Repository: {}\n- Release / deployed revision: {} / {}\n\n## Command roles\n\n| Responsibility | Owner |\n| --- | --- |\n| Commander | {} |\n| Operations | {} |\n| Communications | {} |\n| Scribe | {} |\n\n## Impact and timing\n\nKnown start: {}. Declared: {}. Mitigation and recovery: unknown. Traffic denominator and observation coverage are not established.\n\n## Response and communications\n\n{}\n\nNext update: {}. Draft only; no stakeholder communication sent.\n\n## Recovery assessment\n\n{}\n\n## Investigation evidence\n\n{}\n\n## Live timeline\n\n| Recorded at | Actor | Transition | Reason |\n| --- | --- | --- | --- |\n",
+            "# Incident {}\n\nDeclaration state: declared. Recovery at declaration: not assessed.\n\n## Current brief\n\n- Objective: {}\n- Severity: {:?}\n- Rationale: {}\n- Impact: {}\n- Uncertainty: {}\n- Service / environment: {} / {}\n- Source: {}\n- Repository: {}\n- Release / deployed revision: {} / {}\n\n## Command roles\n\n| Responsibility | Owner |\n| --- | --- |\n| Commander | {} |\n| Operations | {} |\n| Communications | {} |\n| Scribe | {} |\n\n## Impact and timing\n\nKnown start: {}. Declared: {}. Mitigation and recovery: unknown. Traffic denominator and observation coverage are not established.\n\n## Response and communications\n\n{}\n\nNext update: {}. Draft only; no stakeholder communication sent.\n\n## Recovery assessment\n\n{}\n\n## Investigation evidence\n\n{}\n\n## Live timeline\n\n| Recorded at | Actor | Transition | Reason |\n| --- | --- | --- | --- |\n",
             i.id,
             safe(&d.objective),
             d.severity,
@@ -243,6 +243,7 @@ impl Application {
             .replace('<', "\\u003c");
         report.push_str(&format!("\n## Continuing work\n\nCause, mitigation, deployment validation, recovery observation, postmortem applicability and corrective actions require subsequent evidence-backed records. Declaration closes none of these duties.\n\n## Authoritative structured record\n\n```json\n{raw}\n```\n"));
         report.push_str(&self.investigation_markdown(id)?);
+        report.push_str(&self.recovery_markdown(id)?);
         Ok(report)
     }
 }

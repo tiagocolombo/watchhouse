@@ -83,6 +83,14 @@ enum Command {
 }
 #[derive(Subcommand)]
 enum CaseCommand {
+    Recovery {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+    RecoveryMarkdown {
+        id: String,
+    },
     AdapterTrialStatus {
         id: String,
         #[arg(long)]
@@ -496,6 +504,13 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Case { action } => {
             let output = match action {
+                CaseCommand::Recovery { id, file } => {
+                    serde_json::to_value(app.recovery_command(&id, read_command(file)?)?)?
+                }
+                CaseCommand::RecoveryMarkdown { id } => {
+                    print!("{}", app.recovery_markdown(&id)?);
+                    return Ok(());
+                }
                 CaseCommand::AdapterTrialStatus { id, trial } => {
                     serde_json::to_value(app.adapter_trial_status(&id, &trial)?)?
                 }
