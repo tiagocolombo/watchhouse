@@ -13,10 +13,11 @@ interface Team {control:{state:string;executor:string;overall_deadline:string|nu
 interface SourceFreshness {source_key:string;state:string;age_seconds:number|null;last_success_at:string|null;error:string|null}
 interface Correlations {relations:{source_case:string;target_case:string;kind:string;active:boolean;context_current:boolean;reason:string;revision:number}[];candidates:{case_id:string;reason:string}[];limitation:string}
 interface RepairRequest {id:string;state:string;owner:string;repository:string;base_commit:string;denials:string[];next_action:string}
+interface LearningSnapshot {entries:{document:{id:string;revision:number;content:{type:string;draft:{title:string}};author:string;review_by:string};accepted_current:boolean;retired:boolean}[]}
 interface RecoverySnapshot {recovery:{response_resolved:boolean;context_current:boolean;revision:number;observation:{outcome:string;basis:string}|null};actions:{id:string;title:string;owner:string;verifier:string;state:string;due_at:string;escalated:boolean}[];records:unknown[]}
 interface AdapterTrial {id:string;state:string;scope:string;reason:string;sequence:number;pending_operation:string|null;evidence_digest:string|null;envelope:{owner:string;deadline:string}}
 interface WorkerQualification {id:string;state:string;scope:string;owner:string;reason:string;real_execution_admitted:boolean;verified:string[];time_current:boolean;expires_at:string|null;quarantined:boolean;evidence_digest:string|null;reconciliation:{operator:string;reason:string}|null}
-interface Snapshot { case:Case; events:TimelineEvent[]; cursor:number; results:{summary:string;conclusion:string}[]; qualification:Qualification; team:Team; challenges:unknown[]; gate:{validated_version:number;closed_version:number|null}|null; policy:unknown; notifications:unknown[]; source:unknown; source_freshness:SourceFreshness|null; incident:unknown; incident_operations:unknown; incident_role_offers:unknown[]; incident_artifacts:unknown[]; correlations:Correlations; repairs:RepairRequest[]; worker_qualifications:WorkerQualification[]; adapter_trials:AdapterTrial[]; recovery:RecoverySnapshot }
+interface Snapshot { case:Case; events:TimelineEvent[]; cursor:number; results:{summary:string;conclusion:string}[]; qualification:Qualification; team:Team; challenges:unknown[]; gate:{validated_version:number;closed_version:number|null}|null; policy:unknown; notifications:unknown[]; source:unknown; source_freshness:SourceFreshness|null; incident:unknown; incident_operations:unknown; incident_role_offers:unknown[]; incident_artifacts:unknown[]; correlations:Correlations; repairs:RepairRequest[]; worker_qualifications:WorkerQualification[]; adapter_trials:AdapterTrial[]; recovery:RecoverySnapshot; learning:LearningSnapshot }
 const el = <T extends HTMLElement = HTMLElement>(id:string) => document.getElementById(id) as T;
 const input = (id:string) => el<HTMLInputElement>(id).value;
 let token = sessionStorage.getItem('watchhouse-token') ?? '';
@@ -77,6 +78,7 @@ function renderState(snapshot:Snapshot) {
   renderWorkerQualification(snapshot.worker_qualifications);
   renderAdapterTrials(snapshot.adapter_trials);
   renderRecovery(snapshot.recovery);
+  renderLearning(snapshot.learning);
   renderCorrelations(snapshot.correlations);
   renderQualification(snapshot);
   renderTeam(snapshot);
@@ -364,3 +366,5 @@ function renderAdapterTrials(records:AdapterTrial[]) {
 }
 
 function renderRecovery(s:RecoverySnapshot){const panel=el('recovery');panel.replaceChildren();paragraph(panel,`Response: ${s.recovery.response_resolved?(s.recovery.context_current?'resolved by reported review':'requires reassessment'):'active / not resolved'} · Recovery observation: ${s.recovery.observation?.outcome||'not assessed'}`);paragraph(panel,'Operator-reported records. Repair, deployment, recovery and follow-ups have separate states.');for(const a of s.actions){const card=document.createElement('article');card.className='team-card';paragraph(card,`${a.title} · ${a.state} · Owner: ${a.owner} · Verifier: ${a.verifier}`);paragraph(card,`Due: ${a.due_at}${a.escalated?' · Overdue: escalated':''}`);panel.append(card);}const detail=document.createElement('details');const summary=document.createElement('summary');summary.textContent='Recovery records';detail.append(summary);const pre=document.createElement('pre');pre.textContent=JSON.stringify(s,null,2);detail.append(pre);panel.append(detail);}
+
+function renderLearning(s:LearningSnapshot){const panel=el('learning');panel.replaceChildren();if(!s.entries.length){panel.textContent='No postmortem or knowledge proposals recorded.';return;}for(const e of s.entries){const card=document.createElement('article');card.className='team-card';paragraph(card,`${e.document.content.type}: ${e.document.content.draft.title} · Revision ${e.document.revision}`);paragraph(card,`${e.retired?'Retired':e.accepted_current?'Accepted in current context':'Proposed / acceptance missing or stale'} · Author: ${e.document.author} · Review/expiry: ${e.document.review_by}`);panel.append(card);}const detail=document.createElement('details');const summary=document.createElement('summary');summary.textContent='Learning records';detail.append(summary);const pre=document.createElement('pre');pre.textContent=JSON.stringify(s,null,2);detail.append(pre);panel.append(detail);}

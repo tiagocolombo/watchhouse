@@ -166,3 +166,7 @@ The [synthetic adapter lifecycle](contracts/v1/adapter-trials/README.md) exercis
 ## Assess recovery and follow through
 
 [Recovery v1](contracts/v1/recovery/README.md) supports prospective criteria, reported observation windows, independent review and response resolution. Low traffic/coverage stays inconclusive. Corrective actions keep their owners, independent verification and overdue escalation after response resolution. Mitigation is a blocked proposal; deployment is an explicit report. `case recovery` and `case recovery-markdown` share the web/API records. The [example generator](examples/README.md) includes a complete synthetic recovery/follow-up scenario for local testing.
+
+## Review and reuse operational learning
+
+[Learning v1](contracts/v1/learning/README.md) adds postmortem impact/cause/action records and independently reviewed scoped lessons. Unknown causes remain explicit. Pending/imported proposals cannot replace accepted knowledge. Exact-scope retrieval excludes expired/stale/retired entries, and new fake worker briefings freeze accepted versions. Use `case learning`, `case learning-markdown`, and `knowledge`; the gallery exercises the complete operator-driven incident/recovery/learning flow without models.

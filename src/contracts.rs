@@ -48,6 +48,13 @@ pub struct Actor {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload", deny_unknown_fields)]
 pub enum EventData {
+    #[serde(rename = "learning.changed")]
+    LearningChanged {
+        id: String,
+        revision: u32,
+        kind: String,
+        reason: String,
+    },
     #[serde(rename = "incident.recovery_recorded")]
     RecoveryRecorded {
         record_id: String,
@@ -337,6 +344,8 @@ pub struct Snapshot {
     pub adapter_trials: Vec<crate::adapter_trials::Trial>,
     #[serde(default)]
     pub recovery: crate::recovery::RecoverySnapshot,
+    #[serde(default)]
+    pub learning: crate::learning::LearningSnapshot,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

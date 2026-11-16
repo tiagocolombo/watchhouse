@@ -5,9 +5,10 @@ use chrono::{Duration, SecondsFormat};
 use common::*;
 use std::{fs, path::PathBuf};
 use watchhouse::{
-    contracts::{RecordEvidence, V1},
+    contracts::{OfferHandoff, RecordEvidence, V1},
     domain::Clock,
     incident_artifacts::*,
+    learning::*,
     recovery::*,
 };
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -137,6 +138,47 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
         },
     )?;
+    let report = recovery_report(&a, &id, "gallery-postmortem-input", "operator")?;
+    let action_id = a.snapshot(&id)?.recovery.actions[0].id.clone();
+    let postmortem=a.learning_command(&id,LearningCommand{command:command(&a,&id,"gallery-postmortem","operator"),action:LearningAction::DraftPostmortem{id:None,expected_revision:None,draft:PostmortemDraft{title:"Synthetic checkout response review".into(),summary:"Reported recovery was reviewed independently; a permanent repair and causal explanation remain open".into(),chronology:"Signal intake, declaration, blocked investigation, reported recovery window, independent review and response resolution".into(),impact:Impact{requests:None,affected:None,started_at:None,ended_at:None,method:"Total affected traffic is unknown; the small recovery observation is not an impact denominator".into(),uncertainty:"Invented fixture history only".into()},cause:Cause::Unknown{question:"Which dependency or application condition produced the submit timeout?".into()},response_assessment:"Separate expected rejection from authenticated failure and obtain discriminating evidence".into(),action_ids:vec![action_id],evidence_refs:vec![report],review_seconds:3600}}})?.entries[0].document.clone();
+    let proof = recovery_report(&a, &id, "gallery-postmortem-review", "reviewer")?;
+    a.learning_command(
+        &id,
+        LearningCommand {
+            command: command(&a, &id, "gallery-accept-postmortem", "reviewer"),
+            action: LearningAction::Accept {
+                id: postmortem.id.clone(),
+                revision: 1,
+                evidence_refs: vec![proof],
+            },
+        },
+    )?;
+    let proposed=a.learning_command(&id,LearningCommand{command:command(&a,&id,"gallery-lesson","operator"),action:LearningAction::ProposeKnowledge{id:None,expected_revision:None,draft:KnowledgeDraft{title:"Keep authentication conclusions scoped".into(),kind:"lesson".into(),body:"An expected unauthenticated rejection cannot explain an authenticated submit failure. Obtain route/identity-specific evidence before cataloguing it as expected behavior".into(),applicability:"The explicitly mapped checkout/test/fixture-release-1 route contract only".into(),invalidation_conditions:"Changed contract, authenticated failures, new release or contradictory observations".into(),postmortem_id:postmortem.id,postmortem_revision:1,evidence_refs:evidence(&a,&id),expires_seconds:3600,imported_from:None}}})?.entries[0].document.clone();
+    let proof = recovery_report(&a, &id, "gallery-lesson-review", "reviewer")?;
+    a.learning_command(
+        &id,
+        LearningCommand {
+            command: command(&a, &id, "gallery-accept-lesson", "reviewer"),
+            action: LearningAction::Accept {
+                id: proposed.id,
+                revision: 1,
+                evidence_refs: vec![proof],
+            },
+        },
+    )?;
+    let blocked = a.snapshot(&id)?.team.blocks[0].id.clone();
+    a.offer_handoff(
+        &id,
+        OfferHandoff {
+            command: command(&a, &id, "gallery-handoff", "operator"),
+            block_id: blocked,
+            successor: "fake-specialist".into(),
+            next_owner: "operator".into(),
+            acknowledge_within_seconds: 30,
+        },
+    )?;
+    a.run_fake_worker_once("fake-specialist", false)?;
+    fs::write(out.join("postmortem-example.md"), a.learning_markdown(&id)?)?;
     fs::write(out.join("recovery-example.md"), a.recovery_markdown(&id)?)?;
     fs::write(out.join("incident-example.md"), a.incident_markdown(&id)?)?;
     fs::write(

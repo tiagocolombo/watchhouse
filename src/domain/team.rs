@@ -117,6 +117,8 @@ pub struct AcknowledgeEscalation {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Briefing {
+    #[serde(default)]
+    pub accepted_knowledge: Vec<crate::learning::KnowledgeReference>,
     pub schema_version: V1,
     pub objective: String,
     pub role: String,

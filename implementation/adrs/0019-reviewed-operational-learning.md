@@ -1,0 +1,9 @@
+# ADR 0019: Independently reviewed operational learning
+
+Accepted 2026-11-15, stacked on PR #13 recovery records. Implement versioned postmortems and scoped knowledge without granting execution or suppression powers.
+
+Postmortems bind incident/source/recovery context, bounded or explicitly unknown impact, supported hypothesis revision or unresolved question, evidence and owned corrective actions. Independent acceptance requires resolved response, clear blocking challenges and the reviewer's new distinct reported evidence. Use logical case versions alongside timestamps to reject pre-submission evidence at equal clock times; this also tightens new recovery/action review.
+
+Knowledge proposals carry applicability, invalidation, expiry, import provenance and a source postmortem revision. Scope derives from explicit source mapping, never arbitrary imported scope. Promotion requires accepted parent context and independent evidence. Immutable acceptance/retirement history determines current versions; a pending draft cannot alter the accepted knowledge governing its own review. Retrieval excludes expired, retired, challenged, corrupt-evidence and stale-context/parent versions; bounded lexical search and frozen role-briefing references keep provenance visible.
+
+Only data is learned. Entries cannot edit policy, execute runbooks, authorize production or automatically suppress detections. The local bearer operator is one trust domain; distinct labels are attribution, not remote authenticated identity. Numeric and narrative assertions still require truthful human review. Hallmark format compatibility and production telemetry/execution remain separate work. The example gallery exercises response, review, postmortem, lesson acceptance and fake handoff without models or external services.

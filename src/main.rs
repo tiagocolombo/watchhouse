@@ -70,6 +70,18 @@ enum Command {
         #[arg(long)]
         operator: String,
     },
+    Knowledge {
+        #[arg(long)]
+        service: String,
+        #[arg(long)]
+        environment: String,
+        #[arg(long)]
+        repository: String,
+        #[arg(long)]
+        release: Option<String>,
+        #[arg(long, default_value = "")]
+        query: String,
+    },
     SourceStatus,
     SourceSync,
     /// Apply and validate migrations without starting workers.
@@ -83,6 +95,14 @@ enum Command {
 }
 #[derive(Subcommand)]
 enum CaseCommand {
+    Learning {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+    LearningMarkdown {
+        id: String,
+    },
     Recovery {
         id: String,
         #[arg(long)]
@@ -432,6 +452,22 @@ async fn main() -> anyhow::Result<()> {
             "{}",
             serde_json::to_string_pretty(&app.repair_source_status()?)?
         ),
+        Command::Knowledge {
+            service,
+            environment,
+            repository,
+            release,
+            query,
+        } => println!(
+            "{}",
+            serde_json::to_string_pretty(&app.knowledge_search(
+                &service,
+                &environment,
+                &repository,
+                release.as_deref(),
+                &query
+            )?)?
+        ),
         Command::SourceStatus => {
             println!("{}", serde_json::to_string_pretty(&app.sentry_health()?)?)
         }
@@ -504,6 +540,13 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Case { action } => {
             let output = match action {
+                CaseCommand::Learning { id, file } => {
+                    serde_json::to_value(app.learning_command(&id, read_command(file)?)?)?
+                }
+                CaseCommand::LearningMarkdown { id } => {
+                    print!("{}", app.learning_markdown(&id)?);
+                    return Ok(());
+                }
                 CaseCommand::Recovery { id, file } => {
                     serde_json::to_value(app.recovery_command(&id, read_command(file)?)?)?
                 }
