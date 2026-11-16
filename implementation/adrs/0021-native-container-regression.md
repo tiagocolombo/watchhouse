@@ -13,3 +13,5 @@ Freeze operator-provided text candidates independently of the base and retain sh
 No model or publication credential enters this boundary. Real harness authentication/admission and reconciled GitHub delivery are subsequent dependent work. The coordinator's native packaging and a model's claim that checks passed cannot substitute for the worker proof.
 
 See the [implemented contract](../../contracts/v1/native-repair/README.md) and STATUS for commands actually run and the native CI result. Ordinary injected controller tests and the separate physical no-model integration drill have different evidentiary scope.
+
+The trusted container PID 1 also enforces a hard wall deadline before input preparation. Its kernel-observed exit terminates namespace descendants even if the coordinator/transport disappears. The native drill launches a sleeping test without controller cancellation, observes watchdog exit 124, then performs scoped cleanup; a coordinator timer alone is insufficient.

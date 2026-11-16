@@ -243,6 +243,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let job: WorkerJob = serde_json::from_slice(&bytes)?;
     job.validate()?;
+    // Enforce the entire worker lifetime independently of the coordinator, including input
+    // preparation/probe loops. PID 1 exit causes the kernel to terminate namespace descendants.
+    let hard_wall = job.wall_seconds;
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_secs(hard_wall.into()));
+        std::process::exit(124);
+    });
     copy_inputs(&job)?;
     let mut out = WorkerOutput {
         schema_version: V1,

@@ -789,6 +789,7 @@ mod controller {
         let runner = std::env::var("WATCHHOUSE_TEST_RUNNER").expect("trusted initializer required");
         let mut p = f.policy.clone();
         p.revision = 2;
+        p.wall_seconds = 30;
         p.docker_path = fs::canonicalize(docker).unwrap();
         p.docker_digest = crate::repair::snapshot::file_digest(&p.docker_path).unwrap();
         p.image = image;
@@ -895,5 +896,43 @@ mod controller {
         let evidence = observe(&f, "physical-review-evidence", "reviewer");
         let r=f.app.review_candidate(&f.case,ReviewCandidate{command:command(&f,"physical-review","reviewer"),candidate_id:c.id,base_check:checks[0].id.clone(),candidate_check:checks[1].id.clone(),approve:true,findings:"Actual fixed regression failed on base and passed on frozen candidate; no model was involved".into(),evidence_refs:vec![evidence]}).unwrap();
         assert!(r.current);
+        // No controller cancellation is sent until after observing expiry. The trusted PID 1
+        // watchdog must terminate the sleeping test and all namespace descendants itself.
+        let mut expired = f.policy.clone();
+        expired.wall_seconds = 2;
+        expired.args = vec!["fixture-stall".into()];
+        let source = f._root.path().join("source");
+        let job = expired.job(
+            uuid::Uuid::new_v4().to_string(),
+            uuid::Uuid::new_v4().to_string(),
+            vec![InputFile {
+                path: "answer.txt".into(),
+                digest: store::digest("5\n"),
+                bytes: 2,
+                executable: false,
+            }],
+        );
+        let (root, job) = super::super::worker::stage(&expired, job, &source).unwrap();
+        let docker = Docker::new(expired.clone()).unwrap();
+        let input = root.path().join("input");
+        let control = root.path().join("policy");
+        let id = docker.create(&job, &input, &control, false).await.unwrap();
+        let observed = docker.inspect(&job, &input, &control, false).await.unwrap();
+        assert_eq!(observed.id, id);
+        let started = Command::new(&expired.docker_path)
+            .arg("--host")
+            .arg(format!("unix://{}", expired.socket.display()))
+            .args(["container", "start", &id])
+            .output()
+            .unwrap();
+        assert!(started.status.success());
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        let ended = docker.inspect(&job, &input, &control, false).await.unwrap();
+        docker.cancel(&job, &input, &control, false).await.unwrap();
+        assert!(!ended.running);
+        assert_eq!(
+            ended.exit_code, 124,
+            "watchdog must enforce wall time with no coordinator cancellation"
+        );
     }
 }

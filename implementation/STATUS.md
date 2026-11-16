@@ -77,3 +77,7 @@ Current actor labels are single-operator attribution, not remote RBAC. A hostile
 ## Exact next step
 
 Observe the native Linux container CI drill, then finish real harness authentication/lifecycle and reconciled PR delivery. Complete the remaining M3/M5–M8 gates in COMPLETION.md. Continue independent fixture/adapter work while named activation inputs are missing. Do not hand off local acceptance testing or mark a phase complete without its required evidence.
+
+## Coordinator-loss watchdog follow-up
+
+The container initializer now starts its own hard-wall watchdog before input preparation. This closes the coordinator-loss gap: PID 1 exit terminates namespace descendants even without a host cancellation request. The native CI drill additionally starts a two-second sleeping workload, waits without cancelling it, verifies watchdog exit 124, then performs scoped cleanup. Qualification uses an explicit 30-second native test profile; production policy defaults were not changed. Ten controller/protocol tests, formatting and strict Clippy passed locally. The new physical watchdog case still needs its exact-head CI result; prior native proof covers the preceding implementation only.
