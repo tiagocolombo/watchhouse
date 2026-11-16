@@ -14,6 +14,12 @@ The worker tests found and fixed expired unknown jobs failing to schedule cleanu
 
 This is a completed bounded test-execution slice, not the full M4 exit. First real harness authentication/lifecycle and reconciled GitHub delivery remain the next dependent work. M3 live acceptance and the M5–M8 gates remain open.
 
+## Hallmark format compatibility in the current stacked slice
+
+The actual upstream Hallmark JSON/source definitions were inspected at `15ee84d9de5385658b8d9dff1408728fb9e28fbd`. Migration 018 and the [Hallmark contract](../contracts/v1/hallmark/README.md) implement bounded canonical/CLI/bare-array import, immutable source namespace/path/content/record digests, byte-exact selected re-export, collision/revision handling, explicit native proposal mapping and conservative native-to-Hallmark proposed exports. External accepted frontmatter never changes local acceptance or governing briefings. Unknown/foreign/corrupt import provenance is rejected; pending replacements cannot displace the accepted export revision.
+
+CLI/API/timeline/snapshot/web inspection are wired. Raw Markdown stays inert. Local validation: **157 Rust tests passed**, all **eight Chromium scenarios passed**, strict Clippy, Rust formatting, TypeScript compilation and native build passed. New tests cover exact wire shapes/bytes, idempotency, append-only records, rollback/restart, scope/auth boundaries, independent promotion, pending revisions and corrupted lineage. This proves format compatibility using invented fixtures, not a real Hallmark executable/import destination or historical operational acceptance. See [ADR 0022](adrs/0022-hallmark-knowledge-exchange.md).
+
 ## Baseline and current work
 
 PRs #2–#11 are merged; main is `823aa2c`. [PR #12](https://github.com/tiagocolombo/watchhouse/pull/12) remains open at `e6588a6`; its Linux/macOS/Windows CI passed. [PR #13](https://github.com/tiagocolombo/watchhouse/pull/13) adds recovery and passed exact-head Linux/macOS/Windows CI at `adcfacb`. [PR #14](https://github.com/tiagocolombo/watchhouse/pull/14) adds learning at `a5363ef`. PR #15 (`dev/native-test-bundles`, `d0e4605`) builds on PR #14; its exact-head Linux/macOS/Windows CI passed. The documentation completion-gates branch is stacked on PR #15. No pending PR was merged in this batch.
@@ -57,7 +63,7 @@ The prior native Bubblewrap drill failed closed (`Failed to create NETLINK_ROUTE
 | M2 | Bounded fake collaboration, supervision, handoffs, independent challenges/gates, trusted policy, Slack fallback/retry/ack/resolution adapter | Actual human destinations/credentials and live delivery drill |
 | M3 | Sentry intake/enrichment/reconciliation/freshness, incident operations/roles, investigations/drafts/review, scoped correlation/diagnostics | Actual sanitized service history, configured live activation, richer impact windows/disposition categories/cross-service correlation |
 | M4 | Frozen repair inputs/runtime metadata, denied repair requests, controlled qualification/evidence/loss/quarantine/reconciliation; durable fake adapter lifecycle | Qualified actual worker/runtime profile and real adapter; candidate/regression/review/PR delivery lifecycle |
-| M5 | Operator recovery criteria/windows/review/resolution, deployment reports, blocked mitigation proposals, independently verified corrective actions | Actual mitigation/deployment/telemetry integrations; Hallmark format compatibility and actual-history evaluation |
+| M5 | Operator recovery criteria/windows/review/resolution, deployment reports, blocked mitigation proposals, independently verified corrective actions, Hallmark knowledge exchange | Actual mitigation/deployment/telemetry integrations, problem/known-error linkage and actual-history evaluation |
 | M6 | Design/policy requirements | Eligible automatic merging and effect reconciliation |
 | M7 | Adapter/portability design; native coordinator test-bundle workflow | Second harness/source, native worker routing, packaging/platform drills |
 | M8 | Initial local visibility and documented synthetic operator test path | Remote RBAC, backup/restore, retention/redaction, backpressure, full workspace and operating drills |

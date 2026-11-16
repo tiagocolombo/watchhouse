@@ -48,6 +48,13 @@ pub struct Actor {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload", deny_unknown_fields)]
 pub enum EventData {
+    #[serde(rename = "knowledge.imported")]
+    KnowledgeImported {
+        import_id: String,
+        source_namespace: String,
+        content_digest: String,
+        reason: String,
+    },
     #[serde(rename = "repair.candidate_changed")]
     CandidateChanged {
         candidate_id: String,
@@ -363,6 +370,8 @@ pub struct Snapshot {
     pub container_jobs: Vec<crate::real_execution::worker::ContainerJob>,
     #[serde(default)]
     pub repair_progress: crate::real_execution::pipeline::RepairProgress,
+    #[serde(default)]
+    pub knowledge_imports: Vec<crate::hallmark::Imported>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

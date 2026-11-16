@@ -24,3 +24,5 @@ pub mod source_context;
 pub mod store;
 pub mod team;
 pub mod worker_qualification;
+
+pub mod hallmark;

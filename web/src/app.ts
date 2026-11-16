@@ -19,7 +19,7 @@ interface AdapterTrial {id:string;state:string;scope:string;reason:string;sequen
 interface WorkerQualification {id:string;state:string;scope:string;owner:string;reason:string;real_execution_admitted:boolean;verified:string[];time_current:boolean;expires_at:string|null;quarantined:boolean;evidence_digest:string|null;reconciliation:{operator:string;reason:string}|null}
 interface ContainerJob {id:string;kind:string;state:string;owner:string;deadline:string;reason:string;native:boolean;quarantined:boolean;evidence_digest:string|null}
 interface RepairProgress {candidates:{id:string;author:string;producer:string;digest:string;base_commit:string;deadline:string}[];reviews:{id:string;author:string;approve:boolean;current:boolean;findings:string}[]}
-interface Snapshot { case:Case; events:TimelineEvent[]; cursor:number; results:{summary:string;conclusion:string}[]; qualification:Qualification; team:Team; challenges:unknown[]; gate:{validated_version:number;closed_version:number|null}|null; policy:unknown; notifications:unknown[]; source:unknown; source_freshness:SourceFreshness|null; incident:unknown; incident_operations:unknown; incident_role_offers:unknown[]; incident_artifacts:unknown[]; correlations:Correlations; repairs:RepairRequest[]; worker_qualifications:WorkerQualification[]; adapter_trials:AdapterTrial[]; recovery:RecoverySnapshot; learning:LearningSnapshot; container_jobs:ContainerJob[]; repair_progress:RepairProgress }
+interface Snapshot { case:Case; events:TimelineEvent[]; cursor:number; results:{summary:string;conclusion:string}[]; qualification:Qualification; team:Team; challenges:unknown[]; gate:{validated_version:number;closed_version:number|null}|null; policy:unknown; notifications:unknown[]; source:unknown; source_freshness:SourceFreshness|null; incident:unknown; incident_operations:unknown; incident_role_offers:unknown[]; incident_artifacts:unknown[]; correlations:Correlations; repairs:RepairRequest[]; worker_qualifications:WorkerQualification[]; adapter_trials:AdapterTrial[]; recovery:RecoverySnapshot; learning:LearningSnapshot; container_jobs:ContainerJob[]; repair_progress:RepairProgress; knowledge_imports:{id:string;source_namespace:string;source_path:string;digest:string;content:string;provenance:string}[] }
 const el = <T extends HTMLElement = HTMLElement>(id:string) => document.getElementById(id) as T;
 const input = (id:string) => el<HTMLInputElement>(id).value;
 let token = sessionStorage.getItem('watchhouse-token') ?? '';
@@ -82,6 +82,9 @@ function renderState(snapshot:Snapshot) {
   renderAdapterTrials(snapshot.adapter_trials);
   renderRecovery(snapshot.recovery);
   renderLearning(snapshot.learning);
+  const imported=el('knowledge-imports');imported.replaceChildren();
+  for(const k of snapshot.knowledge_imports){const card=document.createElement('article');card.className='team-card';paragraph(card,`Imported / unreviewed · ${k.source_namespace} · ${k.source_path}`);paragraph(card,`Provenance: ${k.provenance} · ${k.digest}`);const details=document.createElement('details');const summary=document.createElement('summary');summary.textContent='Inspect untrusted source Markdown';const pre=document.createElement('pre');pre.textContent=k.content;details.append(summary,pre);card.append(details);imported.append(card);}
+  if(!snapshot.knowledge_imports.length) paragraph(imported,'No imported knowledge. External acceptance never grants local approval.');
   renderCorrelations(snapshot.correlations);
   renderQualification(snapshot);
   renderTeam(snapshot);

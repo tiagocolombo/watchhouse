@@ -213,6 +213,12 @@ fn accepted(db: &Connection, id: &str, revision: u32, now: &str) -> Result<bool>
                 |r| r.get(0),
             )?;
             if retired
+                || crate::hallmark::validate_origin(
+                    db,
+                    &doc.case_id,
+                    draft.imported_from.as_deref(),
+                )
+                .is_err()
                 || doc.review_by.as_str() <= now
                 || !accepted(db, &draft.postmortem_id, draft.postmortem_revision, now)?
             {
@@ -226,7 +232,7 @@ fn accepted(db: &Connection, id: &str, revision: u32, now: &str) -> Result<bool>
     }
     Ok(true)
 }
-fn entry(db: &Connection, id: &str, revision: u32, now: &str) -> Result<Entry> {
+pub(crate) fn entry(db: &Connection, id: &str, revision: u32, now: &str) -> Result<Entry> {
     let (document, digest) = raw_document(db, id, revision)?;
     let acceptance: Option<String> = db
         .query_row(
@@ -519,6 +525,7 @@ impl Application {
                 }
                 if let Some(origin) = &draft.imported_from {
                     text(origin, "import provenance", 1000)?;
+                    crate::hallmark::validate_origin(&tx, case, Some(origin))?;
                 }
                 if ![
                     "lesson",
