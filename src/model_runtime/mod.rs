@@ -13,3 +13,5 @@ pub mod ops;
 
 #[cfg(test)]
 mod tests;
+
+pub mod adoption;

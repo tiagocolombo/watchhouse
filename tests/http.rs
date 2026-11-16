@@ -338,6 +338,8 @@ async fn native_commands_remain_authenticated_and_cannot_install_governing_polic
         .create_case(watchhouse::intake::FakeSource.manual_command("native-http"))
         .unwrap();
     for endpoint in [
+        "model-proposals/adopt",
+        "model-reviews/adopt",
         "model-jobs",
         "model-manage",
         "container-qualification",

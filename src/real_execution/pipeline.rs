@@ -28,6 +28,8 @@ pub struct Candidate {
     pub repair_id: String,
     pub author: String,
     pub producer: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_job: Option<String>,
     pub recorded_at: String,
     pub recorded_version: i64,
     pub source_revision: i64,
@@ -49,6 +51,8 @@ pub struct FreezeCandidate {
     pub repair_id: String,
     pub policy_revision: i64,
     pub changes: Vec<TextChange>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_job: Option<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -73,6 +77,8 @@ pub struct ReviewCandidate {
     pub approve: bool,
     pub findings: String,
     pub evidence_refs: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_job: Option<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Review {
@@ -80,6 +86,8 @@ pub struct Review {
     pub candidate_id: String,
     pub case_id: String,
     pub author: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_job: Option<String>,
     pub candidate_digest: String,
     pub base_commit: String,
     pub profile_digest: String,
@@ -141,6 +149,21 @@ pub(crate) fn current(db: &Connection, c: &Candidate, now: &str) -> Result<()> {
     crate::challenges::ensure_clear(db, &c.case_id)?;
     let p = worker::policy(db, c.policy_revision)?;
     worker::admission(db, &p, now)?;
+    if let Some(id) = &c.model_job {
+        let j = crate::model_runtime::ops::accepted_role(db, id, &c.case_id, now)?;
+        let parsed = j
+            .output
+            .as_ref()
+            .and_then(|o| o.client.parsed.as_ref())
+            .ok_or_else(|| Error::Conflict("candidate author session missing".into()))?;
+        if j.plan.context.repair_id.as_deref() != Some(&c.repair_id)
+            || j.plan.context.source_revision != Some(c.source_revision)
+            || c.author != format!("model-session:{}", parsed.session)
+            || !matches!(&parsed.output,crate::model_runtime::codex::RoleOutput::Engineer(p) if serde_json::to_value(&p.changes).ok()==serde_json::to_value(&c.changes).ok())
+        {
+            return Err(Error::Conflict("candidate model lineage changed".into()));
+        }
+    }
     let source = crate::repair::source(db, c.source_revision)?;
     if source.snapshot.base_commit != c.base_commit || source.snapshot.tree != c.base_tree {
         return Err(Error::Conflict(
@@ -163,6 +186,15 @@ pub(crate) fn review(db: &Connection, id: &str, now: &str) -> Result<Review> {
         && current(db, &c, now).is_ok()
         && c.digest == r.candidate_digest
         && c.source_digest == r.source_digest;
+    if let Some(id) = &r.model_job {
+        r.current &= crate::model_runtime::ops::accepted_role(db,id,&r.case_id,now).is_ok_and(|j| {
+            j.plan.context.candidate_id.as_deref()==Some(&r.candidate_id)
+                && j.output.as_ref().and_then(|o|o.client.parsed.as_ref()).is_some_and(|p|
+                    r.author==format!("model-session:{}",p.session)
+                    && r.author!=c.author
+                    && matches!(&p.output,crate::model_runtime::codex::RoleOutput::Reviewer(a) if a.approve==r.approve && a.findings==r.findings))
+        });
+    }
     let latest: Option<String> = db
         .query_row(
             "SELECT id FROM candidate_reviews WHERE candidate_id=?1 ORDER BY rowid DESC LIMIT 1",
@@ -420,7 +452,28 @@ impl Application {
         if let Some(id) = receipt::<String>(&tx, &cmd.command.meta.idempotency_key, &fp)? {
             return get(&tx, &id);
         }
-        let author = check_case(&tx, case, &cmd.command)?;
+        let mut author = check_case(&tx, case, &cmd.command)?;
+        let mut producer = "operator-provided-text-v1".to_owned();
+        if let Some(id) = &cmd.model_job {
+            let j = crate::model_runtime::ops::accepted_role(&tx, id, case, &now)?;
+            let mp = crate::model_runtime::ops::policy(&tx, j.policy_revision)?;
+            let parsed = j
+                .output
+                .as_ref()
+                .and_then(|o| o.client.parsed.as_ref())
+                .ok_or_else(|| Error::Conflict("engineer session missing".into()))?;
+            if j.plan.context.repair_id.as_deref() != Some(&cmd.repair_id)
+                || j.plan.context.source_revision != Some(repair.source_revision)
+                || mp.container_revision != cmd.policy_revision
+                || !matches!(&parsed.output,crate::model_runtime::codex::RoleOutput::Engineer(p) if serde_json::to_value(&p.changes).ok()==serde_json::to_value(&cmd.changes).ok())
+            {
+                return Err(Error::Conflict(
+                    "candidate differs from exact completed model proposal/context".into(),
+                ));
+            }
+            author = format!("model-session:{}", parsed.session);
+            producer = "model-role-v1".into();
+        }
         let budget: Option<String> = tx
             .query_row(
                 "SELECT deadline FROM repair_execution_budgets WHERE repair_id=?1",
@@ -447,7 +500,8 @@ impl Application {
             case_id: case.into(),
             repair_id: cmd.repair_id,
             author,
-            producer: "operator-provided-text-v1".into(),
+            producer,
+            model_job: cmd.model_job,
             recorded_at: now.clone(),
             recorded_version: store::case(&tx, case)?.version + 1,
             source_revision: repair.source_revision,
@@ -607,28 +661,59 @@ impl Application {
             return Err(Error::NotFound);
         }
         current(&tx, &c, &self.now())?;
-        if c.author == cmd.command.meta.actor {
-            return Err(Error::Invalid(
-                "candidate author cannot approve their own candidate".into(),
-            ));
-        }
         let base = worker::get(&tx, &cmd.base_check)?;
         let candidate = worker::get(&tx, &cmd.candidate_check)?;
         checks_match(&tx, &c, &base, &candidate)?;
-        crate::recovery::independent_evidence(
-            &tx,
-            case,
-            &cmd.evidence_refs,
-            &cmd.command.meta.actor,
-            &c.recorded_at,
-            &[],
-            c.recorded_version,
-        )?;
+        let author = if let Some(id) = &cmd.model_job {
+            let j = crate::model_runtime::ops::accepted_role(&tx, id, case, &self.now())?;
+            let parsed = j
+                .output
+                .as_ref()
+                .and_then(|o| o.client.parsed.as_ref())
+                .ok_or_else(|| Error::Conflict("reviewer session missing".into()))?;
+            let context = &j.plan.context;
+            let author = format!("model-session:{}", parsed.session);
+            if cmd.command.meta.actor != j.owner
+                || j.recorded_version <= c.recorded_version
+                || author == c.author
+                || c.model_job.as_deref() == Some(id)
+                || context.candidate_id.as_deref() != Some(&c.id)
+                || context.base_check.as_deref() != Some(&base.id)
+                || context.candidate_check.as_deref() != Some(&candidate.id)
+                || cmd.evidence_refs
+                    != vec![
+                        j.evidence_digest
+                            .clone()
+                            .ok_or_else(|| Error::Conflict("review evidence missing".into()))?,
+                    ]
+                || !matches!(&parsed.output,crate::model_runtime::codex::RoleOutput::Reviewer(a) if a.approve==cmd.approve && a.findings==cmd.findings)
+            {
+                return Err(Error::Conflict("review must match the exact independent session, candidate, native checks and role findings".into()));
+            }
+            author
+        } else {
+            if c.author == cmd.command.meta.actor {
+                return Err(Error::Invalid(
+                    "candidate author cannot approve their own candidate".into(),
+                ));
+            }
+            crate::recovery::independent_evidence(
+                &tx,
+                case,
+                &cmd.evidence_refs,
+                &cmd.command.meta.actor,
+                &c.recorded_at,
+                &[],
+                c.recorded_version,
+            )?;
+            cmd.command.meta.actor.clone()
+        };
         let r = Review {
             id: store::id("review"),
             candidate_id: c.id.clone(),
             case_id: case.into(),
-            author: cmd.command.meta.actor.clone(),
+            author,
+            model_job: cmd.model_job,
             candidate_digest: c.digest,
             base_commit: c.base_commit,
             profile_digest: candidate.envelope.profile_digest,

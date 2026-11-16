@@ -72,6 +72,11 @@ pub fn router(app: Application, token: String, authority: String) -> Router {
             "/cases/{id}/container-qualification",
             post(qualify_container),
         )
+        .route(
+            "/cases/{id}/model-proposals/adopt",
+            post(adopt_model_proposal),
+        )
+        .route("/cases/{id}/model-reviews/adopt", post(adopt_model_review))
         .route("/cases/{id}/model-jobs", post(request_model))
         .route("/cases/{id}/model-jobs/{job}", get(model_job))
         .route("/cases/{id}/model-manage", post(manage_model))
@@ -297,6 +302,16 @@ case_command!(
     review_candidate,
     crate::real_execution::pipeline::ReviewCandidate,
     review_candidate
+);
+case_command!(
+    adopt_model_proposal,
+    crate::model_runtime::adoption::AdoptProposal,
+    adopt_model_proposal
+);
+case_command!(
+    adopt_model_review,
+    crate::model_runtime::adoption::AdoptReview,
+    adopt_model_review
 );
 case_command!(
     request_model,

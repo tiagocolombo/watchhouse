@@ -477,6 +477,7 @@ mod controller {
             .freeze_candidate(
                 &f.case,
                 FreezeCandidate {
+                    model_job: None,
                     command: command(f, key, "operator"),
                     repair_id: repair.into(),
                     policy_revision: 1,
@@ -734,6 +735,7 @@ mod controller {
             .unwrap();
         dispatch(&f, &b).await;
         let mut cmd = ReviewCandidate {
+            model_job: None,
             command: command(&f, "self-review", "operator"),
             candidate_id: c.id.clone(),
             base_check: base.id.clone(),
@@ -771,6 +773,7 @@ mod controller {
                 .freeze_candidate(
                     &f.case,
                     FreezeCandidate {
+                        model_job: None,
                         command: command(&f, "reset-budget", "operator"),
                         repair_id: repair,
                         policy_revision: 1,
@@ -856,6 +859,7 @@ mod controller {
             .freeze_candidate(
                 &f.case,
                 FreezeCandidate {
+                    model_job: None,
                     command: command(&f, "physical-candidate", "operator"),
                     repair_id: repair,
                     policy_revision: 2,
@@ -894,7 +898,7 @@ mod controller {
             checks.push(got);
         }
         let evidence = observe(&f, "physical-review-evidence", "reviewer");
-        let r=f.app.review_candidate(&f.case,ReviewCandidate{command:command(&f,"physical-review","reviewer"),candidate_id:c.id,base_check:checks[0].id.clone(),candidate_check:checks[1].id.clone(),approve:true,findings:"Actual fixed regression failed on base and passed on frozen candidate; no model was involved".into(),evidence_refs:vec![evidence]}).unwrap();
+        let r=f.app.review_candidate(&f.case,ReviewCandidate{model_job:None,command:command(&f,"physical-review","reviewer"),candidate_id:c.id,base_check:checks[0].id.clone(),candidate_check:checks[1].id.clone(),approve:true,findings:"Actual fixed regression failed on base and passed on frozen candidate; no model was involved".into(),evidence_refs:vec![evidence]}).unwrap();
         assert!(r.current);
         // No controller cancellation is sent until after observing expiry. The trusted PID 1
         // watchdog must terminate the sleeping test and all namespace descendants itself.
@@ -934,5 +938,305 @@ mod controller {
             ended.exit_code, 124,
             "watchdog must enforce wall time with no coordinator cancellation"
         );
+    } // These injected native-shaped observations test controller lineage only. They execute no
+    // client/model or kernel resource. Physical adapter acceptance is a separate CI drill.
+    struct RoleFixture {
+        session: String,
+        changes: Vec<TextChange>,
+    }
+    impl crate::model_runtime::ops::Backend for RoleFixture {
+        fn native(&self) -> bool {
+            true
+        }
+        fn preflight(
+            &self,
+            _: crate::model_runtime::policy::ModelPolicy,
+        ) -> crate::model_runtime::ops::Effect<()> {
+            Box::pin(async { Ok(()) })
+        }
+        fn create(
+            &self,
+            j: crate::model_runtime::ops::Job,
+            p: crate::model_runtime::policy::ModelPolicy,
+        ) -> crate::model_runtime::ops::Effect<crate::model_runtime::cgroup::Handle> {
+            Box::pin(async move {
+                Ok(crate::model_runtime::cgroup::Handle {
+                    operation: j.id.clone(),
+                    directory: p.cgroup_root.join(format!("watchhouse-{}", j.id)),
+                    inode: 1,
+                    boot_id: crate::model_runtime::cgroup::boot()?,
+                    limits: p.limits,
+                    profile_digest: j.profile_digest,
+                })
+            })
+        }
+        fn recover(
+            &self,
+            _: crate::model_runtime::ops::Job,
+            _: crate::model_runtime::policy::ModelPolicy,
+        ) -> crate::model_runtime::ops::Effect<crate::model_runtime::cgroup::Handle> {
+            Box::pin(async { Err(Error::Conflict("not a physical resource".into())) })
+        }
+        fn start(
+            &self,
+            _: crate::model_runtime::ops::Job,
+            _: crate::model_runtime::policy::ModelPolicy,
+        ) -> crate::model_runtime::ops::Effect<()> {
+            Box::pin(async { Ok(()) })
+        }
+        fn cancel(
+            &self,
+            _: crate::model_runtime::ops::Job,
+            _: crate::model_runtime::policy::ModelPolicy,
+        ) -> crate::model_runtime::ops::Effect<bool> {
+            Box::pin(async { Ok(true) })
+        }
+        fn output(
+            &self,
+            j: crate::model_runtime::ops::Job,
+            _: crate::model_runtime::policy::ModelPolicy,
+        ) -> crate::model_runtime::ops::Effect<Option<crate::model_runtime::protocol::Output>>
+        {
+            use crate::model_runtime::{client::ClientResult, codex::*, protocol::Output};
+            let session = self.session.clone();
+            let changes = self.changes.clone();
+            Box::pin(async move {
+                let output=match j.plan.role {Role::Qualification=>RoleOutput::Qualification(Probe{schema_version:V1,nonce:j.nonce.clone()}),Role::Engineer=>RoleOutput::Engineer(Proposal{schema_version:V1,summary:"Correct the controlled fixture".into(),changes}),Role::Reviewer=>RoleOutput::Reviewer(Assessment{schema_version:V1,approve:true,findings:"The independently supplied exact regression fails on base and passes on this candidate".into()})};
+                Ok(Some(Output {
+                    schema_version: V1,
+                    operation: j.id,
+                    nonce: j.nonce,
+                    profile_digest: j.profile_digest,
+                    client: ClientResult {
+                        parsed: Some(Parsed {
+                            output,
+                            session,
+                            actual_model: None,
+                            usage: Usage {
+                                input_tokens: None,
+                                output_tokens: None,
+                                source: "unknown".into(),
+                            },
+                            events: vec!["fixture-only-native-shape".into()],
+                        }),
+                        failure_code: None,
+                        stderr_digest: store::digest(""),
+                    },
+                    synthetic: j.plan.qualification,
+                    execution_tools_absent: Some(true),
+                    advertised_tools_digest: Some(store::digest("[]")),
+                    descendant_started: true,
+                }))
+            })
+        }
+    }
+    fn model_profile(f: &Fixture) -> tempfile::TempDir {
+        use crate::model_runtime::{cgroup::Limits, policy::*};
+        let control = tempfile::tempdir().unwrap();
+        let jobs = control.path().join("jobs");
+        let auth = control.path().join("auth");
+        fs::create_dir(&jobs).unwrap();
+        fs::create_dir(&auth).unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        for dir in [&jobs, &auth] {
+            fs::set_permissions(dir, fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        let binary = control.path().join("never-executed-client");
+        fs::write(&binary, b"fixture-identity").unwrap();
+        let pin = Pin {
+            path: binary,
+            digest: store::digest("fixture-identity"),
+        };
+        f.app
+            .install_model_policy(
+                ModelPolicy {
+                    schema_version: V1,
+                    revision: 1,
+                    container_revision: 1,
+                    dispatch_grace_seconds: 10,
+                    runtime: pin.clone(),
+                    initializer: pin,
+                    cgroup_root: control.path().join("not-a-kernel-group"),
+                    jobs_root: jobs,
+                    requested_model: "fixture-no-network-or-account".into(),
+                    authority: Authority::OpenaiAuthHome { path: auth },
+                    limits: Limits {
+                        memory_bytes: 268435456,
+                        pids: 32,
+                        cpu_micros: 50000,
+                        wall_seconds: 10,
+                        output_bytes: 65536,
+                    },
+                    proof_seconds: 300,
+                    cleanup_attempts: 2,
+                    cleanup_retry_seconds: 1,
+                },
+                "operator",
+                "injected controller proof only",
+            )
+            .unwrap();
+        control
+    }
+    async fn model_run(
+        f: &Fixture,
+        b: &RoleFixture,
+        key: &str,
+        action: crate::model_runtime::ops::Action,
+    ) -> crate::model_runtime::ops::Job {
+        use crate::model_runtime::ops::*;
+        let j = f
+            .app
+            .request_model(
+                &f.case,
+                Request {
+                    command: command(f, key, "operator"),
+                    policy_revision: 1,
+                    action,
+                    fixture_response: None,
+                },
+            )
+            .unwrap();
+        for _ in 0..4 {
+            f.app.run_model_once(b).await.unwrap();
+        }
+        f.app.model_job(&f.case, &j.id).unwrap()
+    }
+    #[tokio::test]
+    async fn model_adoption_requires_exact_proposal_evidence_and_independent_session() {
+        use crate::model_runtime::{adoption::*, ops::Action};
+        for same_session in [false, true] {
+            let f = fixture();
+            let container = FixtureBackend {
+                native: true,
+                ..Default::default()
+            };
+            qualify(&f, "container-qualification");
+            dispatch(&f, &container).await;
+            let repair = prepare(&f).await;
+            let _control = model_profile(&f);
+            let mut roles = RoleFixture {
+                session: "engineer-session".into(),
+                changes: vec![TextChange {
+                    path: "answer.txt".into(),
+                    before_digest: Some(store::digest("5\n")),
+                    after: Some("4\n".into()),
+                }],
+            };
+            assert_eq!(
+                model_run(&f, &roles, "model-qualification", Action::Qualification)
+                    .await
+                    .state,
+                "qualified"
+            );
+            let engineer = model_run(
+                &f,
+                &roles,
+                "engineer",
+                Action::Engineer {
+                    repair_id: repair.clone(),
+                    paths: vec!["answer.txt".into()],
+                },
+            )
+            .await;
+            assert_eq!(engineer.state, "completed");
+            let mut tampered = FreezeCandidate {
+                command: command(&f, "tampered-proposal", "operator"),
+                repair_id: repair,
+                policy_revision: 1,
+                changes: roles.changes.clone(),
+                model_job: Some(engineer.id.clone()),
+            };
+            tampered.changes[0].after = Some("6\n".into());
+            assert!(f.app.freeze_candidate(&f.case, tampered).is_err());
+            assert!(
+                f.app
+                    .snapshot(&f.case)
+                    .unwrap()
+                    .repair_progress
+                    .candidates
+                    .is_empty()
+            );
+            let adopt = AdoptProposal {
+                command: command(&f, "adopt-proposal", "operator"),
+                job_id: engineer.id.clone(),
+                container_revision: 1,
+            };
+            let candidate = f.app.adopt_model_proposal(&f.case, adopt.clone()).unwrap();
+            assert_eq!(candidate.author, "model-session:engineer-session");
+            assert_eq!(candidate.producer, "model-role-v1");
+            assert_eq!(candidate.model_job, Some(engineer.id));
+            assert_eq!(
+                f.app.adopt_model_proposal(&f.case, adopt).unwrap().id,
+                candidate.id
+            );
+            let base = f
+                .app
+                .request_candidate_check(
+                    &f.case,
+                    RequestCheck {
+                        command: command(&f, "model-base", "operator"),
+                        candidate_id: candidate.id.clone(),
+                        side: Side::Base,
+                    },
+                )
+                .unwrap();
+            dispatch(&f, &container).await;
+            let checked = f
+                .app
+                .request_candidate_check(
+                    &f.case,
+                    RequestCheck {
+                        command: command(&f, "model-candidate", "operator"),
+                        candidate_id: candidate.id.clone(),
+                        side: Side::Candidate,
+                    },
+                )
+                .unwrap();
+            dispatch(&f, &container).await;
+            if !same_session {
+                roles.session = "reviewer-session".into();
+            }
+            let reviewer = model_run(
+                &f,
+                &roles,
+                "reviewer",
+                Action::Reviewer {
+                    candidate_id: candidate.id.clone(),
+                    base_check: base.id,
+                    candidate_check: checked.id,
+                },
+            )
+            .await;
+            assert_eq!(reviewer.state, "completed");
+            let cmd = AdoptReview {
+                command: command(&f, "adopt-review", "operator"),
+                job_id: reviewer.id.clone(),
+            };
+            if same_session {
+                assert!(f.app.adopt_model_review(&f.case, cmd).is_err());
+            } else {
+                let r = f.app.adopt_model_review(&f.case, cmd.clone()).unwrap();
+                assert!(r.current);
+                assert_eq!(r.author, "model-session:reviewer-session");
+                assert_eq!(f.app.adopt_model_review(&f.case, cmd).unwrap().id, r.id);
+                // Corruption of the engineer evidence invalidates both its candidate and the dependent review.
+                f.app
+                    .store
+                    .connect()
+                    .unwrap()
+                    .execute(
+                        "UPDATE evidence SET content='corrupted-role' WHERE digest=?1",
+                        [engineer.evidence_digest.unwrap()],
+                    )
+                    .unwrap();
+                assert!(!f.app.snapshot(&f.case).unwrap().repair_progress.reviews[0].current);
+            }
+        }
+    }
+    #[test]
+    fn absent_model_lineage_preserves_legacy_command_receipt_fingerprints() {
+        let command = serde_json::json!({"command":{"meta":{"schema_version":1,"idempotency_key":"legacy","actor":"operator","reason":"legacy operator proposal"},"expected_version":1},"repair_id":"repair-fixture","policy_revision":1,"changes":[{"path":"answer.txt","before_digest":null,"after":"4\n"}]});
+        let parsed: FreezeCandidate = serde_json::from_value(command.clone()).unwrap();
+        assert_eq!(serde_json::to_value(parsed).unwrap(), command);
     }
 }
