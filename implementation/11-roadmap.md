@@ -93,3 +93,5 @@ Completed: M0 plus manual case creation -> persisted event -> queued fake assign
 2026-11-15: Independent M5 recovery/follow-through records implemented atop open PR #12 while physical M4 execution remains blocked. Operator reports are explicitly distinct from authenticated telemetry. Postmortem/accepted knowledge and actual production integrations remain open; see ADR 0018 and STATUS.
 
 2026-11-15: M5 operator postmortem/knowledge records, independent attributed acceptance, scoped retrieval and frozen fake-worker briefings implemented atop PR #13. Actual mitigation/deployment/telemetry and Hallmark compatibility remain unverified; physical M4 worker and real harness execution remain blocked. See ADR 0019.
+
+2026-11-15: Native coordinator test bundles add an independent portion of M7 distribution/M8 operator testing while real M4 execution remains blocked. Existing CI generates, packages and smoke-checks the demo on each native OS; broader compatibility/signing/installers and operational hardening remain open. See ADR 0020.

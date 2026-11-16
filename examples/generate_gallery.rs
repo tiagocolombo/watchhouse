@@ -1,7 +1,7 @@
 //! Reproducible synthetic records for operator review. Never contacts an external service.
 #[path = "../tests/common/mod.rs"]
 mod common;
-use chrono::{Duration, SecondsFormat};
+use chrono::{Duration, SecondsFormat, Utc};
 use common::*;
 use std::{fs, path::PathBuf};
 use watchhouse::{
@@ -22,6 +22,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     fs::create_dir_all(&out)?;
     let (temporary, a, clock, id) = fixture();
+    // Keep the reported observation in the past and lesson expiry usable for a fresh test build.
+    clock.advance(Utc::now() - Duration::seconds(120) - clock.now());
     let hypothesis = a.record_incident_artifact(
         &id,
         ArtifactCommand {

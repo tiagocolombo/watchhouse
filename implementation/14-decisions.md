@@ -114,3 +114,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 2026-11-15: [ADR 0018](adrs/0018-recovery-and-follow-through.md) adds operator-reported recovery evaluation/review/resolution and corrective follow-through independent of repair execution. Production mitigation remains a blocked proposal.
 
 2026-11-15: [ADR 0019](adrs/0019-reviewed-operational-learning.md) implements versioned postmortem/knowledge review, exact-scope retrieval, expiry/retirement and frozen briefings; logical evidence ordering prevents same-timestamp pre-submission proof reuse.
+
+2026-11-15: [ADR 0020](adrs/0020-native-operator-test-bundles.md) adds native debug coordinator/UI/demo test artifacts with hash/platform/source manifests and extracted-binary smoke checks. This is operator-test packaging, not production release or worker qualification.
