@@ -37,9 +37,11 @@ test('signed Sentry intake leads to an explicit incident while credentials and m
   const recoveryCmd=async(action:unknown,actor='operator')=>({command:{meta:{schema_version:1,idempotency_key:crypto.randomUUID(),actor,reason:'Synthetic recovery workflow'},expected_version:(await snapshotRecovery()).case.version},action});
   const postRecovery=async(action:unknown,actor='operator')=>{const response=await context.request.post(`/api/v1/cases/${id}/recovery`,{headers:auth,data:await recoveryCmd(action,actor)});expect(response.ok()).toBe(true);return response.json();};
   await page.getByText('Submit versioned review command',{exact:true}).click();await page.locator('#review-command-kind').selectOption('recovery');
+  const planResponse=page.waitForResponse(response=>response.url().endsWith(`/api/v1/cases/${id}/recovery`)&&response.request().method()==='POST');
   await page.locator('#review-command-json').fill(JSON.stringify(await recoveryCmd({type:'plan',criteria:{workflow:'checkout submit',min_requests:10,min_window_seconds:1,max_error_ppm:0,max_p95_ms:1000,max_source_lag_seconds:30},review_seconds:300})));await page.getByRole('button',{name:'Submit review command',exact:true}).click();
   await expect(page.locator('#recovery')).toContainText('Recovery observation: not assessed');
-  const plan=(await snapshotRecovery()).recovery.recovery.plan;
+  const planned=await planResponse;expect(planned.ok()).toBe(true);
+  const plan=(await planned.json()).recovery.plan;expect(plan).not.toBeNull();
   const report=async(actor:string)=>{const r=await context.request.post(`/api/v1/cases/${id}/evidence`,{headers:auth,data:{schema_version:1,idempotency_key:crypto.randomUUID(),actor,reason:'Synthetic manual observation',expected_version:(await snapshotRecovery()).case.version,scope:'checkout/test',statement:'Synthetic fixture: ten requests, zero errors. No live telemetry',collection_method:'Independent manual fixture inspection',observed_at:null,uncertainty:'Manual synthetic data only'}});expect(r.ok()).toBe(true);return (await r.json()).evidence.digest;};
   await expect.poll(()=>Date.now()-Date.parse(plan.recorded_at)).toBeGreaterThan(1100);
   const measured=await report('operator');const observed=await postRecovery({type:'observe',plan_id:plan.id,window:{started_at:plan.recorded_at,ended_at:new Date().toISOString(),requests:10,errors:0,p95_ms:100,coverage_complete:true,source_lag_seconds:0,collection_method:'Synthetic window',uncertainty:'No live telemetry',evidence_refs:[measured]}});
