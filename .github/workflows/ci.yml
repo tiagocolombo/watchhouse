@@ -80,6 +80,6 @@ jobs:
           python-version: '3.12'
       - name: Install exact Codex runtime for a no-account local protocol drill
         run: npm install --prefix "$RUNNER_TEMP/watchhouse-codex-runtime" --ignore-scripts --no-audit --no-fund @openai/codex@0.167.0-alpha.4
-      - name: Measure native tool-free structured-output protocol without models
+      - name: Verify native Codex protocol and strict-profile denial without models
         shell: bash
-        run: python tools/codex_protocol_probe.py "$RUNNER_TEMP/watchhouse-codex-runtime/node_modules/.bin/codex"
+        run: python tools/codex_protocol_probe.py "$RUNNER_TEMP/watchhouse-codex-runtime/node_modules/.bin/codex" --expect-blocked

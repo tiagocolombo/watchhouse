@@ -1,6 +1,7 @@
 import http.server,threading,subprocess,tempfile,os,json,pathlib,sys
 # Explicit no-account protocol drill against a loopback synthetic SSE endpoint.
 runtime=pathlib.Path(sys.argv[1]).resolve() if len(sys.argv)>1 else pathlib.Path("/opt/codex/bin/codex")
+expect_blocked="--expect-blocked" in sys.argv[2:]
 seen=[]
 class Handler(http.server.BaseHTTPRequestHandler):
  def log_message(self,*args): pass
@@ -30,9 +31,16 @@ with tempfile.TemporaryDirectory(prefix='watchhouse-codex-protocol-',dir=str(pat
  for s in seen:print(json.dumps({'path':s['path'],'keys':list(s['request']),'tools':s['request'].get('tools'),'other':{k:v for k,v in s['request'].items() if k in ['decode_error','content_encoding','size']}}))
  assert out.returncode == 0, 'native runtime protocol failed; no capability admission'
  assert len(seen) == 1 and seen[0]['path']=='/v1/responses', 'unexpected model endpoint/retry'
- assert not seen[0]['request'].get('tools'), 'tool-free profile still advertises tools'
+ tools=seen[0]['request'].get('tools',[])
+ if expect_blocked:
+  assert [t.get('name') for t in tools]==['request_user_input'], 'pinned runtime tool surface changed; reassess capability denial'
+ else:
+  assert not tools, 'tool-free profile still advertises tools'
  events=[json.loads(line) for line in out.stdout.splitlines() if line.strip()]
  assert any(e.get('type')=='turn.completed' for e in events), 'missing completed turn'
  assert any(e.get('type')=='item.completed' and e.get('item',{}).get('type')=='agent_message' for e in events), 'missing final structured message'
- print('Native tool-free Codex protocol fixture passed; no account/model request was used')
+ if expect_blocked:
+  print(json.dumps({'schema_version':1,'scope':'native-cli-synthetic-endpoint-v1','state':'blocked','reason':'strict tool-free profile advertises request_user_input','structured_protocol_verified':True,'real_execution_admitted':False,'live_model_verified':False}))
+ else:
+  print('Native tool-free Codex protocol fixture passed; no account/model request was used')
 server.shutdown()
