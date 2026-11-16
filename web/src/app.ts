@@ -13,7 +13,8 @@ interface Team {control:{state:string;executor:string;overall_deadline:string|nu
 interface SourceFreshness {source_key:string;state:string;age_seconds:number|null;last_success_at:string|null;error:string|null}
 interface Correlations {relations:{source_case:string;target_case:string;kind:string;active:boolean;context_current:boolean;reason:string;revision:number}[];candidates:{case_id:string;reason:string}[];limitation:string}
 interface RepairRequest {id:string;state:string;owner:string;repository:string;base_commit:string;denials:string[];next_action:string}
-interface Snapshot { case:Case; events:TimelineEvent[]; cursor:number; results:{summary:string;conclusion:string}[]; qualification:Qualification; team:Team; challenges:unknown[]; gate:{validated_version:number;closed_version:number|null}|null; policy:unknown; notifications:unknown[]; source:unknown; source_freshness:SourceFreshness|null; incident:unknown; incident_operations:unknown; incident_role_offers:unknown[]; incident_artifacts:unknown[]; correlations:Correlations; repairs:RepairRequest[] }
+interface WorkerQualification {id:string;state:string;scope:string;owner:string;reason:string;real_execution_admitted:boolean;verified:string[];time_current:boolean;expires_at:string|null;quarantined:boolean;evidence_digest:string|null;reconciliation:{operator:string;reason:string}|null}
+interface Snapshot { case:Case; events:TimelineEvent[]; cursor:number; results:{summary:string;conclusion:string}[]; qualification:Qualification; team:Team; challenges:unknown[]; gate:{validated_version:number;closed_version:number|null}|null; policy:unknown; notifications:unknown[]; source:unknown; source_freshness:SourceFreshness|null; incident:unknown; incident_operations:unknown; incident_role_offers:unknown[]; incident_artifacts:unknown[]; correlations:Correlations; repairs:RepairRequest[]; worker_qualifications:WorkerQualification[] }
 const el = <T extends HTMLElement = HTMLElement>(id:string) => document.getElementById(id) as T;
 const input = (id:string) => el<HTMLInputElement>(id).value;
 let token = sessionStorage.getItem('watchhouse-token') ?? '';
@@ -71,6 +72,7 @@ function renderState(snapshot:Snapshot) {
   for(const result of snapshot.results) { const p=document.createElement('p');p.textContent=result.summary; el('results').append(p); }
   if (!snapshot.results.length) el('results').textContent='No result recorded yet.';
   renderRepairReadiness(snapshot.repairs);
+  renderWorkerQualification(snapshot.worker_qualifications);
   renderCorrelations(snapshot.correlations);
   renderQualification(snapshot);
   renderTeam(snapshot);
@@ -342,3 +344,11 @@ function renderRepairReadiness(requests:RepairRequest[]) {
   if(!requests.length) {panel.textContent='No repair requested. Real worker execution is not admitted.';return;}
   for(const r of requests) {const card=document.createElement('article');card.className='team-card';paragraph(card,`${r.state} · ${r.repository} @ ${r.base_commit} · Owner: ${r.owner}`);for(const denial of r.denials)paragraph(card,denial);paragraph(card,r.next_action);panel.append(card);}
 }
+
+function renderWorkerQualification(records:WorkerQualification[]) {
+  const panel=el('worker-qualification');panel.replaceChildren();
+  if(!records.length) {panel.textContent='No worker qualification observed. Real harness execution remains denied.';return;}
+  for(const q of records) {const card=document.createElement('article');card.className='team-card';paragraph(card,`${q.state} · ${q.scope} · Owner: ${q.owner}`);paragraph(card,q.reason);paragraph(card,`Observed checks: ${q.verified.join(', ')||'none verified'} · Currency when last checked: ${q.time_current?'yes':'no'} · Real execution admitted: no`);if(q.reconciliation)paragraph(card,`Operator-reported cleanup: ${q.reconciliation.operator} · ${q.reconciliation.reason}. This is not an isolation pass.`);if(q.evidence_digest)inspect(card,q.evidence_digest);if(q.quarantined)paragraph(card,'Probe resources are quarantined; the operator must reconcile them. Retries do not launch another probe.');panel.append(card);}
+}
+
+el<HTMLButtonElement>('refresh-worker-status').onclick=()=>{if(selected)void openCase(selected.id).catch(fail);};

@@ -23,6 +23,7 @@ jobs:
       - name: Install and compile web assets
         run: npm ci --prefix web && npm run build --prefix web
       - run: cargo fmt --all -- --check
+      - run: rustfmt --edition 2024 --check tools/isolation_probe.rs
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo test --locked
       - run: cargo build --locked

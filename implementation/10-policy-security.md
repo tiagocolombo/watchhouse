@@ -78,3 +78,7 @@ Late known proofs create wrapped unaccepted evidence and an audit event, never a
 ## Current M4 preparation boundary
 
 The OS operator can now install immutable repair-source snapshots and bounded runtime metadata through the CLI. Case requests can record blocked real-execution admission and escalate. This expands preparation records, not executor authority: no real worker, publication, model invocation or production action is admitted. Copies are not isolation, advertised CLI capabilities remain unverified, and fake completion cannot fulfill a repair. [Repair v1](../contracts/v1/repair/README.md) and ADR 0015 supersede historical absence-of-configuration statements above for this preparation surface only.
+
+## Worker proof policy
+
+Worker qualification policies are installed only by the OS operator and retain immutable revision/digest/installer/time. New attempts require the active policy and a fresh nonce. Proofs are scope- and time-bound observations; fixtures, expired/late outcomes and CLI flags do not authorize execution. Failed/uncertain resources block new attempts until evidence-backed operator reconciliation, which neither grants capabilities nor resolves the underlying escalation. General real execution remains denied. See ADR 0016 and the worker qualification contract.

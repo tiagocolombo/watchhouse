@@ -48,6 +48,23 @@ pub struct Actor {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload", deny_unknown_fields)]
 pub enum EventData {
+    #[serde(rename = "worker.qualification_reconciled")]
+    WorkerQualificationReconciled {
+        qualification_id: String,
+        evidence_refs: Vec<String>,
+        reason: String,
+    },
+    #[serde(rename = "worker.qualification_changed")]
+    WorkerQualificationChanged {
+        qualification: Box<crate::worker_qualification::Qualification>,
+        reason: String,
+    },
+    #[serde(rename = "worker.qualification_late")]
+    WorkerQualificationLate {
+        qualification_id: String,
+        digest: String,
+        reason: String,
+    },
     #[serde(rename = "repair.requested")]
     RepairRequested {
         request: Box<crate::repair::RepairRequest>,
@@ -301,6 +318,8 @@ pub struct Snapshot {
     pub correlations: crate::correlation::Correlations,
     #[serde(default)]
     pub repairs: Vec<crate::repair::RepairRequest>,
+    #[serde(default)]
+    pub worker_qualifications: Vec<crate::worker_qualification::Qualification>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

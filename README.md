@@ -154,3 +154,7 @@ The [case correlation contract](contracts/v1/correlations/README.md) adds bounde
 ## Prepare repair inputs
 
 The first [M4 preparation slice](contracts/v1/repair/README.md) freezes an explicitly configured local base, inspects pinned runtime version/help metadata and records evidence-backed blocked repair requests with owned escalation. Real execution remains denied until worker containment, cancellation and scoped authority are demonstrated. Use the [example generator](examples/README.md) to inspect current incident/investigation reports with synthetic data.
+
+## Qualify a worker boundary
+
+[Controlled worker qualification](contracts/v1/worker-qualification/README.md) pins trusted tools and records measured probe outcomes with evidence, owner, expiry, interruption and quarantine handling. The fixed Linux payload tests selected filesystem/network/resource/descendant properties; it runs no candidate or model. The local host rejected namespace setup, and all real harness execution remains denied. Operators can inspect status in the web interface and reconcile quarantined resources with reported evidence.

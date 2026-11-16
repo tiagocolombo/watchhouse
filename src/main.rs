@@ -63,6 +63,13 @@ enum Command {
         operator: String,
     },
     RepairSourceStatus,
+    WorkerPolicyStatus,
+    WorkerPolicy {
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long)]
+        operator: String,
+    },
     SourceStatus,
     SourceSync,
     /// Apply and validate migrations without starting workers.
@@ -76,6 +83,19 @@ enum Command {
 }
 #[derive(Subcommand)]
 enum CaseCommand {
+    ReconcileWorkerQualification {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+    QualifyWorker {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+    WorkerQualificationMarkdown {
+        id: String,
+    },
     RepairMarkdown {
         id: String,
     },
@@ -372,6 +392,16 @@ async fn main() -> anyhow::Result<()> {
                     .await?
             )?
         ),
+        Command::WorkerPolicyStatus => println!(
+            "{}",
+            serde_json::to_string_pretty(&app.worker_policy_status()?)?
+        ),
+        Command::WorkerPolicy { file, operator } => println!(
+            "{}",
+            serde_json::to_string_pretty(
+                &app.install_worker_policy(read_command(file)?, &operator)?
+            )?
+        ),
         Command::RepairSourceStatus => println!(
             "{}",
             serde_json::to_string_pretty(&app.repair_source_status()?)?
@@ -448,6 +478,16 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Case { action } => {
             let output = match action {
+                CaseCommand::ReconcileWorkerQualification { id, file } => serde_json::to_value(
+                    app.reconcile_worker_qualification(&id, read_command(file)?)?,
+                )?,
+                CaseCommand::QualifyWorker { id, file } => {
+                    serde_json::to_value(app.qualify_worker(&id, read_command(file)?).await?)?
+                }
+                CaseCommand::WorkerQualificationMarkdown { id } => {
+                    print!("{}", app.worker_qualification_markdown(&id)?);
+                    return Ok(());
+                }
                 CaseCommand::RepairMarkdown { id } => {
                     print!("{}", app.repair_markdown(&id)?);
                     return Ok(());
