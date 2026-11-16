@@ -516,6 +516,15 @@ async fn native_codex_cgroup_qualification_and_coordinator_offline_watchdog() {
             current.root.join("result.json").exists(),
             current.root.join("cancel.json").exists()
         );
+        if let Ok(file) = std::fs::File::open(current.root.join("initializer-fixture.stderr")) {
+            use std::io::Read;
+            let mut diagnostic = String::new();
+            file.take(4096).read_to_string(&mut diagnostic).unwrap();
+            assert!(
+                diagnostic.is_empty(),
+                "trusted initializer fixture failed before result: {diagnostic}"
+            );
+        }
         if matches!(
             current.state.as_str(),
             "qualified" | "failed" | "cancelled" | "unknown" | "blocked"
@@ -698,4 +707,11 @@ async fn client_prompt_pipe_closes_before_waiting_for_output() {
         result.is_ok(),
         "model client must receive EOF before its response is awaited"
     );
+}
+
+#[test]
+fn queued_model_control_directory_is_private_before_dispatch() {
+    let f = fixture();
+    let j = queue(&f, "private-control-directory");
+    super::policy::private_dir(&j.root).unwrap();
 }

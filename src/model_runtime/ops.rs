@@ -181,12 +181,27 @@ impl Backend for Native {
                 protocol::write_once(&j.root.join("job.json"), &e)?;
             }
             p.initializer.verify()?;
+            let diagnostics = if j.plan.qualification {
+                // Qualification has a clean auth home and a fixed nonce-only fixture.
+                // Only trusted initializer errors reach this stream; client stderr is piped.
+                std::process::Stdio::from(
+                    std::fs::OpenOptions::new()
+                        .write(true)
+                        .create_new(true)
+                        .open(j.root.join("initializer-fixture.stderr"))
+                        .map_err(|_| {
+                            Error::Invalid("fixture diagnostic journal unavailable".into())
+                        })?,
+                )
+            } else {
+                std::process::Stdio::null()
+            };
             let mut c = tokio::process::Command::new(&p.initializer.path);
             c.arg(&j.root)
                 .env_clear()
                 .stdin(std::process::Stdio::null())
                 .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null());
+                .stderr(diagnostics);
             if let Some(path) = std::env::var_os("PATH") {
                 c.env("PATH", path);
             }
@@ -721,6 +736,14 @@ impl Application {
             .prefix(&format!("model-{id}-"))
             .tempdir_in(&p.jobs_root)
             .map_err(|_| Error::Invalid("private client staging unavailable".into()))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(root.path(), std::fs::Permissions::from_mode(0o700)).map_err(
+                |_| Error::Invalid("private client staging permissions unavailable".into()),
+            )?;
+        }
+        super::policy::private_dir(root.path())?;
         let deadline = (self.clock.now()
             + Duration::seconds(i64::from(p.limits.wall_seconds + p.dispatch_grace_seconds)))
         .to_rfc3339_opts(SecondsFormat::Millis, true);
