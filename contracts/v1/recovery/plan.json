@@ -1,0 +1,11 @@
+{
+  "command": {
+    "meta": {"schema_version": 1, "idempotency_key": "replace-key", "actor": "operator", "reason": "Define the affected workflow recovery criteria"},
+    "expected_version": 12
+  },
+  "action": {
+    "type": "plan",
+    "criteria": {"workflow": "checkout submit", "min_requests": 100, "min_window_seconds": 60, "max_error_ppm": 10000, "max_p95_ms": 1000, "max_source_lag_seconds": 30},
+    "review_seconds": 3600
+  }
+}

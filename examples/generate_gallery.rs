@@ -1,9 +1,15 @@
 //! Reproducible synthetic records for operator review. Never contacts an external service.
 #[path = "../tests/common/mod.rs"]
 mod common;
+use chrono::{Duration, SecondsFormat};
 use common::*;
 use std::{fs, path::PathBuf};
-use watchhouse::incident_artifacts::*;
+use watchhouse::{
+    contracts::{RecordEvidence, V1},
+    domain::Clock,
+    incident_artifacts::*,
+    recovery::*,
+};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out = PathBuf::from(
         std::env::args()
@@ -14,7 +20,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("pass an empty output directory".into());
     }
     fs::create_dir_all(&out)?;
-    let (temporary, a, _clock, id) = fixture();
+    let (temporary, a, clock, id) = fixture();
     let hypothesis = a.record_incident_artifact(
         &id,
         ArtifactCommand {
@@ -57,6 +63,81 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     a.record_incident_artifact(&id,ArtifactCommand {command:command(&a,&id,"gallery-draft","operator"),action:ArtifactAction::DraftCommunication {id:None,expected_revision:None,audience:"Internal response team".into(),body:"DRAFT — NOT SENT. We are investigating checkout timeouts in a synthetic test fixture. Three events are recorded; affected users and the traffic denominator are unknown. No mitigation, deployment or recovery is verified. Next step: collect discriminating evidence.".into(),evidence_refs:evidence(&a,&id),review_seconds:1800}})?;
     a.run_fake_worker_once("fake-investigator", true)?;
+    let plan = a
+        .recovery_command(
+            &id,
+            RecoveryCommand {
+                command: command(&a, &id, "gallery-plan", "operator"),
+                action: RecoveryAction::Plan {
+                    criteria: Criteria {
+                        workflow: "checkout submit".into(),
+                        min_requests: 100,
+                        min_window_seconds: 60,
+                        max_error_ppm: 10000,
+                        max_p95_ms: 1000,
+                        max_source_lag_seconds: 30,
+                    },
+                    review_seconds: 3600,
+                },
+            },
+        )?
+        .recovery
+        .plan
+        .unwrap();
+    clock.advance(Duration::seconds(61));
+    let measured = recovery_report(&a, &id, "gallery-measurement", "operator")?;
+    let observation = a
+        .recovery_command(
+            &id,
+            RecoveryCommand {
+                command: command(&a, &id, "gallery-observe", "operator"),
+                action: RecoveryAction::Observe {
+                    plan_id: plan.id,
+                    window: Window {
+                        started_at: plan.recorded_at,
+                        ended_at: clock.now().to_rfc3339_opts(SecondsFormat::Millis, true),
+                        requests: 100,
+                        errors: 0,
+                        p95_ms: Some(500),
+                        coverage_complete: true,
+                        source_lag_seconds: 0,
+                        collection_method: "Invented numeric window for the UI demo".into(),
+                        uncertainty: "No live measurement or production recovery".into(),
+                        evidence_refs: vec![measured],
+                    },
+                },
+            },
+        )?
+        .recovery
+        .observation
+        .unwrap();
+    let reviewed = recovery_report(&a, &id, "gallery-review-proof", "reviewer")?;
+    let review = a
+        .recovery_command(
+            &id,
+            RecoveryCommand {
+                command: command(&a, &id, "gallery-recovery-review", "reviewer"),
+                action: RecoveryAction::Review {
+                    observation_id: observation.id,
+                    evidence_refs: vec![reviewed.clone()],
+                },
+            },
+        )?
+        .recovery
+        .review
+        .unwrap();
+    a.recovery_command(&id,RecoveryCommand{command:command(&a,&id,"gallery-action","operator"),action:RecoveryAction::OpenAction{title:"Add a discriminating checkout regression".into(),category:"test".into(),owner:"operator".into(),verifier:"reviewer".into(),acceptance:"Distinguish authenticated submit failure from expected unauthenticated rejection".into(),due_seconds:3600}})?;
+    a.recovery_command(
+        &id,
+        RecoveryCommand {
+            command: command(&a, &id, "gallery-resolve", "operator"),
+            action: RecoveryAction::Resolve {
+                review_id: review.id,
+                evidence_refs: vec![reviewed],
+            },
+        },
+    )?;
+    fs::write(out.join("recovery-example.md"), a.recovery_markdown(&id)?)?;
     fs::write(out.join("incident-example.md"), a.incident_markdown(&id)?)?;
     fs::write(
         out.join("investigation-example.md"),
@@ -79,4 +160,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     db.execute("VACUUM INTO ?1", [path.to_string_lossy().as_ref()])?;
     println!("{}", id);
     Ok(())
+}
+
+fn recovery_report(
+    a: &watchhouse::application::Application,
+    id: &str,
+    key: &str,
+    actor: &str,
+) -> watchhouse::error::Result<String> {
+    Ok(a.record_evidence(
+        id,
+        RecordEvidence {
+            schema_version: V1,
+            idempotency_key: key.into(),
+            actor: actor.into(),
+            reason: "Synthetic recovery gallery evidence".into(),
+            expected_version: a.snapshot(id)?.case.version,
+            scope: "checkout/test demo".into(),
+            statement: format!("{key}: invented 100-request healthy window for demonstration only"),
+            collection_method: "Manual fixture report; no production system inspected".into(),
+            observed_at: None,
+            uncertainty: "Synthetic data; not live recovery".into(),
+        },
+    )?
+    .evidence
+    .digest)
 }

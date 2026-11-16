@@ -162,3 +162,7 @@ The first [M4 preparation slice](contracts/v1/repair/README.md) freezes an expli
 ## Exercise adapter recovery
 
 The [synthetic adapter lifecycle](contracts/v1/adapter-trials/README.md) exercises durable start/events/result/cancel/reconciliation against frozen repair requests. Use `case adapter-trial`, inspect status/events, and view the web panel. Lost acknowledgments remain unknown until reconciled; deadline supervision works offline. All outcomes are explicitly synthetic and grant no real harness or repair authority.
+
+## Assess recovery and follow through
+
+[Recovery v1](contracts/v1/recovery/README.md) supports prospective criteria, reported observation windows, independent review and response resolution. Low traffic/coverage stays inconclusive. Corrective actions keep their owners, independent verification and overdue escalation after response resolution. Mitigation is a blocked proposal; deployment is an explicit report. `case recovery` and `case recovery-markdown` share the web/API records. The [example generator](examples/README.md) includes a complete synthetic recovery/follow-up scenario for local testing.

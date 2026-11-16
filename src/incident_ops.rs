@@ -156,7 +156,10 @@ pub(crate) fn due(tx: &Transaction<'_>, now: &str) -> Result<usize> {
     let mut changed = 0;
     for id in ids {
         let mut ops = snapshot(tx, &id)?.ok_or(Error::NotFound)?;
-        if !ops.update_escalated && ops.next_update_at.as_str() <= now {
+        if !ops.update_escalated
+            && ops.next_update_at.as_str() <= now
+            && !crate::recovery::resolved(tx, &id)?
+        {
             let i = crate::incidents::snapshot(tx, &id)?.ok_or(Error::NotFound)?;
             let source = if ops.update_cycle == 0 {
                 i.id
