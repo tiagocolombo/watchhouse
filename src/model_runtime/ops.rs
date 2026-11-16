@@ -189,7 +189,9 @@ impl Backend for Native {
                         .write(true)
                         .create_new(true)
                         .open(j.root.join("initializer-fixture.stderr"))
-                        .map_err(|_| Error::Invalid("fixture diagnostic journal unavailable".into()))?,
+                        .map_err(|_| {
+                            Error::Invalid("fixture diagnostic journal unavailable".into())
+                        })?,
                 )
             } else {
                 std::process::Stdio::null()
