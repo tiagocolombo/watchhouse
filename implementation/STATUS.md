@@ -59,3 +59,7 @@ Current actor labels are single-operator attribution, not remote RBAC. A hostile
 ## Exact next step
 
 Review the stack PR #12 -> #13 -> #14 -> native test bundles. Use the matching native CI artifact or the documented source/demo commands for local operator testing. Finish real worker/runtime/credential qualification and authenticated Sentry/notification activation when authorized inputs exist. Complete actual regression/review/PR delivery, M6 merging, second adapters, Hallmark compatibility and production hardening independently; test bundles do not establish those exit criteria.
+
+## Recovery browser submission synchronization
+
+The recovery browser scenario now waits for its own plan POST response, checks that response and consumes its committed plan before collecting the observation window. The previous `not assessed` text existed before submission and did not establish that a plan had been saved, producing intermittent null-plan failures. This changes test synchronization, not recovery thresholds, authority or evidence requirements. Fresh exact-head CI is required for this follow-up.
