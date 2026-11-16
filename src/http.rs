@@ -68,6 +68,14 @@ pub fn router(app: Application, token: String, authority: String) -> Router {
         .route("/cases/{id}/gate", post(case_gate))
         .route("/cases/{id}/correlations", post(case_correlation))
         .route("/cases/{id}/repairs", post(request_repair))
+        .route(
+            "/cases/{id}/worker-qualification/reconcile",
+            post(reconcile_worker_qualification),
+        )
+        .route(
+            "/cases/{id}/worker-qualification/markdown",
+            get(worker_qualification_markdown),
+        )
         .route("/cases/{id}/repairs/markdown", get(repair_markdown))
         .route(
             "/cases/{id}/qualification/markdown",
@@ -221,6 +229,11 @@ case_command!(
     case_correlation,
     crate::correlation::RelationCommand,
     correlate_case
+);
+case_command!(
+    reconcile_worker_qualification,
+    crate::worker_qualification::ReconcileQualification,
+    reconcile_worker_qualification
 );
 case_command!(request_repair, crate::repair::RequestRepair, request_repair);
 case_command!(challenge, crate::challenges::ChallengeCommand, challenge);
@@ -418,5 +431,15 @@ async fn repair_markdown(
     Ok((
         [(header::CONTENT_TYPE, "text/markdown; charset=utf-8")],
         blocking(move || s.app.repair_markdown(&id)).await?,
+    ))
+}
+
+async fn worker_qualification_markdown(
+    State(s): State<HttpState>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok((
+        [(header::CONTENT_TYPE, "text/markdown; charset=utf-8")],
+        blocking(move || s.app.worker_qualification_markdown(&id)).await?,
     ))
 }

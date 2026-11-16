@@ -1,0 +1,14 @@
+{
+  "schema_version":1,
+  "revision":1,
+  "boundary":{"path":"/REPLACE/trusted/bwrap","digest":"sha256:0000000000000000000000000000000000000000000000000000000000000000"},
+  "limiter":{"path":"/REPLACE/trusted/prlimit","digest":"sha256:0000000000000000000000000000000000000000000000000000000000000000"},
+  "probe":{"path":"/REPLACE/trusted/isolation-probe","digest":"sha256:0000000000000000000000000000000000000000000000000000000000000000"},
+  "scratch_root":"/REPLACE/private/qualification-scratch",
+  "wall_seconds":10,
+  "cpu_seconds":2,
+  "memory_bytes":134217728,
+  "file_bytes":65536,
+  "descriptors":64,
+  "valid_seconds":300
+}

@@ -78,3 +78,7 @@ The CLI supports fake completion, deterministic block, and alive-without-progres
 ## First M4 preparation slice
 
 [Repair preparation v1](../contracts/v1/repair/README.md) adds immutable operator configuration, object-only frozen base copies, pinned version/help metadata and durable blocked repair requests with owned escalation. Snapshot copies and CLI flags do not establish isolation. Real adapter admission remains denied; start/events/cancel/result/reconcile, qualified worker isolation/revocation and actual model execution are not implemented. See ADR 0015 and STATUS for exact observed evidence.
+
+## Controlled worker qualification
+
+The [worker qualification contract](../contracts/v1/worker-qualification/README.md) implements fixed Linux probes and durable start/terminal/interrupted/quarantine/reconciliation records. It measures selected boundary properties using trusted synthetic payloads, not candidate/model execution. Actual local namespace setup failed; no successful live proof or real harness admission is claimed. Source/runtime/credential checks and a full adapter lifecycle remain separate M4 prerequisites. See ADR 0016.

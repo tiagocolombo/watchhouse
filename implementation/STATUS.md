@@ -2,53 +2,66 @@
 
 Last updated: 2026-11-15.
 
-## Main and current phase
+## Main and current slice
 
-PRs [#2](https://github.com/tiagocolombo/watchhouse/pull/2)–[#9](https://github.com/tiagocolombo/watchhouse/pull/9) are merged. PR #9 was the only open PR when this phase started; its current-head Linux/macOS/Windows CI was green and it merged without conflicts. Main baseline: `b15361d`.
+PRs [#2](https://github.com/tiagocolombo/watchhouse/pull/2)–[#10](https://github.com/tiagocolombo/watchhouse/pull/10) are merged. PR #10 was checked at its exact head with green Linux/macOS/Windows CI and merged without conflicts. Merged main baseline: `55bce1b`.
 
-Current branch `dev/m4-execution-admission` starts at that main. This is the first **M4 preparation slice**, not the complete repair-to-PR workflow. [ADR 0015](adrs/0015-repair-inputs-and-denied-admission.md) and the [repair contract](../contracts/v1/repair/README.md) define executable scope. M3 actual sanitized service-history acceptance and live activation remain incomplete; they do not prevent this independent M4 preparation work.
+Current branch `dev/m4-worker-qualification` continues M4 with controlled worker qualification, durable evidence and quarantine/reconciliation. [ADR 0016](adrs/0016-controlled-worker-qualification.md) and the [executable contract](../contracts/v1/worker-qualification/README.md) define scope. This is **not** completion of M4 or admission of a real harness.
 
-## Completed through M3
+## Implemented in this slice
 
-M0/M1 and bounded fake-only M2 mechanisms remain implemented: durable cases/events/evidence, qualification/reconsideration, trusted pinned policy, fake-worker messages/supervision/checkpoints/accepted handoffs, independent challenges and validation gates, human notification fallback/retry/acknowledgment/explicit resolution. M3 adds authenticated Sentry intake/enrichment/reconciliation/known-issue freshness, incident declaration/versioned updates/roles, hypothesis/experiment/draft records and independent draft review, bounded diagnostic evidence and reversible scoped case correlations. These retain prior tests and historical migrations/events. Actual sources, destinations and real customer history are unverified.
+- Immutable active worker policy with pinned tool identities, explicit resource/time bounds and installation identity/time. Only the OS operator can install it; agents/HTTP cannot. New attempts require the active revision. Already-reserved attempts and audit history retain their exact policy/source/case provenance.
+- Fixed Linux adapter plus a statically compiled trusted payload. It measures synthetic input/policy read-only behavior, hidden host canary, clean environment, allowed scratch writes, loopback exclusion, private network/PID namespace identity, selected per-process rlimits, and known descendant termination. Fixed argv arrays allow no shared-network/host-root/arbitrary-task override. No candidate code, model, credential or publication action is supplied.
+- Before native I/O, one transaction reserves the attempt/nonce/deadline/owner and receipt. Retries inspect current state rather than repeating the probe. Results must match strict version/nonce schemas and complete measurements. Tool identity is checked before and after observations. Failed/malformed/partial outcomes cannot pass. Fixture-labelled outcomes remain simulated without verified capabilities.
+- Case-bound content-addressed evidence retains normalized observations/host confirmations/origin/outcome/output digest and binds attempt, nonce, policy and source manifest. Evidence is retrievable through the existing authenticated endpoint. Private synthetic controller tests exercise success/currency branches but are not physical isolation verification.
+- The model-independent supervisor expires lost/overdue attempts into interrupted/quarantined state with owned escalation. Late output is retained once as unaccepted evidence and cannot restore proof. Metadata failure cannot trigger a blind repeat. No canonical writer lock is held during the external probe.
+- Quarantine blocks new attempts until the accountable operator records explicit case-bound reported inspection evidence and reconciliation. Reconciliation clears only the resource hold, preserves failed/interrupted history, grants no capabilities, deletes/kills nothing and resolves no escalation/repair automatically. Its update, audit event and receipt are atomic. Old-key retries remain inspection only.
+- CLI policy/status/qualification/reconciliation/reporting, authenticated read/reconciliation API and a visible web panel show scope, owner, evidence, time currency and next action. Policy installation and native invocation remain CLI-only. Markdown and imported text remain inert. Snapshots show the newest 100 attempts; history and authority checks do not depend on that display cap.
+- All records have scope `hermetic-probe-v1` and `real_execution_admitted: false`, including a measured probe pass. Time currency is not authority, current tool/host validation, supported account access or verified arbitrary-code containment.
 
-## First M4 slice implemented
-
-- Immutable OS-operator-only repair-source configuration with explicit repository/full base commit, separate absolute source/snapshot roots, pinned runtime binary digest and bounded file/byte/probe/preparation limits. There is no agent/HTTP installation endpoint or execution override. New versions do not rewrite old inputs or requests.
-- Object-only repository preparation reads committed Git objects with clean caller environment, disabled lazy fetch/replacement refs and fixed bounded commands. No checkout/filter/hook/build/test executes. Commit/tree/blob bytes are checked independently against their SHA-1/SHA-256 Git identities and a SHA-256 manifest; paths/modes/sizes/base/tree are frozen. Symlinks/gitlinks, metadata/traversal/device aliases, case collisions and oversized input are rejected. No `.git`, untracked file or publishing credential is copied.
-- The private base copy has read-only files as an integrity convention, **not** a security sandbox. Integrity verification detects missing/extra/altered files and occurs outside the canonical writer lock. Crashes can leave unregistered temporary directories, which have no admission authority; robust quarantine/cleanup and sealing must precede worker execution.
-- Bounded version/help-only inspection from fresh home/config with no inherited account secrets records binary/output digests, runtime identity, advertised flags and errors. Pin mismatch is not invoked. Verified capability list remains empty. Authentication, subscriptions, model/usage, process-tree cancellation and actual filesystem/network isolation are not verified by help output.
-- Evidence-backed operator repair requests freeze the case policy, configuration/manifest/base/tree and expected behavior/regression proposal. Source cases require exact explicit repository/deployed-revision mapping. Blocking challenges, missing/foreign evidence, forged actor/version and stale commands fail closed. Every currently accepted request is **blocked**, owned and escalated atomically with its event/receipt. It never enters the fake-worker queue. Fake completion and escalation acknowledgment cannot complete a repair.
-- CLI/API/web expose repair readiness/denials/owner/next action, exact command retries and escaped preparation Markdown. Snapshot shows the newest 100 requests; full event history remains authoritative.
-- `examples/generate_gallery.rs` produces actual incident/investigation/qualification Markdown, structured JSON and a consistent separate demo database from sanitized synthetic fixtures. Operator review screenshots and sample exports were generated from the working interface. No production payloads or generated databases are committed.
-
-## Verification actually run
+## Actual validation
 
 Linux, 2026-11-15:
 
 | Check | Result |
 | --- | --- |
 | `cargo fmt --all -- --check` | Passed |
+| `rustfmt --edition 2024 --check tools/isolation_probe.rs` | Passed; added to CI |
 | `cargo clippy --locked --all-targets -- -D warnings` | Passed |
-| `cargo test --locked` | 99 Rust tests passed |
+| `cargo test --locked` | 113 Rust tests passed on Linux; static-payload compile check is Linux-only |
 | `npm run build --prefix web` | Strict TypeScript passed |
 | `cargo build --locked` | Bundled binary passed |
 | `npm test --prefix web` | Six Chromium scenarios passed |
-| `git diff --check` / local Markdown links | Passed |
+| `git diff --check` and local Markdown links | Passed |
 
-New coverage includes exact committed bytes despite dirty working trees/filters, no Git metadata/untracked secrets, commit/tree/blob corruption, portable paths/unsafe modes/size limits, caller-environment clearing, probe output bounds/deadline, immutable/sequential config, denied runtime pins, source/base mismatch, snapshot drift, independent challenges, retries/restart, concurrent requests, rollback across event/escalation/receipt, shared HTTP/CLI and inert Markdown/browser reload/mobile. Standard tests use synthetic local repositories and harmless Git version output as an unrecognized runtime; no model service or live notification/source is invoked.
+Coverage includes policy bounds/immutability/provenance, active-policy enforcement, fixed boundary arguments, static payload compatibility, schema/nonce checks, complete-versus-missing measurements, fixture/native distinction, currency/expiry, same-key inspection, competing versions, rollback before I/O and during finalization, restart/supervision without models, late-output fencing, evidence retrieval, quarantine holds, reported reconciliation/authentication and inert browser/Markdown replay. The browser extends repair readiness with a failed controlled fixture, evidence/status/reporting and absence of an HTTP execution endpoint. Existing fake/source/notification/challenge/incident tests remain green.
 
-Additional local metadata-only observation: the pinned installed `codex-cli 0.167.0-alpha.4` returned version/help from a clean environment. Advertised flags included `--json`, `--output-schema`, `--ignore-user-config`, `--ignore-rules`, `--ephemeral`; verified capabilities stayed empty. Preparation froze 135 files, 2,093,570 bytes at tree `872d11a8abb1513037bfb8fce9d49240c05d9b31` from merged main. No account/authentication/subscription or model run was probed. A Bubblewrap qualification attempt failed at NETLINK_ROUTE setup with Operation not permitted, so this host has not demonstrated qualified containment. This is not successful real execution.
+### Native observation — failed, not qualified
 
-Remote CI must be checked for the exact PR head separately; local checks do not imply remote success.
+A product CLI attempt used pinned installed Bubblewrap/prlimit and a statically linked payload in a separate synthetic database/scratch area. It returned `failed`, scope `hermetic-probe-v1`, zero verified capabilities, `real_execution_admitted: false`, retrievable failure evidence, quarantine and an owned escalation. An independent direct Bubblewrap test reported `Failed to create NETLINK_ROUTE socket: Operation not permitted`. The host restriction was not weakened or bypassed. No successful native isolation pass is claimed.
 
-## Remaining work and activation blockers
+Ordinary tests use synthetic local repositories, fake execution, harmless runtime metadata and private controller fixtures. Linux CI statically compiles the trusted payload but does not claim an actual namespace drill. No live Sentry/Slack destination, account/subscription/model invocation, arbitrary candidate test, repair, PR delivery automation, deployment or service recovery was verified. Exact-head remote CI must be checked separately from local validation.
 
-- **M4 next:** qualify a real OS/container/worker boundary for filesystem/network restrictions, trusted instructions outside candidate control, scoped credentials/revocation, bounded resources, process-tree cancellation and lost-worker reconciliation. Then implement the real Codex start/events/cancel/result/reconcile adapter, candidate freezing, base/candidate regression evidence, independent verification/review and idempotent/reconciled PR delivery. No real worker is admitted by this slice on any platform, even if a CLI advertises sandbox flags. M4 exit criteria are not met.
-- **M3:** operator-supplied actual sanitized service history, exact service/release mappings, Sentry app/token/plan permissions, trusted ingress and authorized Slack destinations/secrets/participants are still absent. Additional disposition categories, richer impact windows and cross-service correlation remain planned. Follow the prepared [activation drill](16-m3-activation-drill.md) only with actual configuration/authority; synthetic reports do not establish live coverage/delivery.
-- **M5–M8:** authorized mitigation, deployment/recovery verification, postmortems, accepted knowledge/actions, automatic merging, second source/harness, packaging, remote RBAC, backup/restore, retention/redaction and backpressure remain ahead. Repository PR merges by the coding assistant are not Watchhouse automatic merging. Source status, copy success, an accepted hypothesis, a link or an unsent draft never establish recovery.
-- Current local actor labels remain trusted single-operator attribution. A hostile process with canonical database/OS access is outside this boundary. Quarantine cleanup, filesystem sealing, host hardening/clock jumps, installers/services, retention and license remain open. No production effect, real repair or verified service recovery is claimed.
+## Overall done and pending
+
+| Milestone | Implemented | Remaining |
+| --- | --- | --- |
+| M0 | Bootstrap, versioned contracts, migrations, deterministic fixtures, CI | Distribution/license decisions remain later work |
+| M1 | Durable cases/events/evidence, qualification/reopening, CLI/API/web replay | Operational hardening belongs to M8 |
+| M2 | Bounded fake collaboration, supervision, handoffs, independent challenges/gates, trusted policy, Slack fallback/retry/ack/resolution adapter | Actual human destinations/credentials and live delivery drill |
+| M3 | Sentry intake/enrichment/reconciliation/freshness, incident operations/roles, investigations/drafts/review, scoped correlation/diagnostics | Actual sanitized service history, configured live activation, richer impact windows/disposition categories/cross-service correlation |
+| M4 | Frozen repair inputs/runtime metadata, denied repair requests, controlled qualification/evidence/loss/quarantine/reconciliation | Qualified actual worker/runtime profile and real adapter; candidate/regression/review/PR delivery lifecycle |
+| M5 | Design/templates | Authorized mitigation, deployment/recovery evidence, postmortems/actions, accepted knowledge |
+| M6 | Design/policy requirements | Eligible automatic merging and effect reconciliation |
+| M7 | Adapter/portability design | Second harness/source, native worker routing, packaging/platform drills |
+| M8 | Initial local visibility | Remote RBAC, backup/restore, retention/redaction, backpressure, full workspace and operating drills |
+
+M3 still needs real service/release mappings, Sentry install/client secret/token/plan permissions, trusted ingress, and authorized Slack destinations/secrets/participants; the prepared [activation drill](16-m3-activation-drill.md) is not executed. Synthetic fixtures do not meet actual-history/live acceptance.
+
+M4 still needs a properly provisioned worker for a real controlled drill, then stronger adversarial/FD/seccomp/cgroup/aggregate-budget/fatal-loss and host/tool identity validation, workspace sealing, scoped authentication/credentials and revocation, and a full start/events/cancel/result/reconcile harness adapter. Codex is the first candidate, not an admitted runtime. Only after those gates: independently frozen candidates, fail-on-base/pass-on-candidate regression, verification/review, and idempotent/reconciled PR delivery. No request/receipt/cleanup report/CLI flag grants any of these powers.
+
+Current actor labels are single-operator attribution, not remote RBAC. A hostile host administrator/DB owner or malicious operator-installed tool remains outside this boundary. Repo merges performed by the coding assistant are not Watchhouse automatic merging. Source status, a probe pass, patch merge or unsent draft never proves deployment/recovery.
 
 ## Exact next step
 
-Review this M4 preparation slice against main. Qualify the isolated-worker boundary before adding any real execution path; preserve deterministic fake-only CI and the distinct proposal/execution, candidate/review, merge/deployment and recovery lifecycles. M3 history/activation can proceed independently when the required operator inputs exist.
+Review this slice against main. Run the controlled probe on an appropriately provisioned Linux worker without weakening the host boundary. Keep failed/interrupted resources held until explicit reconciliation. Complete actual worker/runtime/credential admission and the real adapter protocol before candidate execution; M3 service-history/live activation can proceed independently when operator inputs exist. M4 exit criteria remain unmet.

@@ -11,7 +11,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-mod snapshot;
+pub(crate) mod snapshot;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RepairSourceConfig {
@@ -179,7 +179,7 @@ impl RepairSourceConfig {
         Ok(())
     }
 }
-fn source(db: &Connection, revision: i64) -> Result<RepairSource> {
+pub(crate) fn source(db: &Connection, revision: i64) -> Result<RepairSource> {
     let row: Option<(String, String)> = db
         .query_row(
             "SELECT record,digest FROM repair_sources WHERE revision=?1",
