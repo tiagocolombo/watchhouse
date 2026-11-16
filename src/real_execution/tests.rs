@@ -151,6 +151,11 @@ fn inspection_rejects_privilege_mount_image_and_limit_drift() {
     let control = d.path().join("policy");
     let v = json!({"Id":"a".repeat(64),"Name":format!("/watchhouse-{}",j.operation),"Image":p.image,"Config":{"Image":p.image,"User":"0:0","WorkingDir":"/work","Entrypoint":["/watchhouse-worker-init"],"Cmd":["run"],"Labels":{"watchhouse.operation":j.operation,"watchhouse.profile":j.profile_digest},"Env":["HOME=/tmp","TMPDIR=/tmp","PATH=/usr/local/bin:/usr/bin:/bin"]},"HostConfig":{"Privileged":false,"ReadonlyRootfs":true,"NetworkMode":"none","IpcMode":"private","CgroupnsMode":"private","PidMode":"","Memory":j.memory_bytes,"MemorySwap":j.memory_bytes,"PidsLimit":j.pids,"CpuPeriod":100000,"CpuQuota":j.cpu_micros,"CapAdd":["SETUID","SETGID"],"CapDrop":["ALL"],"SecurityOpt":["no-new-privileges:true"],"Tmpfs":{"/work":format!("rw,nosuid,nodev,size={},mode=1777",j.work_bytes),"/tmp":"rw,nosuid,nodev,noexec,size=4194304,mode=1777"}},"Mounts":[{"Type":"bind","Destination":"/input","Source":input,"RW":false},{"Type":"bind","Destination":"/policy","Source":control,"RW":false}],"State":{"Status":"created","Running":false,"ExitCode":0,"OOMKilled":false}});
     validate_inspect(&v, &j, &input, &control, false, &p.image).unwrap();
+    let mut canonical = v.clone();
+    canonical["HostConfig"]["CapAdd"] = json!(["CAP_SETGID", "CAP_SETUID"]);
+    validate_inspect(&canonical, &j, &input, &control, false, &p.image).unwrap();
+    canonical["HostConfig"]["CapAdd"] = json!(["CAP_SETUID", "CAP_SYS_ADMIN"]);
+    assert!(validate_inspect(&canonical, &j, &input, &control, false, &p.image).is_err());
     for (pointer, value) in [
         ("/HostConfig/Privileged", json!(true)),
         ("/HostConfig/NetworkMode", json!("host")),

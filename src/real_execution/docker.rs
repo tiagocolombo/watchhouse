@@ -624,7 +624,13 @@ pub(super) fn validate_inspect(
         exact(h, key, val)?;
     }
     if !h["CapAdd"].as_array().is_some_and(|v| {
-        v.len() == 2 && v.contains(&json!("SETUID")) && v.contains(&json!("SETGID"))
+        v.len() == 2
+            && ["SETUID", "SETGID"].iter().all(|expected| {
+                v.iter().any(|cap| {
+                    cap.as_str()
+                        .is_some_and(|name| name.strip_prefix("CAP_").unwrap_or(name) == *expected)
+                })
+            })
     }) || !h["CapDrop"]
         .as_array()
         .is_some_and(|v| v == &vec![json!("ALL")])
