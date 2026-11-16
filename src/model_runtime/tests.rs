@@ -655,3 +655,37 @@ async fn lost_create_and_interrupted_reservations_never_repeat_creation() {
     );
     assert_eq!(f.app.snapshot(&f.case).unwrap().events.len(), n);
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn client_prompt_pipe_closes_before_waiting_for_output() {
+    use std::process::Stdio;
+    use tokio::{
+        io::AsyncReadExt,
+        process::Command,
+        time::{Duration, timeout},
+    };
+    // A fixed OS test helper waits for EOF just like the CLI's stdin prompt reader.
+    let mut child = Command::new("/bin/cat")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+    let input = child.stdin.take().unwrap();
+    let mut output = child.stdout.take().unwrap();
+    let result = timeout(Duration::from_secs(2), async {
+        super::client::send_prompt(input, "bounded synthetic stdin")
+            .await
+            .unwrap();
+        let mut bytes = vec![];
+        output.read_to_end(&mut bytes).await.unwrap();
+        assert!(child.wait().await.unwrap().success());
+        assert_eq!(bytes, b"bounded synthetic stdin");
+    })
+    .await;
+    assert!(
+        result.is_ok(),
+        "model client must receive EOF before its response is awaited"
+    );
+}

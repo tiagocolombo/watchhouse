@@ -97,6 +97,22 @@ async fn bounded(stream: impl tokio::io::AsyncRead + Unpin, limit: u32) -> Resul
     }
     Ok(bytes)
 }
+pub(crate) async fn send_prompt(
+    mut input: impl tokio::io::AsyncWrite + Unpin,
+    prompt: &str,
+) -> Result<()> {
+    input
+        .write_all(prompt.as_bytes())
+        .await
+        .map_err(|_| Error::Invalid("client input lost".into()))?;
+    input
+        .shutdown()
+        .await
+        .map_err(|_| Error::Invalid("client input close failed".into()))?;
+    // ChildStdin shutdown flushes; ownership must end to close the pipe and deliver EOF.
+    drop(input);
+    Ok(())
+}
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ClientResult {
     pub parsed: Option<Parsed>,
@@ -167,7 +183,7 @@ pub async fn run(invocation: Invocation<'_>) -> Result<ClientResult> {
     let mut child = c
         .spawn()
         .map_err(|_| Error::Invalid("pinned client startup failed".into()))?;
-    let mut input = child
+    let input = child
         .stdin
         .take()
         .ok_or_else(|| Error::Invalid("client stdin unavailable".into()))?;
@@ -181,16 +197,7 @@ pub async fn run(invocation: Invocation<'_>) -> Result<ClientResult> {
         .ok_or_else(|| Error::Invalid("client stderr unavailable".into()))?;
     let work = async {
         let (_, out, err, status) = tokio::try_join!(
-            async {
-                input
-                    .write_all(prompt.as_bytes())
-                    .await
-                    .map_err(|_| Error::Invalid("client input lost".into()))?;
-                input
-                    .shutdown()
-                    .await
-                    .map_err(|_| Error::Invalid("client input close failed".into()))
-            },
+            send_prompt(input, prompt),
             bounded(stdout, policy.limits.output_bytes),
             bounded(stderr, 65536),
             async {
