@@ -697,3 +697,135 @@ fn new_unaccepted_postmortem_draft_does_not_change_governing_knowledge() {
     .unwrap();
     assert!(search(&a, &id).is_empty());
 }
+
+#[test]
+fn imported_hallmark_authority_stays_pending_and_native_export_requires_fresh_local_acceptance() {
+    use watchhouse::hallmark::*;
+    let (root, a, _t, id) = setup();
+    let pm = accept_pm(&a, &id);
+    let imported = a
+        .import_hallmark(
+            &id,
+            ImportCommand {
+                command: command(&a, &id, "hallmark-import", "operator"),
+                source_namespace: "hallmark:fixture/checkout".into(),
+                payload: serde_json::from_str(include_str!("fixtures/hallmark/library.json"))
+                    .unwrap(),
+            },
+        )
+        .unwrap()
+        .entries[0]
+        .clone();
+    let mut draft = kb(&pm, evidence(&a, &id));
+    draft.imported_from = Some(imported.provenance.clone());
+    let state = apply(
+        &a,
+        &id,
+        "imported-proposal",
+        "operator",
+        LearningAction::ProposeKnowledge {
+            id: None,
+            expected_revision: None,
+            draft: draft.clone(),
+        },
+    )
+    .unwrap();
+    let k = state
+        .entries
+        .iter()
+        .find(|e| matches!(e.document.content, Content::Knowledge { .. }))
+        .unwrap()
+        .document
+        .clone();
+    assert!(search(&a, &id).is_empty());
+    assert!(
+        a.export_hallmark(
+            &id,
+            ExportSelection::Knowledge {
+                ids: vec![k.id.clone()]
+            }
+        )
+        .is_err()
+    );
+    let proof = report(&a, &id, "independent-import-review", "reviewer");
+    apply(
+        &a,
+        &id,
+        "accept-imported",
+        "reviewer",
+        LearningAction::Accept {
+            id: k.id.clone(),
+            revision: k.revision,
+            evidence_refs: vec![proof],
+        },
+    )
+    .unwrap();
+    let export = a
+        .export_hallmark(
+            &id,
+            ExportSelection::Knowledge {
+                ids: vec![k.id.clone()],
+            },
+        )
+        .unwrap();
+    let body = &export.learnings[0].content;
+    assert!(body.contains("status: proposed"));
+    assert!(!body.contains("status: accepted"));
+    assert!(body.contains(&k.id));
+    assert!(body.contains(&draft.applicability));
+    assert!(body.contains(&draft.invalidation_conditions));
+    assert!(body.contains("watchhouse_repository:"));
+    assert_eq!(search(&a, &id).len(), 1);
+    apply(
+        &a,
+        &id,
+        "pending-import-revision",
+        "operator",
+        LearningAction::ProposeKnowledge {
+            id: Some(k.id.clone()),
+            expected_revision: Some(1),
+            draft,
+        },
+    )
+    .unwrap();
+    assert!(
+        a.export_hallmark(&id, ExportSelection::Knowledge { ids: vec![k.id] })
+            .is_ok()
+    );
+    let mut foreign = kb(&pm, evidence(&a, &id));
+    foreign.imported_from = Some("hallmark-import:unknown".into());
+    assert!(
+        apply(
+            &a,
+            &id,
+            "foreign-import",
+            "operator",
+            LearningAction::ProposeKnowledge {
+                id: None,
+                expected_revision: None,
+                draft: foreign
+            }
+        )
+        .is_err()
+    );
+    let source = a.snapshot(&id).unwrap().source.unwrap();
+    let db = rusqlite::Connection::open(root.path().join("db")).unwrap();
+    db.execute_batch("DROP TRIGGER knowledge_import_immutable")
+        .unwrap();
+    db.execute(
+        "UPDATE knowledge_imports SET record=json_set(record,'$.content','corrupt')",
+        [],
+    )
+    .unwrap();
+    assert!(
+        a.knowledge_search(
+            &source.service,
+            &source.environment,
+            &source.repository,
+            source.release.as_deref(),
+            ""
+        )
+        .unwrap()
+        .is_empty()
+    );
+}

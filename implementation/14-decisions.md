@@ -118,3 +118,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 2026-11-15: [ADR 0020](adrs/0020-native-operator-test-bundles.md) adds native debug coordinator/UI/demo test artifacts with hash/platform/source manifests and extracted-binary smoke checks. This is operator-test packaging, not production release or worker qualification.
 
 2026-11-16: [ADR 0021](adrs/0021-native-container-regression.md) implements the credential-free native container check boundary, durable effect recovery and frozen operator-candidate regression/review. Full real harness execution and GitHub delivery remain M4 gates.
+
+2026-11-16: [ADR 0022](adrs/0022-hallmark-knowledge-exchange.md) adds actual-format bounded Hallmark JSON import/export, immutable provenance, explicit native proposal mapping and independent promotion without transferring external approval authority.

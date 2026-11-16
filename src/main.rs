@@ -107,6 +107,16 @@ enum Command {
 }
 #[derive(Subcommand)]
 enum CaseCommand {
+    ImportHallmark {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+    ExportHallmark {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
     QualifyContainer {
         id: String,
         #[arg(long)]
@@ -601,6 +611,12 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Case { action } => {
             let output = match action {
+                CaseCommand::ImportHallmark { id, file } => {
+                    serde_json::to_value(app.import_hallmark(&id, read_command(file)?)?)?
+                }
+                CaseCommand::ExportHallmark { id, file } => {
+                    serde_json::to_value(app.export_hallmark(&id, read_command(file)?)?)?
+                }
                 CaseCommand::QualifyContainer { id, file } => {
                     serde_json::to_value(app.qualify_container(&id, read_command(file)?)?)?
                 }

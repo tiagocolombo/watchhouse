@@ -1,0 +1,8 @@
+{
+  "format":"hallmark-library",
+  "version":1,
+  "learnings":[{
+    "path":"L-0007-check-retry-target.md",
+    "content":"---\nid: L-0007\nkind: rule\nscope: [\"src/retries/**\"]\nsource: [H-0042/F1]\nstatus: accepted\nused: 4\nunknown_upstream_key: retained\n---\n# Check a queued retry target\n\nSynthetic example: recheck that a target exists before retrying.\n<script>window.importInjected=true</script>\n"
+  }]
+}

@@ -79,6 +79,8 @@ pub fn router(app: Application, token: String, authority: String) -> Router {
         .route("/cases/{id}/candidate-reviews", post(review_candidate))
         .route("/cases/{id}/recovery", post(recovery_command))
         .route("/cases/{id}/learning", post(learning_command))
+        .route("/cases/{id}/knowledge-imports", post(import_hallmark))
+        .route("/cases/{id}/hallmark-export", post(export_hallmark))
         .route("/cases/{id}/learning/markdown", get(learning_markdown))
         .route("/cases/{id}/recovery/markdown", get(recovery_markdown))
         .route("/cases/{id}/adapter-trials", post(adapter_trial))
@@ -565,3 +567,14 @@ async fn learning_markdown(
         blocking(move || s.app.learning_markdown(&id)).await?,
     ))
 }
+
+case_command!(
+    import_hallmark,
+    crate::hallmark::ImportCommand,
+    import_hallmark
+);
+case_command!(
+    export_hallmark,
+    crate::hallmark::ExportSelection,
+    export_hallmark
+);

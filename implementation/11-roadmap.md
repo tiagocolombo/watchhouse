@@ -99,3 +99,5 @@ Completed: M0 plus manual case creation -> persisted event -> queued fake assign
 2026-11-15: M5 operator postmortem/knowledge records, independent attributed acceptance, scoped retrieval and frozen fake-worker briefings implemented atop PR #13. Actual mitigation/deployment/telemetry and Hallmark compatibility remain unverified; physical M4 worker and real harness execution remain blocked. See ADR 0019.
 
 2026-11-15: Native coordinator test bundles add an independent portion of M7 distribution/M8 operator testing while real M4 execution remains blocked. Existing CI generates, packages and smoke-checks the demo on each native OS; broader compatibility/signing/installers and operational hardening remain open. See ADR 0020.
+
+2026-11-16: Hallmark JSON format compatibility implements bounded immutable imports, byte-preserving re-export and independently mapped native knowledge export/provenance (ADR 0022). This closes the M5 format-adapter item; production integrations, known-error/problem linkage and historical acceptance remain open.
