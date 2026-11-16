@@ -108,3 +108,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 2026-11-15: [ADR 0015](adrs/0015-repair-inputs-and-denied-admission.md) begins M4 with trusted frozen repair inputs and explicit denied admission; no real worker is enabled.
 
 2026-11-15: [ADR 0016](adrs/0016-controlled-worker-qualification.md) adds controlled worker qualification, durable evidence/loss/quarantine/reconciliation and no general harness admission.
+
+2026-11-15: [ADR 0017](adrs/0017-durable-adapter-trials.md) adds durable fake adapter trials with ordered events, frozen envelopes, unknown start/cancel reconciliation, schema/fence-bound synthetic results and offline supervision. Real external dispatch remains blocked.

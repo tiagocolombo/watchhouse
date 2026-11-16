@@ -83,6 +83,24 @@ enum Command {
 }
 #[derive(Subcommand)]
 enum CaseCommand {
+    AdapterTrialStatus {
+        id: String,
+        #[arg(long)]
+        trial: String,
+    },
+    /// Run a fake adapter protocol command; never starts a real harness.
+    AdapterTrial {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+    AdapterTrialEvents {
+        id: String,
+        #[arg(long)]
+        trial: String,
+        #[arg(long, default_value_t = 0)]
+        after: i64,
+    },
     ReconcileWorkerQualification {
         id: String,
         #[arg(long)]
@@ -478,6 +496,15 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Case { action } => {
             let output = match action {
+                CaseCommand::AdapterTrialStatus { id, trial } => {
+                    serde_json::to_value(app.adapter_trial_status(&id, &trial)?)?
+                }
+                CaseCommand::AdapterTrial { id, file } => {
+                    serde_json::to_value(app.adapter_trial(&id, read_command(file)?)?)?
+                }
+                CaseCommand::AdapterTrialEvents { id, trial, after } => {
+                    serde_json::to_value(app.adapter_trial_events(&id, &trial, after)?)?
+                }
                 CaseCommand::ReconcileWorkerQualification { id, file } => serde_json::to_value(
                     app.reconcile_worker_qualification(&id, read_command(file)?)?,
                 )?,

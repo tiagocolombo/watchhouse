@@ -1,3 +1,4 @@
+pub mod adapter_trials;
 pub mod application;
 pub mod challenges;
 pub mod contracts;

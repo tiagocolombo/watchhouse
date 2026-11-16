@@ -1,0 +1,11 @@
+# ADR 0017: Durable fake adapter lifecycle before external dispatch
+
+Accepted 2026-11-15. PR #11 merged at `823aa2c`. Continues M4 while successful native isolation and scoped runtime access are unavailable. Does not complete M4 or admit a real harness.
+
+Implement an explicitly synthetic application-level adapter trial against a frozen repair request. Persist its envelope digest, attempt, fence, policy provenance, absolute deadline, ordered events, structured failures, validated optional output and case-bound evidence. Commands cover start, deterministic advance/result, cancel and reconciliation; status/event reads do not invoke execution. CLI and authenticated API use the same service; the web panel displays scope, ownership, uncertainty and evidence.
+
+Use a separate fake backend journal to exercise lost start/cancel acknowledgment, restart, quota, invalid output and no-progress deadline behavior. Unknown outcomes block new starts. Missing backend observations are not negative effect proof. Same-key retries inspect the existing handle; reconciliation cannot repeat effects or silently close escalation. Case versions, ownership and case-pinned policy bound the simulation. Every record denies real execution. Schema/fence/synthetic validation rejects even exit-success-shaped invalid output.
+
+The fake journal intentionally shares the command's SQLite transaction: deterministic tests exercise rollback and response loss, not a real distributed transaction. A real adapter must reserve before external I/O, implement an independently reconciled effect journal, and pass native isolation, cancellation, credential and admission gates. No production adapter is registered and no isolation failure is bypassed. The existing investigation fake seam remains in place; provider-specific runtime flags and credentials never enter these domain envelopes.
+
+This is the next prerequisite-independent M4 slice. Suitable-worker qualification, stronger boundary/credential handling, actual start/events/cancel/result/reconcile harness dispatch, candidate/base regression, independent review and GitHub delivery remain open. M2/M3 live activation can proceed separately once authorized inputs exist.

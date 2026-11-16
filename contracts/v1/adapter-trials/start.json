@@ -1,0 +1,17 @@
+{
+  "command": {
+    "meta": {
+      "schema_version": 1,
+      "idempotency_key": "replace-with-unique-trial-key",
+      "actor": "operator",
+      "reason": "Exercise fake adapter recovery without a real harness"
+    },
+    "expected_version": 12
+  },
+  "action": {
+    "type": "start",
+    "repair_id": "replace-with-repair-id",
+    "scenario": "start_unknown",
+    "wall_seconds": 120
+  }
+}

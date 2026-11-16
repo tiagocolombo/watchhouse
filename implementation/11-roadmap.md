@@ -4,7 +4,7 @@ Every milestone delivers a usable vertical slice with evidence and a STATUS.md u
 
 ## Current delivery state (2026-11-15)
 
-M0/M1 and bounded fake-only M2 mechanisms are implemented. PRs #2–#10 are merged. M3 now includes source intake/reconciliation/freshness, incident operations/roles, investigations/draft review and scoped correlation/diagnostic evidence. Synthetic service-specific qualification is tested; actual sanitized service-history acceptance and live activation remain blocked on operator inputs. M3 is not fully accepted. M4 preparation is merged and controlled worker qualification is the current slice under review; real execution and M5–M8 remain unfinished; see [STATUS](STATUS.md).
+M0/M1 and bounded fake-only M2 mechanisms are implemented. PRs #2–#11 are merged. M3 now includes source intake/reconciliation/freshness, incident operations/roles, investigations/draft review and scoped correlation/diagnostic evidence. Synthetic service-specific qualification is tested; actual sanitized service-history acceptance and live activation remain blocked on operator inputs. M3 is not fully accepted. M4 preparation and controlled worker qualification are merged; durable synthetic adapter lifecycle is the current slice under review; real execution and M5–M8 remain unfinished; see [STATUS](STATUS.md).
 
 ## M0 — Bootstrap and contracts
 
@@ -87,3 +87,5 @@ Completed: M0 plus manual case creation -> persisted event -> queued fake assign
 2026-11-15: PR #9 merged into main `b15361d`. First M4 preparation slice adds frozen source/manifest/runtime metadata and durable denied-admission records with escalation. All real execution remains blocked pending qualified containment; see ADR 0015. Next independent work is the isolated-worker boundary and real adapter protocol, not an override of admission.
 
 2026-11-15: PR #10 merged into main `55bce1b`. M4 controlled worker qualification adds measured synthetic probes, immutable policy/provenance, durable loss/late-output handling and explicit quarantine reconciliation. The local native attempt failed closed; full worker/runtime/credential admission and repair-to-PR remain pending. See ADR 0016.
+
+2026-11-15: PR #11 merged into main `823aa2c`. Durable fake adapter trials implement frozen envelopes, start/event/result/cancel/reconcile commands, response-loss recovery and offline deadline escalation. Real adapter dispatch, successful native qualification and repair-to-PR exit criteria remain unfulfilled; see ADR 0017.

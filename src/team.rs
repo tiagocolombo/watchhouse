@@ -1088,6 +1088,7 @@ impl Application {
             changed += 1;
         }
         changed += crate::worker_qualification::supervise(&tx, &now)?;
+        changed += crate::adapter_trials::supervise(&tx, &now)?;
         tx.commit()?;
         Ok(changed)
     }

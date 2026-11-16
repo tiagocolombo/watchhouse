@@ -158,3 +158,7 @@ The first [M4 preparation slice](contracts/v1/repair/README.md) freezes an expli
 ## Qualify a worker boundary
 
 [Controlled worker qualification](contracts/v1/worker-qualification/README.md) pins trusted tools and records measured probe outcomes with evidence, owner, expiry, interruption and quarantine handling. The fixed Linux payload tests selected filesystem/network/resource/descendant properties; it runs no candidate or model. The local host rejected namespace setup, and all real harness execution remains denied. Operators can inspect status in the web interface and reconcile quarantined resources with reported evidence.
+
+## Exercise adapter recovery
+
+The [synthetic adapter lifecycle](contracts/v1/adapter-trials/README.md) exercises durable start/events/result/cancel/reconciliation against frozen repair requests. Use `case adapter-trial`, inspect status/events, and view the web panel. Lost acknowledgments remain unknown until reconciled; deadline supervision works offline. All outcomes are explicitly synthetic and grant no real harness or repair authority.

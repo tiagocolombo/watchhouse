@@ -82,3 +82,7 @@ The CLI supports fake completion, deterministic block, and alive-without-progres
 ## Controlled worker qualification
 
 The [worker qualification contract](../contracts/v1/worker-qualification/README.md) implements fixed Linux probes and durable start/terminal/interrupted/quarantine/reconciliation records. It measures selected boundary properties using trusted synthetic payloads, not candidate/model execution. Actual local namespace setup failed; no successful live proof or real harness admission is claimed. Source/runtime/credential checks and a full adapter lifecycle remain separate M4 prerequisites. See ADR 0016.
+
+## Durable synthetic lifecycle
+
+[Adapter trials v1](../contracts/v1/adapter-trials/README.md) implement application-level start, ordered event replay, validated fake results, cancellation, unknown-outcome reconciliation and offline deadlines against frozen repair requests. Envelopes freeze policy/source context and fresh attempt fences. The fake backend journal is transactional SQLite, not an independent process. This is protocol conformance/recovery simulation; the narrow investigation trait above remains unchanged. No real runtime is registered. ADR 0017 records limits; external reserve-before-I/O dispatch, bounded runtime streaming, credential revocation and physical containment remain prerequisites.

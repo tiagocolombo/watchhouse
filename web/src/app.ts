@@ -13,8 +13,9 @@ interface Team {control:{state:string;executor:string;overall_deadline:string|nu
 interface SourceFreshness {source_key:string;state:string;age_seconds:number|null;last_success_at:string|null;error:string|null}
 interface Correlations {relations:{source_case:string;target_case:string;kind:string;active:boolean;context_current:boolean;reason:string;revision:number}[];candidates:{case_id:string;reason:string}[];limitation:string}
 interface RepairRequest {id:string;state:string;owner:string;repository:string;base_commit:string;denials:string[];next_action:string}
+interface AdapterTrial {id:string;state:string;scope:string;reason:string;sequence:number;pending_operation:string|null;evidence_digest:string|null;envelope:{owner:string;deadline:string}}
 interface WorkerQualification {id:string;state:string;scope:string;owner:string;reason:string;real_execution_admitted:boolean;verified:string[];time_current:boolean;expires_at:string|null;quarantined:boolean;evidence_digest:string|null;reconciliation:{operator:string;reason:string}|null}
-interface Snapshot { case:Case; events:TimelineEvent[]; cursor:number; results:{summary:string;conclusion:string}[]; qualification:Qualification; team:Team; challenges:unknown[]; gate:{validated_version:number;closed_version:number|null}|null; policy:unknown; notifications:unknown[]; source:unknown; source_freshness:SourceFreshness|null; incident:unknown; incident_operations:unknown; incident_role_offers:unknown[]; incident_artifacts:unknown[]; correlations:Correlations; repairs:RepairRequest[]; worker_qualifications:WorkerQualification[] }
+interface Snapshot { case:Case; events:TimelineEvent[]; cursor:number; results:{summary:string;conclusion:string}[]; qualification:Qualification; team:Team; challenges:unknown[]; gate:{validated_version:number;closed_version:number|null}|null; policy:unknown; notifications:unknown[]; source:unknown; source_freshness:SourceFreshness|null; incident:unknown; incident_operations:unknown; incident_role_offers:unknown[]; incident_artifacts:unknown[]; correlations:Correlations; repairs:RepairRequest[]; worker_qualifications:WorkerQualification[]; adapter_trials:AdapterTrial[] }
 const el = <T extends HTMLElement = HTMLElement>(id:string) => document.getElementById(id) as T;
 const input = (id:string) => el<HTMLInputElement>(id).value;
 let token = sessionStorage.getItem('watchhouse-token') ?? '';
@@ -73,6 +74,7 @@ function renderState(snapshot:Snapshot) {
   if (!snapshot.results.length) el('results').textContent='No result recorded yet.';
   renderRepairReadiness(snapshot.repairs);
   renderWorkerQualification(snapshot.worker_qualifications);
+  renderAdapterTrials(snapshot.adapter_trials);
   renderCorrelations(snapshot.correlations);
   renderQualification(snapshot);
   renderTeam(snapshot);
@@ -352,3 +354,9 @@ function renderWorkerQualification(records:WorkerQualification[]) {
 }
 
 el<HTMLButtonElement>('refresh-worker-status').onclick=()=>{if(selected)void openCase(selected.id).catch(fail);};
+
+function renderAdapterTrials(records:AdapterTrial[]) {
+  const panel=el('adapter-trials');panel.replaceChildren();
+  if(!records.length){panel.textContent='No synthetic adapter trials. Real execution remains denied.';return;}
+  for(const t of records){const card=document.createElement('article');card.className='team-card';paragraph(card,`${t.state} · ${t.scope} · Owner: ${t.envelope.owner} · Event: ${t.sequence}`);paragraph(card,t.reason);paragraph(card,`Deadline: ${t.envelope.deadline} · Pending operation: ${t.pending_operation||'none'} · Real execution admitted: no`);if(t.evidence_digest)inspect(card,t.evidence_digest);if(t.state==='unknown')paragraph(card,'Reconcile the existing handle before retrying. A lost acknowledgment does not establish failure.');panel.append(card);}
+}
