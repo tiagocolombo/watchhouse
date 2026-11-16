@@ -53,3 +53,7 @@ Current actor labels are single-operator attribution, not remote RBAC. A hostile
 ## Exact next step
 
 Package native coordinator test builds and the synthetic demo so an operator can exercise the implemented workflows locally. Qualified real worker/runtime/credentials, authenticated live activation, actual candidate/base regression/review/PR delivery and M6 merging remain blocked or unimplemented. Continue independent packaging/hardening while those prerequisites are unavailable; do not mark the product fully developed or live-verified.
+
+## Recovery browser submission synchronization
+
+The recovery browser scenario now waits for its own plan POST response, checks that response and consumes its committed plan before collecting the observation window. The previous `not assessed` text existed before submission and did not establish that a plan had been saved, producing intermittent null-plan failures. This changes test synchronization, not recovery thresholds, authority or evidence requirements. Fresh exact-head CI is required for this follow-up.
