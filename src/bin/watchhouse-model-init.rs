@@ -32,7 +32,6 @@ fn main() -> Result<()> {
     let job: Envelope = read_json(&root.join("job.json"), 1024 * 1024)?;
     job.validate()?;
     check_start(&root, &job)?;
-    job.profile.native_preflight()?;
     if !root.starts_with(&job.profile.jobs_root)
         || std::fs::canonicalize(
             std::env::current_exe()
@@ -67,6 +66,10 @@ fn main() -> Result<()> {
         }
         std::process::exit(124);
     });
+    // Initialization and exact-byte checks are resource-bound too; no client can start
+    // before they pass, and the watchdog remains effective if the coordinator disappears.
+    job.profile.native_preflight()?;
+    check_start(&root, &job)?;
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

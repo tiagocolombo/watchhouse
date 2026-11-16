@@ -490,6 +490,8 @@ async fn native_codex_cgroup_qualification_and_coordinator_offline_watchdog() {
         .install_model_policy(f.p.clone(), "operator", "native no-account protocol drill")
         .unwrap();
     f.p.native_preflight().unwrap();
+    f.clock
+        .advance(Utc::now() - crate::domain::Clock::now(&f.clock));
     let j = f
         .app
         .request_model(
@@ -506,6 +508,14 @@ async fn native_codex_cgroup_qualification_and_coordinator_offline_watchdog() {
     loop {
         f.app.run_model_once(&Native).await.unwrap();
         let current = f.app.model_job(&f.case, &j.id).unwrap();
+        eprintln!(
+            "native fixture stage={} elapsed={:?} started={} result={} cancelled={}",
+            current.state,
+            deadline.saturating_duration_since(tokio::time::Instant::now()),
+            current.root.join("started.json").exists(),
+            current.root.join("result.json").exists(),
+            current.root.join("cancel.json").exists()
+        );
         if matches!(
             current.state.as_str(),
             "qualified" | "failed" | "cancelled" | "unknown" | "blocked"
