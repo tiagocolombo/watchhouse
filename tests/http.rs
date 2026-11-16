@@ -338,6 +338,8 @@ async fn native_commands_remain_authenticated_and_cannot_install_governing_polic
         .create_case(watchhouse::intake::FakeSource.manual_command("native-http"))
         .unwrap();
     for endpoint in [
+        "model-jobs",
+        "model-manage",
         "container-qualification",
         "container-manage",
         "candidates",
@@ -361,7 +363,12 @@ async fn native_commands_remain_authenticated_and_cannot_install_governing_polic
             StatusCode::BAD_REQUEST
         );
     }
-    for path in ["/api/v1/container-policy", "/api/v1/container-worker"] {
+    for path in [
+        "/api/v1/container-policy",
+        "/api/v1/container-worker",
+        "/api/v1/model-policy",
+        "/api/v1/model-worker",
+    ] {
         assert_eq!(
             router
                 .clone()
@@ -379,6 +386,7 @@ async fn native_commands_remain_authenticated_and_cannot_install_governing_polic
     let value: serde_json::Value =
         serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
     assert_eq!(value["container_jobs"], serde_json::json!([]));
+    assert_eq!(value["model_jobs"], serde_json::json!([]));
     assert_eq!(
         value["repair_progress"]["candidates"],
         serde_json::json!([])

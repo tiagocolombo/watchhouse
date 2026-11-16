@@ -72,6 +72,9 @@ pub fn router(app: Application, token: String, authority: String) -> Router {
             "/cases/{id}/container-qualification",
             post(qualify_container),
         )
+        .route("/cases/{id}/model-jobs", post(request_model))
+        .route("/cases/{id}/model-jobs/{job}", get(model_job))
+        .route("/cases/{id}/model-manage", post(manage_model))
         .route("/cases/{id}/container-jobs/{job}", get(container_job))
         .route("/cases/{id}/container-manage", post(manage_container))
         .route("/cases/{id}/candidates", post(freeze_candidate))
@@ -295,6 +298,30 @@ case_command!(
     crate::real_execution::pipeline::ReviewCandidate,
     review_candidate
 );
+case_command!(
+    request_model,
+    crate::model_runtime::ops::Request,
+    request_model
+);
+async fn model_job(
+    State(s): State<HttpState>,
+    Path((id, job)): Path<(String, String)>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(blocking(move || s.app.model_job(&id, &job)).await?))
+}
+async fn manage_model(
+    State(s): State<HttpState>,
+    Path(id): Path<String>,
+    body: Result<Json<crate::model_runtime::ops::Manage>, JsonRejection>,
+) -> Result<impl IntoResponse, ApiError> {
+    let Json(cmd) = body.map_err(|e| ApiError(Error::Invalid(e.body_text())))?;
+    Ok(Json(
+        s.app
+            .manage_model(&id, cmd, &crate::model_runtime::ops::Native)
+            .await
+            .map_err(ApiError)?,
+    ))
+}
 async fn container_job(
     State(s): State<HttpState>,
     Path((id, job)): Path<(String, String)>,

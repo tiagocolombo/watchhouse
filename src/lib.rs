@@ -26,3 +26,5 @@ pub mod team;
 pub mod worker_qualification;
 
 pub mod hallmark;
+
+pub mod model_runtime;

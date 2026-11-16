@@ -120,3 +120,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 2026-11-16: [ADR 0021](adrs/0021-native-container-regression.md) implements the credential-free native container check boundary, durable effect recovery and frozen operator-candidate regression/review. Full real harness execution and GitHub delivery remain M4 gates.
 
 2026-11-16: [ADR 0022](adrs/0022-hallmark-knowledge-exchange.md) adds actual-format bounded Hallmark JSON import/export, immutable provenance, explicit native proposal mapping and independent promotion without transferring external approval authority.
+
+- [ADR 0023 — Bounded text-role client](adrs/0023-bounded-text-model-client.md): implementation proposal separating inert model output from candidate execution, using explicit immutable OS policy, durable no-replay scheduling and native whole-cgroup lifecycle proof. The strict tool-free Codex spike remains denied; the distinct text-only profile permits an inert question advertisement but rejects tool/interaction events. Native/live acceptance is tracked independently.

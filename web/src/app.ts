@@ -19,7 +19,8 @@ interface AdapterTrial {id:string;state:string;scope:string;reason:string;sequen
 interface WorkerQualification {id:string;state:string;scope:string;owner:string;reason:string;real_execution_admitted:boolean;verified:string[];time_current:boolean;expires_at:string|null;quarantined:boolean;evidence_digest:string|null;reconciliation:{operator:string;reason:string}|null}
 interface ContainerJob {id:string;kind:string;state:string;owner:string;deadline:string;reason:string;native:boolean;quarantined:boolean;evidence_digest:string|null}
 interface RepairProgress {candidates:{id:string;author:string;producer:string;digest:string;base_commit:string;deadline:string}[];reviews:{id:string;author:string;approve:boolean;current:boolean;findings:string}[]}
-interface Snapshot { case:Case; events:TimelineEvent[]; cursor:number; results:{summary:string;conclusion:string}[]; qualification:Qualification; team:Team; challenges:unknown[]; gate:{validated_version:number;closed_version:number|null}|null; policy:unknown; notifications:unknown[]; source:unknown; source_freshness:SourceFreshness|null; incident:unknown; incident_operations:unknown; incident_role_offers:unknown[]; incident_artifacts:unknown[]; correlations:Correlations; repairs:RepairRequest[]; worker_qualifications:WorkerQualification[]; adapter_trials:AdapterTrial[]; recovery:RecoverySnapshot; learning:LearningSnapshot; container_jobs:ContainerJob[]; repair_progress:RepairProgress; knowledge_imports:{id:string;source_namespace:string;source_path:string;digest:string;content:string;provenance:string}[] }
+interface ModelJob {id:string;state:string;reason:string;deadline:string;native:boolean;quarantined:boolean;cleanup_attempts:number;evidence_digest:string|null;plan:{role:string};output:{synthetic:boolean;client:{parsed:{session:string;actual_model:string|null;output:unknown}|null}}|null}
+interface Snapshot { case:Case; events:TimelineEvent[]; cursor:number; results:{summary:string;conclusion:string}[]; qualification:Qualification; team:Team; challenges:unknown[]; gate:{validated_version:number;closed_version:number|null}|null; policy:unknown; notifications:unknown[]; source:unknown; source_freshness:SourceFreshness|null; incident:unknown; incident_operations:unknown; incident_role_offers:unknown[]; incident_artifacts:unknown[]; correlations:Correlations; repairs:RepairRequest[]; worker_qualifications:WorkerQualification[]; adapter_trials:AdapterTrial[]; recovery:RecoverySnapshot; learning:LearningSnapshot; container_jobs:ContainerJob[]; model_jobs:ModelJob[]; repair_progress:RepairProgress; knowledge_imports:{id:string;source_namespace:string;source_path:string;digest:string;content:string;provenance:string}[] }
 const el = <T extends HTMLElement = HTMLElement>(id:string) => document.getElementById(id) as T;
 const input = (id:string) => el<HTMLInputElement>(id).value;
 let token = sessionStorage.getItem('watchhouse-token') ?? '';
@@ -78,6 +79,17 @@ function renderState(snapshot:Snapshot) {
   if (!snapshot.results.length) el('results').textContent='No result recorded yet.';
   renderRepairReadiness(snapshot.repairs);
   renderNativeRepair(snapshot.container_jobs,snapshot.repair_progress);
+  const workers=el('model-workers');workers.replaceChildren();
+  for(const job of snapshot.model_jobs ?? []) {
+    const card=document.createElement('article');card.className='team-card';
+    paragraph(card,`${job.plan.role} · ${job.state} · ${job.native?'Native resource backend':'Simulated resource backend'}${job.output?.synthetic?' · Synthetic transport':''}`);
+    paragraph(card,`${job.reason} · Deadline ${job.deadline} · Cleanup attempts ${job.cleanup_attempts}${job.quarantined?' · Resource quarantined':''}`);
+    paragraph(card,`Job ${job.id} · Evidence ${job.evidence_digest ?? 'pending'}`);
+    const parsed=job.output?.client.parsed;
+    if(parsed){paragraph(card,`Session ${parsed.session} · Reported model ${parsed.actual_model ?? 'unknown'}`);const pre=document.createElement('pre');pre.textContent=JSON.stringify(parsed.output,null,2);card.append(pre);}
+    workers.append(card);
+  }
+  if(!snapshot.model_jobs?.length)paragraph(workers,'No model workers. Live execution requires explicit local policy, native qualification and an owned request.');
   renderWorkerQualification(snapshot.worker_qualifications);
   renderAdapterTrials(snapshot.adapter_trials);
   renderRecovery(snapshot.recovery);

@@ -65,6 +65,21 @@ test('native container commands show a blocked preflight without launching a wor
     const terminal=(await snapshot()).container_jobs[0];expect(terminal.create_dispatched).toBe(false);expect(terminal.quarantined).toBe(false);expect(terminal.result).toBeNull();
     const retry=await context.request.post(`/api/v1/cases/${id}/container-qualification`,{headers:auth,data:command});expect(retry.ok()).toBe(true);expect((await retry.json()).id).toBe(queued.id);expect((await snapshot()).container_jobs).toHaveLength(1);
     await page.reload();await expect(page.locator('#native-repair')).toContainText('qualification · blocked');expect(await page.evaluate(()=>('nativeInjected' in window))).toBe(false);await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+    const controls=mkdtempSync(join(tmpdir(),'watchhouse-model-ui-'));
+    try {
+      const jobs=join(controls,'jobs');mkdirSync(jobs,{mode:0o700});
+      const profile={schema_version:1,revision:1,container_revision:1,dispatch_grace_seconds:10,runtime:{path:resolve(git),digest},initializer:{path:resolve(git),digest},cgroup_root:'/sys/fs/cgroup/watchhouse-browser-not-delegated',jobs_root:jobs,requested_model:'synthetic-only',authority:{type:'fixture'},limits:{memory_bytes:268435456,pids:32,cpu_micros:50000,wall_seconds:10,output_bytes:65536},proof_seconds:60,cleanup_attempts:2,cleanup_retry_seconds:1};
+      const file=join(controls,'model.json');writeFileSync(file,JSON.stringify(profile));execFileSync('../target/debug/watchhouse',['--db','test-results/browser.db','model-policy','--file',file,'--operator','operator']);
+      const s=await snapshot();const request={command:{meta:{schema_version:1,idempotency_key:randomUUID(),actor:'operator',reason:'<script>window.modelInjected=true</script> no account fixture'},expected_version:s.case.version},policy_revision:1,action:{type:'qualification'}};
+      await page.getByText('Submit versioned review command',{exact:true}).click();await page.locator('#review-command-kind').selectOption('model-jobs');await page.locator('#review-command-json').fill(JSON.stringify(request));await page.getByRole('button',{name:'Submit review command',exact:true}).click();
+      await expect(page.locator('#model-workers')).toContainText('qualification · queued');expect(await page.evaluate(()=>('modelInjected' in window))).toBe(false);
+      execFileSync('../target/debug/watchhouse',['--db','test-results/browser.db','model-worker','--once']);
+      await expect(page.locator('#model-workers')).toContainText('qualification · blocked');await expect(page.locator('#model-workers')).toContainText('before cgroup creation');
+      const repeated=await context.request.post(`/api/v1/cases/${id}/model-jobs`,{headers:auth,data:request});expect(repeated.ok()).toBe(true);expect((await snapshot()).model_jobs).toHaveLength(1);
+      const model=(await snapshot()).model_jobs[0];expect(model.create_dispatched).toBe(false);expect(model.output).toBeNull();
+      await page.reload();await expect(page.locator('#model-workers')).toContainText('qualification · blocked');expect(await page.evaluate(()=>('modelInjected' in window))).toBe(false);
+    } finally {rmSync(controls,{recursive:true,force:true});}
+
   } finally {rmSync(root,{recursive:true,force:true});}
 });
 
