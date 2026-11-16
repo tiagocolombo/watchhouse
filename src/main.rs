@@ -129,6 +129,16 @@ enum CaseCommand {
         #[arg(long)]
         file: PathBuf,
     },
+    AdoptModelProposal {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+    AdoptModelReview {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
     RequestModel {
         id: String,
         #[arg(long)]
@@ -666,6 +676,12 @@ async fn main() -> anyhow::Result<()> {
                 }
                 CaseCommand::ExportHallmark { id, file } => {
                     serde_json::to_value(app.export_hallmark(&id, read_command(file)?)?)?
+                }
+                CaseCommand::AdoptModelProposal { id, file } => {
+                    serde_json::to_value(app.adopt_model_proposal(&id, read_command(file)?)?)?
+                }
+                CaseCommand::AdoptModelReview { id, file } => {
+                    serde_json::to_value(app.adopt_model_review(&id, read_command(file)?)?)?
                 }
                 CaseCommand::RequestModel { id, file } => {
                     serde_json::to_value(app.request_model(&id, read_command(file)?)?)?

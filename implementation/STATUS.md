@@ -92,6 +92,11 @@ Local validation: 166 Rust tests passed (including nine new model controller/pro
 
 Native text-client CI at `e6da2ef` correctly failed closed on a missing terminal result. The adapter flushed but retained its child stdin pipe while awaiting output, leaving a CLI that reads its prompt to EOF waiting. It now drops the owned pipe before waiting, with a fixed benign process/EOF regression test. The native cgroup/Codex drill must pass on the follow-up commit; no admission is inferred from this diagnosis.
 
+## Model proposal and independent-review adoption (current slice)
+
+Completed model results can now be explicitly adopted into existing frozen candidates and native regression/review gates through CLI/authenticated API/web commands. Adoption derives the exact proposal/decision/findings from the retained job; model authorship and reviewer session/job lineage remain visible. Synthetic/cancelled/unaccepted/corrupt output, modified material, wrong candidate/checks, stale context and a reused author session cannot grant approval. Existing operator command fingerprints remain unchanged when no model job is provided.
+
+The new controller scenario passes exact proposal/tamper/idempotency checks, native-shaped base-fail/candidate-pass gating, different-session review, same-session denial and downstream invalidation after author evidence corruption. These observations are injected fixtures, not actual model/kernel proof. Validation: 169 Rust tests and all eight Chromium scenarios passed, plus strict Clippy/fmt, TypeScript/native build and diff checks. See [ADR 0024](adrs/0024-model-result-adoption.md). GitHub delivery/reconciliation is the next M4 implementation dependency; real authentication/live model and broader milestone gates remain open.
 The EOF follow-up still timed out in native CI (run 43944221929); it was a genuine pipe bug, not established as the sole timeout cause. The native fixture now refreshes its manual clock after expensive setup, logs bounded stage/journal-presence diagnostics and uses optimized hash primitives in debug builds. Exact-byte identity checks, resource limits, cancellation requirements and admission gates remain unchanged. Native model-client acceptance is still open.
 
 ## Hosted continuation: initializer diagnosis

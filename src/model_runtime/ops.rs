@@ -386,6 +386,12 @@ fn separate_roots(db: &Connection, p: &ModelPolicy) -> Result<()> {
     Ok(())
 }
 pub(crate) fn current(db: &Connection, j: &Job, p: &ModelPolicy, now: &str) -> Result<()> {
+    if j.deadline.as_str() <= now {
+        return Err(Error::Conflict("model execution deadline expired".into()));
+    }
+    context_current(db, j, p, now)
+}
+pub(crate) fn context_current(db: &Connection, j: &Job, p: &ModelPolicy, now: &str) -> Result<()> {
     active(db, p)?;
     separate_roots(db, p)?;
     if store::case(db, &j.case_id)?.owner != j.owner {
@@ -394,7 +400,7 @@ pub(crate) fn current(db: &Connection, j: &Job, p: &ModelPolicy, now: &str) -> R
         ));
     }
     crate::challenges::ensure_clear(db, &j.case_id)?;
-    if j.deadline.as_str() <= now || j.profile_digest != p.digest()? {
+    if j.profile_digest != p.digest()? {
         return Err(Error::Conflict(
             "model time/profile authority expired".into(),
         ));
@@ -433,6 +439,47 @@ pub(crate) fn current(db: &Connection, j: &Job, p: &ModelPolicy, now: &str) -> R
         }
     }
     Ok(())
+}
+pub(crate) fn accepted_role(db: &Connection, id: &str, case: &str, now: &str) -> Result<Job> {
+    let j = get(db, id)?;
+    if j.case_id != case {
+        return Err(Error::NotFound);
+    }
+    let p = policy(db, j.policy_revision)?;
+    context_current(db, &j, &p, now)?;
+    let output = j
+        .output
+        .as_ref()
+        .ok_or_else(|| Error::Conflict("role output missing".into()))?;
+    if j.state != "completed"
+        || !j.native
+        || j.quarantined
+        || j.cancel_requested
+        || output.synthetic
+        || output.client.failure_code.is_some()
+        || output.client.parsed.is_none()
+        || j.plan.qualification
+    {
+        return Err(Error::Conflict(
+            "only a completed non-synthetic native role with acknowledged cleanup can be adopted"
+                .into(),
+        ));
+    }
+    protocol::validate_output(&envelope(&j, p)?, output)?;
+    let raw = serde_json::to_string(
+        &json!({"schema_version":1,"job_id":j.id,"native":j.native,"output":output}),
+    )?;
+    let digest = store::digest(&raw);
+    let intact:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM evidence e JOIN case_evidence c ON c.digest=e.digest WHERE c.case_id=?1 AND e.digest=?2 AND e.content=?3 AND e.provenance='native-text-client-v1')",params![case,digest,raw],|r|r.get(0))?;
+    if !intact
+        || j.evidence_digest.as_deref() != Some(&digest)
+        || j.populated_before_cleanup.is_none()
+    {
+        return Err(Error::Conflict(
+            "native role evidence/cleanup provenance changed".into(),
+        ));
+    }
+    Ok(j)
 }
 fn role_schema(role: &Role, nonce: &str) -> Value {
     match role {
