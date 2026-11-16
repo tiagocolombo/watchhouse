@@ -692,10 +692,9 @@ impl Application {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(root.path(), std::fs::Permissions::from_mode(0o700))
-                .map_err(|_| {
-                    Error::Invalid("private client staging permissions unavailable".into())
-                })?;
+            std::fs::set_permissions(root.path(), std::fs::Permissions::from_mode(0o700)).map_err(
+                |_| Error::Invalid("private client staging permissions unavailable".into()),
+            )?;
         }
         super::policy::private_dir(root.path())?;
         let deadline = (self.clock.now()
