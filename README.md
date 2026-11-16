@@ -12,9 +12,9 @@ The team keeps the records a real incident organization needs: incident details,
 
 **Status: bounded M0/M1/M2 mechanisms and M3 source/incident/qualification slices are implemented.** The Rust core owns durable fake execution, independent review, trusted policy, escalation delivery and incident records. Slack and Sentry adapters are fixture-verified; live activation needs explicit mappings, credentials, destinations and trusted ingress. Real harnesses, production mutation and merge automation remain ahead.
 
-## Test without a development toolchain
+## Development validation bundles
 
-Successful CI runs provide `watchhouse-test-<OS>-<architecture>` artifacts containing the native coordinator, embedded web UI, synthetic demo database and formal reports. Download the artifact for your platform, extract it (including the inner `watchhouse-test.zip`), then follow [TESTING.md](TESTING.md). These are native debug test builds, not a production release. No Rust, Node or model credential is required to run the bundle.
+Successful CI runs provide `watchhouse-test-<OS>-<architecture>` artifacts containing the native coordinator, embedded web UI, synthetic demo database and formal reports. Local acceptance testing is deferred until the [completion gates](implementation/COMPLETION.md) are met. [TESTING.md](TESTING.md) retains the development-only bundle instructions. These are native debug test builds, not a production release. No Rust, Node or model credential is required to run the bundle.
 
 ## Run the local slice
 
