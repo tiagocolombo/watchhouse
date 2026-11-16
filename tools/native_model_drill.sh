@@ -17,6 +17,7 @@ cleanup() {
 }
 trap cleanup EXIT
 sudo bash -c 'printf "+cpu +memory +pids" > "$1/cgroup.subtree_control"' bash "$model_cgroup"
+sudo mkdir "$model_cgroup/coordinator"
 sudo chown -R "$(id -u):$(id -g)" "$model_cgroup"
 chmod 700 "$model_cgroup"
 export WATCHHOUSE_MODEL_CGROUP="$model_cgroup"
@@ -30,4 +31,13 @@ assert len(files)==1, 'Exactly one pinned native Codex executable is required'
 print(files[0].resolve())
 PY
 )"
-cargo test --locked --lib model_runtime::tests::native_codex_cgroup_qualification_and_coordinator_offline_watchdog -- --ignored --nocapture
+# Linux migration requires write authority at the source/destination common ancestor.
+# Bootstrap only this CI worker into its own delegated coordinator child, then drop UID.
+# The parent shell stays outside so its trap can remove the entire owned subtree safely.
+cargo_path="$(command -v cargo)"
+sudo bash -c '
+  printf "%s" "$" > "$1/coordinator/cgroup.procs"
+  exec runuser -u "$2" -- env -i HOME="$3" PATH="$4" \
+    WATCHHOUSE_MODEL_CGROUP="$1" WATCHHOUSE_MODEL_CODEX="$5" WATCHHOUSE_MODEL_INIT="$6" \
+    "$7" test --locked --lib model_runtime::tests::native_codex_cgroup_qualification_and_coordinator_offline_watchdog -- --ignored --nocapture
+' bash "$model_cgroup" "$(id -un)" "$HOME" "$PATH" "$WATCHHOUSE_MODEL_CODEX" "$WATCHHOUSE_MODEL_INIT" "$cargo_path"

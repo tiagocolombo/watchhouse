@@ -92,6 +92,17 @@ pub fn validate_root(root: &Path) -> Result<()> {
     }) {
         return Err(invalid("cgroup-v2 kernel mount not observed"));
     }
+    let membership = read(Path::new("/proc/self/cgroup"))?;
+    let relative = membership
+        .lines()
+        .find_map(|line| line.strip_prefix("0::"))
+        .ok_or_else(|| invalid("worker cgroup-v2 membership unavailable"))?;
+    let current = Path::new("/sys/fs/cgroup").join(relative.trim_start_matches('/'));
+    if current == root || !current.starts_with(root) {
+        return Err(invalid(
+            "worker must already run in a child of its delegated cgroup subtree",
+        ));
+    }
     #[cfg(target_os = "linux")]
     {
         use std::os::unix::fs::MetadataExt;
