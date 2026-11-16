@@ -65,3 +65,7 @@ Current actor labels are single-operator attribution, not remote RBAC. A hostile
 ## Exact next step
 
 Recover the unavailable execution environment and inspect/preserve the uncommitted M4 working tree described in WORK_CHECKPOINT.md. Complete worker containment/admission, real harness execution, candidate regression/review and reconciled PR delivery; then finish the remaining M3/M5–M8 gates in COMPLETION.md. Continue independent fixture/adapter work while named activation inputs are missing. Do not hand off local acceptance testing or mark a phase complete without its required evidence.
+
+## Recovery browser submission synchronization
+
+The recovery browser scenario now waits for its own plan POST response, checks that response and consumes its committed plan before collecting the observation window. The previous `not assessed` text existed before submission and did not establish that a plan had been saved, producing intermittent null-plan failures. This changes test synchronization, not recovery thresholds, authority or evidence requirements. Fresh exact-head CI is required for this follow-up.
