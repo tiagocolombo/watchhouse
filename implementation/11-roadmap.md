@@ -2,7 +2,11 @@
 
 Every milestone delivers a usable vertical slice with evidence and a STATUS.md update. A checked document is not an implemented feature.
 
-## Current delivery state (2026-11-15)
+## Completion gate (2026-11-16)
+
+Complete the remaining milestone development and required acceptance evidence before requesting local operator acceptance testing. Continue automated validation during implementation. [COMPLETION.md](COMPLETION.md) expands the outstanding exit gates; [WORK_CHECKPOINT.md](WORK_CHECKPOINT.md) records interrupted, uncommitted M4 work. Neither a native demo bundle nor a blocked activation is full milestone completion.
+
+## Prior delivery state (2026-11-15)
 
 M0/M1 and bounded fake-only M2 mechanisms are implemented. PRs #2–#11 are merged. M3 now includes source intake/reconciliation/freshness, incident operations/roles, investigations/draft review and scoped correlation/diagnostic evidence. Synthetic service-specific qualification is tested; actual sanitized service-history acceptance and live activation remain blocked on operator inputs. M3 is not fully accepted. M4 preparation and controlled worker qualification are merged; durable synthetic adapter lifecycle is the current slice under review; real execution and M5–M8 remain unfinished; see [STATUS](STATUS.md).
 

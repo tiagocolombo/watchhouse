@@ -1,0 +1,45 @@
+# Completion gates before local acceptance testing
+
+Updated 2026-11-16. This implements the owner's direction to finish the remaining development before requesting local acceptance testing. Automated tests and controlled integration drills continue throughout development. Existing demo bundles are development aids; they do not satisfy product completion.
+
+The [roadmap](11-roadmap.md), [requirements](01-requirements.md), [decision register](14-decisions.md), and [STATUS](STATUS.md) remain authoritative. This ledger makes their remaining gates explicit. No milestone may be closed using a demo, an advertisement of a runtime capability, or a document describing an unimplemented interface.
+
+## Evidence and completion rules
+
+For every remaining item, record the implementing commit/PR, executable acceptance scenario, observed result, and remaining activation dependency. Keep these states distinct:
+
+- **Implemented and fixture-verified:** the adapter/domain path exists and deterministic tests prove its behavior.
+- **Native-verified:** the actual pinned tool/worker ran the relevant physical drill successfully.
+- **Live-verified:** the authorized configured service performed the operation, with retained evidence.
+- **Blocked:** name the missing input/authority/infrastructure and the accountable operator; continue independent code work.
+
+A missing credential does not excuse an unfinished adapter, reconciliation path, fixture, CLI/API command, operating view, or documentation. It also does not permit a live-verification claim. A denied production capability is a correct boundary, but a proposal alone does not complete a required execution adapter. Deliberately optional or authority-dependent scope must be explicit in the decision register.
+
+## Remaining milestone gates
+
+| Milestone | Remaining development and acceptance | Current completion state |
+| --- | --- | --- |
+| M0/M1 | Preserve migration integrity, durable records/obligations, command conflicts/idempotency, restart and browser replay under subsequent changes. | Existing implementation validated in the prior stack; revalidate affected behavior. |
+| M2 | Execute the configured notification delivery/fallback/acknowledgment/resolution drill, including model-offline escalation and delivery uncertainty. | Adapter and deterministic behavior implemented; live human destinations/secrets/participants remain unavailable. |
+| M3 | Finish requirement-backed disposition categories and impact windows; complete scoped correlation including the remaining cross-service path; exercise actual sanitized service history, duplicate/out-of-order delivery, missed-event recovery and visible source lag. Run the authenticated live activation drill with explicit mappings and ingress. | Significant fixture coverage exists; broader qualification and actual-history/live acceptance remain open. |
+| M4 | Qualify a physical worker; finish a real bounded harness adapter, scoped authentication and revocation, durable start/events/cancel/result/reconcile, frozen candidate lifecycle, fail-on-base/pass-on-candidate regression, independent verification/review, GitHub PR delivery and uncertain-effect reconciliation. | Preparation and synthetic lifecycle implemented. Native execution draft is uncommitted/unaccepted; full repair-to-PR remains open. |
+| M5 | Finish authorized runbook action/deployment/telemetry boundaries and integrations, problem/known-error linkage, Hallmark-format compatibility and actual-history evaluation. Prove response recovery before permanent repair, inconclusive low traffic, challenged causal claims, protected accepted knowledge and continuing overdue follow-ups. | Operator-reported recovery, corrective actions, postmortems and accepted knowledge implemented. Production integrations/compatibility remain open. |
+| M6 | Implement separate merge authority/policy, pause, denied paths/risk handling, final head/base/checks/approval validation, conflicts and idempotent/reconciled merging. Demonstrate eligibility and all rejection gates in a dedicated authorized test repository. | Design only; implementation and native/live acceptance remain open. |
+| M7 | Implement a second real harness and Datadog intake/reconciliation; route work by native capability; prove cross-harness handoff, OS cancellation and native package behavior on Linux/macOS/Windows. Record the optional Hallmark repair spike result. | Coordinator test bundles exist; real second adapters/routing/platform worker drills remain open. |
+| M8 | Finish actionable workspace views, configured remote RBAC, backup/restore/migration recovery, retention/redaction and evidence invalidation, load/backpressure, replay evaluation, pause/degraded-mode visibility and recovery drills. | Initial visibility/local attribution exists; operational hardening remains open. |
+
+## M4 execution sequence
+
+1. Complete and validate the container worker boundary: immutable pinned client/image/initializer, no host credential/database/socket mounts, read-only inputs/root, bounded scratch/memory/processes/CPU/output/time, independent process identity and protected result channel.
+2. Exercise successful physical containment and descendant cancellation on a capable native worker. Preserve failed qualification evidence. Unknown start/create/removal outcomes require scoped reconciliation, never blind replay.
+3. Complete runtime/authentication admission and a real harness adapter. Metadata inspection alone grants no authority. Keep ordinary CI free of paid model calls; live runs require explicit configuration.
+4. Freeze candidates and their exact source/profile/context, retain shared attempt/time budgets across revisions, and establish the same regression failing on base and passing on candidate.
+5. Require independent verification and fresh review tied to the exact candidate/base/context. Changes, challenges, expired admission, corrupted evidence and later rejection must invalidate prior approval.
+6. Deliver one PR using separately configured GitHub authority. Reconcile uncertain branch/commit/PR creation and crash recovery without duplicate PRs. Do not merge here.
+7. Close M4 only after the roadmap exit scenario passes and the result is retained. Then complete M5, M6, M7 and M8 in dependency order; independent integration work may proceed while activation is blocked.
+
+## Local acceptance handoff gate
+
+Local acceptance testing is deferred until all required development above is complete, affected automated checks pass on exact commits, and every required native/live acceptance gate has evidence or an explicitly recorded blocker. A blocker keeps the affected gate open; it must not silently become an exclusion.
+
+The eventual handoff must include the completed-versus-blocked ledger, exact stack/merge state, validation evidence, activation configuration and sanitized test data. Do not substitute another packaging/demo task for the unfinished core workflow.
