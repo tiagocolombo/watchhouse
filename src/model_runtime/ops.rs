@@ -689,6 +689,13 @@ impl Application {
             .prefix(&format!("model-{id}-"))
             .tempdir_in(&p.jobs_root)
             .map_err(|_| Error::Invalid("private client staging unavailable".into()))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(root.path(), std::fs::Permissions::from_mode(0o700))
+                .map_err(|_| Error::Invalid("private client staging permissions unavailable".into()))?;
+        }
+        super::policy::private_dir(root.path())?;
         let deadline = (self.clock.now()
             + Duration::seconds(i64::from(p.limits.wall_seconds + p.dispatch_grace_seconds)))
         .to_rfc3339_opts(SecondsFormat::Millis, true);

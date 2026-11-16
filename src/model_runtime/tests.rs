@@ -708,3 +708,10 @@ async fn client_prompt_pipe_closes_before_waiting_for_output() {
         "model client must receive EOF before its response is awaited"
     );
 }
+
+#[test]
+fn queued_model_control_directory_is_private_before_dispatch() {
+    let f = fixture();
+    let j = queue(&f, "private-control-directory");
+    super::policy::private_dir(&j.root).unwrap();
+}
