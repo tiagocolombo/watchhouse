@@ -1,10 +1,16 @@
 # Current status
 
-Last updated: 2026-11-15.
+Last updated: 2026-11-16.
+
+## Completion direction and interrupted work
+
+Local acceptance testing is deferred at the owner's request until remaining development is complete. Automated checks continue during implementation. The [completion gates](COMPLETION.md) enumerate the outstanding work and required evidence; the existing test bundles do not close these gates.
+
+M4 native container/candidate/regression/review work started on an uncommitted local branch based on PR #15. The execution environment became unavailable before the new path had tests or a validated milestone commit. A draft cargo check passed; no native Docker qualification or complete feature verification is claimed. See the [recovery checkpoint](WORK_CHECKPOINT.md). The source was not pushed and its preservation cannot currently be verified. The completion-gates change is documentation only.
 
 ## Baseline and current work
 
-PRs #2–#11 are merged; main is `823aa2c`. [PR #12](https://github.com/tiagocolombo/watchhouse/pull/12) remains open at `e6588a6`; its Linux/macOS/Windows CI passed. [PR #13](https://github.com/tiagocolombo/watchhouse/pull/13) adds recovery and passed exact-head Linux/macOS/Windows CI at `adcfacb`. [PR #14](https://github.com/tiagocolombo/watchhouse/pull/14) adds learning at `a5363ef`. Current branch `dev/native-test-bundles` builds on PR #14. No pending PR was merged in this batch.
+PRs #2–#11 are merged; main is `823aa2c`. [PR #12](https://github.com/tiagocolombo/watchhouse/pull/12) remains open at `e6588a6`; its Linux/macOS/Windows CI passed. [PR #13](https://github.com/tiagocolombo/watchhouse/pull/13) adds recovery and passed exact-head Linux/macOS/Windows CI at `adcfacb`. [PR #14](https://github.com/tiagocolombo/watchhouse/pull/14) adds learning at `a5363ef`. PR #15 (`dev/native-test-bundles`, `d0e4605`) builds on PR #14; its exact-head Linux/macOS/Windows CI passed. The documentation completion-gates branch is stacked on PR #15. No pending PR was merged in this batch.
 
 M4 physical worker/runtime/credential admission remains blocked. This independent M5 slice completes operator-driven recovery and follow-through records without bypassing real-execution admission. See [ADR 0018](adrs/0018-recovery-and-follow-through.md) and [recovery contract](../contracts/v1/recovery/README.md).
 
@@ -58,4 +64,4 @@ Current actor labels are single-operator attribution, not remote RBAC. A hostile
 
 ## Exact next step
 
-Review the stack PR #12 -> #13 -> #14 -> native test bundles. Use the matching native CI artifact or the documented source/demo commands for local operator testing. Finish real worker/runtime/credential qualification and authenticated Sentry/notification activation when authorized inputs exist. Complete actual regression/review/PR delivery, M6 merging, second adapters, Hallmark compatibility and production hardening independently; test bundles do not establish those exit criteria.
+Recover the unavailable execution environment and inspect/preserve the uncommitted M4 working tree described in WORK_CHECKPOINT.md. Complete worker containment/admission, real harness execution, candidate regression/review and reconciled PR delivery; then finish the remaining M3/M5–M8 gates in COMPLETION.md. Continue independent fixture/adapter work while named activation inputs are missing. Do not hand off local acceptance testing or mark a phase complete without its required evidence.
