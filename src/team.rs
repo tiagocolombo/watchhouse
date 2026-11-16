@@ -1093,6 +1093,7 @@ impl Application {
         changed += crate::adapter_trials::supervise(&tx, &now)?;
         changed += crate::recovery::supervise(&tx, &now)?;
         changed += crate::learning::supervise(&tx, &now)?;
+        changed += crate::real_execution::worker::supervise(&tx, &now)?;
         tx.commit()?;
         Ok(changed)
     }

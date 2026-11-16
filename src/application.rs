@@ -239,6 +239,8 @@ impl Application {
             incident_artifacts: crate::incident_artifacts::snapshot(&tx, id)?,
             correlations: crate::correlation::snapshot(&tx, id, self.clock.now())?,
             repairs: crate::repair::snapshot(&tx, id)?,
+            container_jobs: crate::real_execution::worker::snapshot(&tx, id)?,
+            repair_progress: crate::real_execution::pipeline::snapshot(&tx, id, &self.now())?,
             recovery: crate::recovery::snapshot(&tx, id)?,
             learning: crate::learning::snapshot(&tx, id, &self.now())?,
             adapter_trials: crate::adapter_trials::snapshot(&tx, id)?,

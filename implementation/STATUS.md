@@ -2,11 +2,17 @@
 
 Last updated: 2026-11-16.
 
-## Completion direction and interrupted work
+## Completion direction and current native worker slice
 
-Local acceptance testing is deferred at the owner's request until remaining development is complete. Automated checks continue during implementation. The [completion gates](COMPLETION.md) enumerate the outstanding work and required evidence; the existing test bundles do not close these gates.
+Local acceptance testing remains deferred until remaining development is complete. Automated checks continue. The [completion gates](COMPLETION.md) enumerate outstanding exit criteria.
 
-M4 native container/candidate/regression/review work started on an uncommitted local branch based on PR #15. The execution environment became unavailable before the new path had tests or a validated milestone commit. A draft cargo check passed; no native Docker qualification or complete feature verification is claimed. See the [recovery checkpoint](WORK_CHECKPOINT.md). The source was not pushed and its preservation cannot currently be verified. The completion-gates change is documentation only.
+The interrupted M4 working tree was recovered intact on 2026-11-16. This branch continues above PR #16 (`dev/completion-gates`, `7cf5e6f`) and implements the [native repair contract](../contracts/v1/native-repair/README.md): immutable operator container policy, credential-free fixed Linux boundary, durable reserve-before-I/O/reconciliation/cancellation, offline deadlines and bounded cleanup, native admission evidence, frozen operator-provided text candidates, exact base/candidate regression and independent attributed review. CLI/API/web/timeline/report surfaces are wired. See [ADR 0021](adrs/0021-native-container-regression.md).
+
+Local validation: 151 Rust tests passed (including ten new controller/protocol tests and a new HTTP boundary test); the explicit physical Docker integration test is separate and ignored by ordinary tests. Strict Clippy, formatting, web TypeScript compilation and native build passed. All seven Chromium scenarios passed, including the new queued-to-blocked native preflight/replay/inert-text/mobile scenario. The local host has no Docker daemon. First Linux native CI run 43925249166 created a container but returned unknown/quarantine during start/result; physical success was not claimed at that point. A second native run (43926191160) showed the container remained in created state, so the failure occurs during inspection before start. Bounded diagnostics identify the exact mismatched field/capability metadata; admission stays closed. macOS CI passed; Windows exposed Unix-only fixture control paths, now corrected to native absolute paths without changing the Linux-only execution boundary. The native container inspection rejected Docker's canonical `CAP_SETUID`/`CAP_SETGID` names; comparison now normalizes the optional `CAP_` prefix while rejecting all additional capabilities. Regression tests cover both equivalent spellings and privilege expansion. The separate exact-version Codex no-account/loopback CI drill reached the synthetic endpoint; its fixture SSE needed the required `total_tokens` usage field, now corrected. Linux native containment, descendant cancellation, failing-base/passing-candidate and attributed review subsequently **passed** at `2b2a65d` in CI run 43928311850. All three OS coordinator checks, browser scenarios and packaging passed at that head. The separate Codex machine-protocol fixture completed a native turn against the synthetic endpoint, but a strict tool-free profile is **denied** because `request_user_input` remains advertised. CI now explicitly asserts this denial and retains `real_execution_admitted:false`; it does not waive the gate or call a real model. A different explicitly scoped text-only runtime profile would need its own review and lifecycle tests before admission. Both the bundled and npm-installed 0.167.0-alpha.4 runtimes failed locally before making any request because the host denied the read-only filesystem helper; no model/account capability is claimed. No model, publication, merge or production integration was invoked.
+
+The worker tests found and fixed expired unknown jobs failing to schedule cleanup. Unknown creation/start responses cannot repeat effects; all cancellation paths share cleanup attempts, late results cannot restore authority, and new/expired/corrupt qualification proof cannot authorize work. A failed read-only engine preflight records an owned block before container creation rather than claiming an uncertain resource exists.
+
+This is a completed bounded test-execution slice, not the full M4 exit. First real harness authentication/lifecycle and reconciled GitHub delivery remain the next dependent work. M3 live acceptance and the M5–M8 gates remain open.
 
 ## Baseline and current work
 
@@ -64,7 +70,11 @@ Current actor labels are single-operator attribution, not remote RBAC. A hostile
 
 ## Exact next step
 
-Recover the unavailable execution environment and inspect/preserve the uncommitted M4 working tree described in WORK_CHECKPOINT.md. Complete worker containment/admission, real harness execution, candidate regression/review and reconciled PR delivery; then finish the remaining M3/M5–M8 gates in COMPLETION.md. Continue independent fixture/adapter work while named activation inputs are missing. Do not hand off local acceptance testing or mark a phase complete without its required evidence.
+Observe the native Linux container CI drill, then finish real harness authentication/lifecycle and reconciled PR delivery. Complete the remaining M3/M5–M8 gates in COMPLETION.md. Continue independent fixture/adapter work while named activation inputs are missing. Do not hand off local acceptance testing or mark a phase complete without its required evidence.
+
+## Coordinator-loss watchdog follow-up
+
+The container initializer now starts its own hard-wall watchdog before input preparation. This closes the coordinator-loss gap: PID 1 exit terminates namespace descendants even without a host cancellation request. The native CI drill additionally starts a two-second sleeping workload, waits without cancelling it, verifies watchdog exit 124, then performs scoped cleanup. Qualification uses an explicit 30-second native test profile; production policy defaults were not changed. Ten controller/protocol tests, formatting and strict Clippy passed locally. The new physical watchdog case still needs its exact-head CI result; prior native proof covers the preceding implementation only.
 
 ## Recovery browser submission synchronization
 

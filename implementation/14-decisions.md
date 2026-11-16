@@ -116,3 +116,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 2026-11-15: [ADR 0019](adrs/0019-reviewed-operational-learning.md) implements versioned postmortem/knowledge review, exact-scope retrieval, expiry/retirement and frozen briefings; logical evidence ordering prevents same-timestamp pre-submission proof reuse.
 
 2026-11-15: [ADR 0020](adrs/0020-native-operator-test-bundles.md) adds native debug coordinator/UI/demo test artifacts with hash/platform/source manifests and extracted-binary smoke checks. This is operator-test packaging, not production release or worker qualification.
+
+2026-11-16: [ADR 0021](adrs/0021-native-container-regression.md) implements the credential-free native container check boundary, durable effect recovery and frozen operator-candidate regression/review. Full real harness execution and GitHub delivery remain M4 gates.

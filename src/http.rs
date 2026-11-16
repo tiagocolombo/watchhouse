@@ -68,6 +68,15 @@ pub fn router(app: Application, token: String, authority: String) -> Router {
         .route("/cases/{id}/gate", post(case_gate))
         .route("/cases/{id}/correlations", post(case_correlation))
         .route("/cases/{id}/repairs", post(request_repair))
+        .route(
+            "/cases/{id}/container-qualification",
+            post(qualify_container),
+        )
+        .route("/cases/{id}/container-jobs/{job}", get(container_job))
+        .route("/cases/{id}/container-manage", post(manage_container))
+        .route("/cases/{id}/candidates", post(freeze_candidate))
+        .route("/cases/{id}/candidate-checks", post(check_candidate))
+        .route("/cases/{id}/candidate-reviews", post(review_candidate))
         .route("/cases/{id}/recovery", post(recovery_command))
         .route("/cases/{id}/learning", post(learning_command))
         .route("/cases/{id}/learning/markdown", get(learning_markdown))
@@ -264,6 +273,47 @@ case_command!(
     learning_command
 );
 case_command!(request_repair, crate::repair::RequestRepair, request_repair);
+case_command!(
+    qualify_container,
+    crate::real_execution::worker::Qualify,
+    qualify_container
+);
+case_command!(
+    freeze_candidate,
+    crate::real_execution::pipeline::FreezeCandidate,
+    freeze_candidate
+);
+case_command!(
+    check_candidate,
+    crate::real_execution::pipeline::RequestCheck,
+    request_candidate_check
+);
+case_command!(
+    review_candidate,
+    crate::real_execution::pipeline::ReviewCandidate,
+    review_candidate
+);
+async fn container_job(
+    State(s): State<HttpState>,
+    Path((id, job)): Path<(String, String)>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(
+        blocking(move || s.app.container_job(&id, &job)).await?,
+    ))
+}
+async fn manage_container(
+    State(s): State<HttpState>,
+    Path(id): Path<String>,
+    body: Result<Json<crate::real_execution::worker::Manage>, JsonRejection>,
+) -> Result<impl IntoResponse, ApiError> {
+    let Json(cmd) = body.map_err(|e| ApiError(Error::Invalid(e.body_text())))?;
+    Ok(Json(
+        s.app
+            .manage_container(&id, cmd, &crate::real_execution::worker::Native)
+            .await
+            .map_err(ApiError)?,
+    ))
+}
 case_command!(challenge, crate::challenges::ChallengeCommand, challenge);
 case_command!(case_gate, crate::challenges::GateCommand, record_gate);
 case_command!(

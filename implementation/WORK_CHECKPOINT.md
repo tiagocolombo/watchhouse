@@ -1,5 +1,7 @@
 # Interrupted M4 development checkpoint
 
+**Recovered 2026-11-16:** the working tree survived and development resumed above PR #16. The original interruption details below are historical. Current implementation/verification is in STATUS.md; this note is not current evidence of a lost environment.
+
 Recorded 2026-11-16 after the execution environment became unavailable. This is a recovery note, not an accepted implementation milestone.
 
 ## Last verified repository context
