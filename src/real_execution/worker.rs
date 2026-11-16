@@ -255,6 +255,12 @@ pub(crate) fn snapshot(db: &Connection, case: &str) -> Result<Vec<ContainerJob>>
         .map(|r| Ok(serde_json::from_str(&r?)?))
         .collect()
 }
+fn diagnostic(e: Error) -> String {
+    match e {
+        Error::Invalid(message) | Error::Conflict(message) => message.chars().take(1000).collect(),
+        _ => "protocol/persistence validation failed".into(),
+    }
+}
 fn supervisor() -> Actor {
     Actor {
         kind: "supervisor".into(),
@@ -619,7 +625,7 @@ impl Application {
         j.engine = Some(engine);
         let r = request(p, &j);
         if j.state == "creating" {
-            match backend.create(r).await {Ok(id)=>{let mut db=self.store.connect()?;let tx=db.transaction_with_behavior(TransactionBehavior::Immediate)?;let mut current=get(&tx,&j.id)?;if current.state=="creating" && !current.cancel_requested {current.state="created".into();current.container_id=Some(id);current.engine=j.engine;current.reason="Created exact reserved container; no start replay".into();save(&tx,&current,supervisor(),&j.id,&self.now())?;}tx.commit()?;},Err(_)=>self.container_unknown(&j.id,"Container creation outcome unknown; reconcile reserved name without recreating")?}
+            match backend.create(r).await {Ok(id)=>{let mut db=self.store.connect()?;let tx=db.transaction_with_behavior(TransactionBehavior::Immediate)?;let mut current=get(&tx,&j.id)?;if current.state=="creating" && !current.cancel_requested {current.state="created".into();current.container_id=Some(id);current.engine=j.engine;current.reason="Created exact reserved container; no start replay".into();save(&tx,&current,supervisor(),&j.id,&self.now())?;}tx.commit()?;},Err(e)=>self.container_unknown(&j.id,&format!("Container creation outcome unknown; reconcile reserved name without recreating: {}",diagnostic(e)))?}
         } else {
             let canary = if j.kind == "qualification" && backend.native() {
                 match std::net::TcpListener::bind((

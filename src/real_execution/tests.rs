@@ -802,6 +802,32 @@ mod controller {
             .unwrap();
         dispatch(&f, &Native).await;
         let q = f.app.container_job(&f.case, &q.id).unwrap();
+        if q.state != "passed" {
+            // This explicitly configured synthetic drill contains no account/candidate credentials.
+            // Read only this operation's logs/state so failed native proof is diagnosable.
+            for args in [
+                vec!["container", "logs"],
+                vec!["container", "inspect", "--format", "{{json .State}}"],
+            ] {
+                let mut c = Command::new(&f.policy.docker_path);
+                c.arg("--host")
+                    .arg(format!("unix://{}", f.policy.socket.display()))
+                    .args(args)
+                    .arg(format!("watchhouse-{}", q.id));
+                let out = c.output().unwrap();
+                eprintln!(
+                    "native drill diagnostic: {} {}",
+                    String::from_utf8_lossy(&out.stdout)
+                        .chars()
+                        .take(12000)
+                        .collect::<String>(),
+                    String::from_utf8_lossy(&out.stderr)
+                        .chars()
+                        .take(2000)
+                        .collect::<String>()
+                );
+            }
+        }
         assert_eq!(
             q.state,
             "passed",
