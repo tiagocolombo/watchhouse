@@ -1,0 +1,10 @@
+CREATE TABLE learning_documents (id TEXT NOT NULL, revision INTEGER NOT NULL, case_id TEXT NOT NULL REFERENCES cases(id), kind TEXT NOT NULL, digest TEXT NOT NULL, record TEXT NOT NULL CHECK(json_valid(record)), review_by TEXT NOT NULL, escalated INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(id,revision));
+CREATE INDEX learning_case ON learning_documents(case_id,kind,id,revision);
+CREATE TABLE learning_acceptances (id TEXT NOT NULL, revision INTEGER NOT NULL, record TEXT NOT NULL CHECK(json_valid(record)), PRIMARY KEY(id,revision), FOREIGN KEY(id,revision) REFERENCES learning_documents(id,revision));
+CREATE TABLE knowledge_retirements (id TEXT NOT NULL, revision INTEGER NOT NULL, record TEXT NOT NULL CHECK(json_valid(record)), PRIMARY KEY(id,revision), FOREIGN KEY(id,revision) REFERENCES learning_documents(id,revision));
+CREATE TRIGGER learning_content_no_update BEFORE UPDATE OF id,revision,case_id,kind,digest,record,review_by ON learning_documents BEGIN SELECT RAISE(ABORT,'learning revisions are immutable'); END;
+CREATE TRIGGER learning_no_delete BEFORE DELETE ON learning_documents BEGIN SELECT RAISE(ABORT,'learning revisions are immutable'); END;
+CREATE TRIGGER learning_acceptance_no_update BEFORE UPDATE ON learning_acceptances BEGIN SELECT RAISE(ABORT,'acceptance is immutable'); END;
+CREATE TRIGGER learning_acceptance_no_delete BEFORE DELETE ON learning_acceptances BEGIN SELECT RAISE(ABORT,'acceptance is immutable'); END;
+CREATE TRIGGER knowledge_retirement_no_update BEFORE UPDATE ON knowledge_retirements BEGIN SELECT RAISE(ABORT,'retirement is immutable'); END;
+CREATE TRIGGER knowledge_retirement_no_delete BEFORE DELETE ON knowledge_retirements BEGIN SELECT RAISE(ABORT,'retirement is immutable'); END;

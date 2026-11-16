@@ -112,3 +112,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 2026-11-15: [ADR 0017](adrs/0017-durable-adapter-trials.md) adds durable fake adapter trials with ordered events, frozen envelopes, unknown start/cancel reconciliation, schema/fence-bound synthetic results and offline supervision. Real external dispatch remains blocked.
 
 2026-11-15: [ADR 0018](adrs/0018-recovery-and-follow-through.md) adds operator-reported recovery evaluation/review/resolution and corrective follow-through independent of repair execution. Production mitigation remains a blocked proposal.
+
+2026-11-15: [ADR 0019](adrs/0019-reviewed-operational-learning.md) implements versioned postmortem/knowledge review, exact-scope retrieval, expiry/retirement and frozen briefings; logical evidence ordering prevents same-timestamp pre-submission proof reuse.

@@ -177,6 +177,7 @@ fn briefing(
         .collect::<std::result::Result<Vec<_>, _>>()?;
     messages.reverse();
     Ok(Briefing {
+        accepted_knowledge:vec![],
         schema_version: V1,
         objective: objective.into(),
         role: "investigator".into(),
@@ -204,6 +205,7 @@ fn start(
         ));
     }
     manifest.remaining_attempts = max - attempt - 1;
+    manifest.accepted_knowledge = crate::learning::for_case(tx, case_id, now)?;
     let run_id = db::id("run");
     let fence = db::id("fence");
     let time = DateTime::parse_from_rfc3339(now)
@@ -1090,6 +1092,7 @@ impl Application {
         changed += crate::worker_qualification::supervise(&tx, &now)?;
         changed += crate::adapter_trials::supervise(&tx, &now)?;
         changed += crate::recovery::supervise(&tx, &now)?;
+        changed += crate::learning::supervise(&tx, &now)?;
         tx.commit()?;
         Ok(changed)
     }

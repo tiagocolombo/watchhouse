@@ -240,6 +240,7 @@ impl Application {
             correlations: crate::correlation::snapshot(&tx, id, self.clock.now())?,
             repairs: crate::repair::snapshot(&tx, id)?,
             recovery: crate::recovery::snapshot(&tx, id)?,
+            learning: crate::learning::snapshot(&tx, id, &self.now())?,
             adapter_trials: crate::adapter_trials::snapshot(&tx, id)?,
             worker_qualifications: crate::worker_qualification::snapshot(
                 &tx,

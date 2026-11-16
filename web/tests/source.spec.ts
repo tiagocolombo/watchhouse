@@ -54,6 +54,20 @@ test('signed Sentry intake leads to an explicit incident while credentials and m
   const noAuth=await context.request.post(`/api/v1/cases/${id}/recovery`,{data:await recoveryCmd({type:'reopen',evidence_refs:[proof]})});expect(noAuth.status()).toBe(401);
   await page.reload();await expect(page.locator('#recovery')).toContainText('resolved by reported review');
 
+  const learningCmd=async(action:unknown,actor='operator')=>({command:{meta:{schema_version:1,idempotency_key:crypto.randomUUID(),actor,reason:'Synthetic learning workflow'},expected_version:(await snapshotRecovery()).case.version},action});
+  const learningPost=async(action:unknown,actor='operator')=>{const r=await context.request.post(`/api/v1/cases/${id}/learning`,{headers:auth,data:await learningCmd(action,actor)});expect(r.ok()).toBe(true);return r.json();};
+  const followup=(await snapshotRecovery()).recovery.actions[0];
+  await page.getByText('Submit versioned review command',{exact:true}).click();await page.locator('#review-command-kind').selectOption('learning');
+  await page.locator('#review-command-json').fill(JSON.stringify(await learningCmd({type:'draft_postmortem',id:null,expected_revision:null,draft:{title:'<script>window.learningInjected=true</script> Checkout review',summary:'Synthetic reported recovery; cause remains unknown',chronology:'Declared, observed, reviewed; no deployment inferred',impact:{requests:null,affected:null,started_at:null,ended_at:null,method:'Unknown total traffic',uncertainty:'No invented impact count'},cause:{status:'unknown',question:'What caused the failure?'},response_assessment:'Collect discriminating evidence',action_ids:[followup.id],evidence_refs:[measured],review_seconds:300}})));await page.getByRole('button',{name:'Submit review command',exact:true}).click();
+  await expect(page.locator('#learning')).toContainText('Checkout review');expect(await page.evaluate(()=>('learningInjected' in window))).toBe(false);
+  const pm=(await snapshotRecovery()).learning.entries[0].document;const pmProof=await report('reviewer');await learningPost({type:'accept',id:pm.id,revision:1,evidence_refs:[pmProof]},'reviewer');
+  await expect(page.locator('#learning')).toContainText('Accepted in current context');
+  const proposed=await learningPost({type:'propose_knowledge',id:null,expected_revision:null,draft:{title:'Keep auth failures scoped',kind:'lesson',body:'An expected unauthenticated rejection does not explain authenticated errors',applicability:'Only the fixture checkout/test/release contract',invalidation_conditions:'Reassess authenticated failures and changed contracts',postmortem_id:pm.id,postmortem_revision:1,evidence_refs:[measured],expires_seconds:300,imported_from:'synthetic-untrusted-import'}});
+  const kb=proposed.entries[0].document;const kbProof=await report('reviewer');await learningPost({type:'accept',id:kb.id,revision:1,evidence_refs:[kbProof]},'reviewer');
+  await expect(page.locator('#learning')).toContainText('Keep auth failures scoped');
+  const learningReport=await context.request.get(`/api/v1/cases/${id}/learning/markdown`,{headers:auth});expect(learningReport.ok()).toBe(true);expect(await learningReport.text()).toContain('Only current accepted scoped knowledge');
+  await page.reload();await expect(page.locator('#learning')).toContainText('Accepted in current context');
+
   const secondIssue={...issue,id:'1002'};const secondBody=JSON.stringify({action:'created',data:{issue:secondIssue}});const secondSignature=createHmac('sha256','sanitized-fixture-secret-32-bytes-only').update(secondBody).digest('hex');
   expect((await context.request.post('/integrations/sentry',{headers:{'Content-Type':'application/json','Sentry-Hook-Signature':secondSignature},data:secondBody})).status()).toBe(202);
   let secondId='';await expect.poll(async()=>{const cases=await(await context.request.get('/api/v1/cases',{headers:auth})).json();secondId=cases.find((c:{title:string})=>c.title==='Sentry issue 1002')?.id??'';return secondId;}).not.toBe('');

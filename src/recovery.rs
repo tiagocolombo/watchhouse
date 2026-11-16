@@ -55,6 +55,8 @@ pub struct Plan {
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Observation {
+    #[serde(default)]
+    pub recorded_version: i64,
     pub id: String,
     pub plan_id: String,
     pub author: String,
@@ -95,6 +97,8 @@ pub struct CorrectiveAction {
     pub due_at: String,
     pub state: String,
     pub submitted_at: Option<String>,
+    #[serde(default)]
+    pub submitted_version: Option<i64>,
     pub submission_refs: Vec<String>,
     pub verification_refs: Vec<String>,
     pub residual_risk: Option<String>,
@@ -295,8 +299,12 @@ pub(crate) fn independent_evidence(
     who: &str,
     after: &str,
     exclude: &[String],
+    after_version: i64,
 ) -> Result<()> {
     crate::qualification::evidence_refs(tx, case, refs, true)?;
+    if after_version < 1 {
+        return Err(Error::Conflict("legacy submission needs fresh evidence/versioned resubmission before independent review".into()));
+    }
     let mut own = false;
     for digest in refs {
         if exclude.contains(digest) {
@@ -311,7 +319,9 @@ pub(crate) fn independent_evidence(
         )?;
         if provenance == "operator-reported-v1" {
             let report: RecordEvidence = serde_json::from_str(&raw)?;
-            own |= report.actor == who && timestamp(&at)? >= timestamp(after)?;
+            own |= report.actor == who
+                && timestamp(&at)? >= timestamp(after)?
+                && report.expected_version >= after_version;
         }
     }
     if !own {
@@ -448,7 +458,7 @@ impl Application {
                 text(&window.collection_method, "collection method", 2000)?;
                 text(&window.uncertainty, "uncertainty", 2000)?;
                 crate::qualification::evidence_refs(&tx, case, &window.evidence_refs, true)?;
-                let o=Observation{id:store::id("obs"),plan_id:plan_id.clone(),author:m.actor.clone(),recorded_at:now.clone(),window:window.clone(),outcome:evaluate(&p.criteria,window),basis:"Operator-reported numeric window; application evaluates criteria, not telemetry authenticity".into()};
+                let o=Observation{recorded_version:store::case(&tx,case)?.version+1,id:store::id("obs"),plan_id:plan_id.clone(),author:m.actor.clone(),recorded_at:now.clone(),window:window.clone(),outcome:evaluate(&p.criteria,window),basis:"Operator-reported numeric window; application evaluates criteria, not telemetry authenticity".into()};
                 retain(&tx, case, "recovery_observation", &o, m, &now)?;
                 invalidate(&mut s);
                 s.observation = Some(o);
@@ -482,6 +492,7 @@ impl Application {
                     &m.actor,
                     &o.recorded_at,
                     &o.window.evidence_refs,
+                    o.recorded_version,
                 )?;
                 let r = RecoveryReview {
                     id: store::id("rreview"),
@@ -643,6 +654,7 @@ impl Application {
                         .to_rfc3339_opts(SecondsFormat::Millis, true),
                     state: "open".into(),
                     submitted_at: None,
+                    submitted_version: None,
                     submission_refs: vec![],
                     verification_refs: vec![],
                     residual_risk: None,
@@ -681,6 +693,7 @@ impl Application {
                         crate::qualification::evidence_refs(&tx, case, evidence_refs, true)?;
                         a.state = "submitted".into();
                         a.submitted_at = Some(now.clone());
+                        a.submitted_version = Some(store::case(&tx, case)?.version + 1);
                         a.submission_refs = evidence_refs.clone();
                         a.verification_refs.clear();
                     }
@@ -699,6 +712,7 @@ impl Application {
                             &m.actor,
                             a.submitted_at.as_deref().unwrap(),
                             &a.submission_refs,
+                            a.submitted_version.unwrap_or(0),
                         )?;
                         a.state = "verified".into();
                         a.verification_refs = evidence_refs.clone();

@@ -48,3 +48,7 @@ Record when a lesson influenced a disposition, hypothesis, check, or review. Eva
 Do not promote an incident's speculative explanation into accepted knowledge just because agents repeated it. Postmortem review and future outcome evidence can revise the lesson.
 
 Search/retrieval can begin with metadata and lexical search. Embeddings or a specialized search engine are optional enhancements, not the initial correctness foundation.
+
+## Implemented local operator slice
+
+[Learning v1](../contracts/v1/learning/README.md) implements postmortem and knowledge revisions, independent attributed promotion, expiry/retirement, exact-scope lexical retrieval and frozen accepted references in fake worker briefings. Imported provenance is data, never authority. The native Watchhouse format is not a verified Hallmark importer/exporter. Actual live-agent integration, held-out history evaluation, broader scope/generalization and Hallmark compatibility remain pending. See ADR 0019 and STATUS.

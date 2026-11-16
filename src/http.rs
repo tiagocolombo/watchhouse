@@ -69,6 +69,8 @@ pub fn router(app: Application, token: String, authority: String) -> Router {
         .route("/cases/{id}/correlations", post(case_correlation))
         .route("/cases/{id}/repairs", post(request_repair))
         .route("/cases/{id}/recovery", post(recovery_command))
+        .route("/cases/{id}/learning", post(learning_command))
+        .route("/cases/{id}/learning/markdown", get(learning_markdown))
         .route("/cases/{id}/recovery/markdown", get(recovery_markdown))
         .route("/cases/{id}/adapter-trials", post(adapter_trial))
         .route(
@@ -255,6 +257,11 @@ case_command!(
     recovery_command,
     crate::recovery::RecoveryCommand,
     recovery_command
+);
+case_command!(
+    learning_command,
+    crate::learning::LearningCommand,
+    learning_command
 );
 case_command!(request_repair, crate::repair::RequestRepair, request_repair);
 case_command!(challenge, crate::challenges::ChallengeCommand, challenge);
@@ -496,5 +503,15 @@ async fn recovery_markdown(
     Ok((
         [(header::CONTENT_TYPE, "text/markdown; charset=utf-8")],
         blocking(move || s.app.recovery_markdown(&id)).await?,
+    ))
+}
+
+async fn learning_markdown(
+    State(s): State<HttpState>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok((
+        [(header::CONTENT_TYPE, "text/markdown; charset=utf-8")],
+        blocking(move || s.app.learning_markdown(&id)).await?,
     ))
 }

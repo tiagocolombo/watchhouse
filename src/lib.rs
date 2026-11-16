@@ -11,6 +11,7 @@ pub mod incident_artifacts;
 pub mod incident_ops;
 pub mod incidents;
 pub mod intake;
+pub mod learning;
 pub mod notifications;
 pub mod policy;
 pub mod qualification;
