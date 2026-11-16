@@ -28,3 +28,9 @@ tempfile = "3"
 [dev-dependencies]
 http-body-util = "0.1"
 tower = { version = "0.5", features = ["util"] }
+
+# Keep exact-byte identity checks practical in native debug drills as well as release builds.
+[profile.dev.package.sha2]
+opt-level = 3
+[profile.dev.package.sha1]
+opt-level = 3
