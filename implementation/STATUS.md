@@ -46,3 +46,7 @@ Current actor labels are single-operator attribution, not remote RBAC. A hostile
 ## Exact next step
 
 Implement postmortem causal/action acceptance and scoped accepted knowledge with independent review; add a complete inspectable demo. Real worker/runtime/credential qualification and production adapters remain separately blocked. M4 regression/review/PR delivery and M6 merging require those actual execution prerequisites; they cannot be enabled by fake trials or reported recovery.
+
+## Recovery browser submission synchronization
+
+The recovery browser scenario now waits for its own plan POST response, checks that response and consumes its committed plan before collecting the observation window. The previous `not assessed` text existed before submission and did not establish that a plan had been saved, producing intermittent null-plan failures. This changes test synchronization, not recovery thresholds, authority or evidence requirements. Fresh exact-head CI is required for this follow-up.
