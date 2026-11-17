@@ -77,6 +77,7 @@ pub fn router(app: Application, token: String, authority: String) -> Router {
             post(adopt_model_proposal),
         )
         .route("/cases/{id}/model-reviews/adopt", post(adopt_model_review))
+        .route("/cases/{id}/publication-plan", get(publication_plan))
         .route("/cases/{id}/model-jobs", post(request_model))
         .route("/cases/{id}/model-jobs/{job}", get(model_job))
         .route("/cases/{id}/model-manage", post(manage_model))
@@ -318,6 +319,21 @@ case_command!(
     crate::model_runtime::ops::Request,
     request_model
 );
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PublicationQuery {
+    candidate: String,
+    review: String,
+}
+async fn publication_plan(
+    State(s): State<HttpState>,
+    Path(id): Path<String>,
+    Query(q): Query<PublicationQuery>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(
+        blocking(move || s.app.prepare_publication(&id, &q.candidate, &q.review)).await?,
+    ))
+}
 async fn model_job(
     State(s): State<HttpState>,
     Path((id, job)): Path<(String, String)>,

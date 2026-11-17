@@ -119,6 +119,13 @@ enum Command {
 }
 #[derive(Subcommand)]
 enum CaseCommand {
+    PublicationPlan {
+        id: String,
+        #[arg(long)]
+        candidate: String,
+        #[arg(long)]
+        review: String,
+    },
     ImportHallmark {
         id: String,
         #[arg(long)]
@@ -671,6 +678,11 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Case { action } => {
             let output = match action {
+                CaseCommand::PublicationPlan {
+                    id,
+                    candidate,
+                    review,
+                } => serde_json::to_value(app.prepare_publication(&id, &candidate, &review)?)?,
                 CaseCommand::ImportHallmark { id, file } => {
                     serde_json::to_value(app.import_hallmark(&id, read_command(file)?)?)?
                 }

@@ -381,6 +381,30 @@ async fn native_commands_remain_authenticated_and_cannot_install_governing_polic
             StatusCode::NOT_FOUND
         );
     }
+    let path = format!(
+        "/api/v1/cases/{}/publication-plan?candidate=missing&review=missing",
+        case.id
+    );
+    let mut unauthenticated = request("GET", &path, "");
+    unauthenticated.headers_mut().remove("Authorization");
+    assert_eq!(
+        router
+            .clone()
+            .oneshot(unauthenticated)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        router
+            .clone()
+            .oneshot(request("GET", &path, ""))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::NOT_FOUND
+    );
     let response = router
         .oneshot(request("GET", &format!("/api/v1/cases/{}", case.id), ""))
         .await

@@ -751,6 +751,13 @@ mod controller {
         cmd.command = command(&f, "fresh-review", "reviewer");
         let r = f.app.review_candidate(&f.case, cmd.clone()).unwrap();
         assert!(r.current);
+        let plan = f.app.prepare_publication(&f.case, &c.id, &r.id).unwrap();
+        assert!(!plan.external_writes_authorized);
+        assert_eq!(plan.tree.request["base_tree"], c.base_tree);
+        assert!(crate::delivery::objects::oid(&plan.tree.sha));
+        fs::write(c.root.join("answer.txt"), "6\n").unwrap();
+        assert!(f.app.prepare_publication(&f.case, &c.id, &r.id).is_err());
+        fs::write(c.root.join("answer.txt"), "4\n").unwrap();
         assert!(f.app.review_candidate(&f.case, cmd).unwrap().current);
         let c2 = freeze(&f, &repair, "candidate-revision");
         assert_eq!(c2.deadline, c.deadline);

@@ -110,3 +110,11 @@ The private-directory fix advanced native startup to cgroup attachment. CI run 4
 ## Recovery browser submission synchronization
 
 The recovery browser scenario now waits for its own plan POST response, checks that response and consumes its committed plan before collecting the observation window. The previous `not assessed` text existed before submission and did not establish that a plan had been saved, producing intermittent null-plan failures. This changes test synchronization, not recovery thresholds, authority or evidence requirements. Fresh exact-head CI is required for this follow-up.
+
+## Delivery preparation continuation
+
+The execution workspace was restored from an older checkpoint. Its uncommitted work was preserved; a fresh worktree at the green PR #20 head (`635676b`) continues on `dev/m4-github-delivery`. Rust 1.90, rustfmt and Clippy were restored.
+
+Reviewed delivery preparation now computes exact Git tree identities from verified canonical candidate files and exposes the artifact through CLI, authenticated API and inert review-card inspection. The current candidate/review/context and manifest digest remain governing. Binary base files and Git directory sorting are included; parent symlinks, collisions, byte changes and changed payloads are rejected. It grants no publication authority. See ADR 0025 and the delivery contract.
+
+Validation: 173 Rust tests passed; all eight Chromium scenarios passed after installing the missing browser in the restored environment. Strict Clippy, formatting, TypeScript and native build passed. Selected object/controller tests are rerun after bounded-read hardening. Durable authorized GitHub creation/update/reconciliation remains the next M4 implementation requirement. No live model, publisher integration, merge, deployment or recovery was exercised by this continuation. Other COMPLETION.md gates remain open.
