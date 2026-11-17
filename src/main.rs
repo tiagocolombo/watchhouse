@@ -493,8 +493,18 @@ async fn notifications(app: Application) -> anyhow::Result<()> {
         tokio::time::sleep(Duration::from_millis(250)).await;
     }
 }
+fn main() -> anyhow::Result<()> {
+    // The coordinator dispatch future is large in debug builds. Keep its stack explicit
+    // across native platforms; child worker resource policies remain separate.
+    std::thread::Builder::new()
+        .name("watchhouse-coordinator".into())
+        .stack_size(8 * 1024 * 1024)
+        .spawn(run)?
+        .join()
+        .map_err(|_| anyhow::anyhow!("coordinator thread panicked"))?
+}
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn run() -> anyhow::Result<()> {
     let cli = Cli::parse();
     if let Some(parent) = cli.db.parent().filter(|p| !p.as_os_str().is_empty()) {
         std::fs::create_dir_all(parent)?;
