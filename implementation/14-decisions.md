@@ -128,3 +128,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 - [ADR 0025 — Reviewed delivery preparation](adrs/0025-reviewed-delivery-preparation.md): exact read-only publication artifacts bind current candidate/review/base identity to verified Git objects without providing external-write authority.
 
 - [ADR 0026 — Authorized publication outbox](adrs/0026-authorized-publication-outbox.md): separate immutable OS policy/credentials, deterministic Git identities, one branch/PR per repair, fenced reservations and read-only uncertain-effect reconciliation. No merge authority; live acceptance remains separate.
+
+- [ADR 0027 — Structured assessment and dependency review](adrs/0027-structured-assessment-and-dependency-review.md): remaining disposition categories, independent hypothesis acceptance, reported impact/denominator windows and OS-configured cross-service related-link review. Multi-project source transport and actual-history/live acceptance remain distinct gates.

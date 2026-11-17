@@ -48,6 +48,19 @@ pub struct Actor {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload", deny_unknown_fields)]
 pub enum EventData {
+    #[serde(rename = "hypothesis.accepted")]
+    HypothesisAccepted {
+        artifact_id: String,
+        revision: u32,
+        evidence_refs: Vec<String>,
+        reason: String,
+    },
+    #[serde(rename = "impact.changed")]
+    ImpactChanged {
+        assessment_id: String,
+        revision: u32,
+        reason: String,
+    },
     #[serde(rename = "publication.changed")]
     PublicationChanged {
         job_id: String,
@@ -389,6 +402,8 @@ pub struct Snapshot {
     pub model_jobs: Vec<crate::model_runtime::ops::Job>,
     #[serde(default)]
     pub publications: Vec<crate::delivery::lifecycle::Status>,
+    #[serde(default)]
+    pub impact: Vec<crate::impact::Assessment>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

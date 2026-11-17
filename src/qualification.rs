@@ -26,7 +26,7 @@ fn expected(tx: &Transaction<'_>, case_id: &str, version: i64) -> Result<Case> {
     Ok(case)
 }
 pub(crate) fn evidence_refs(
-    tx: &Transaction<'_>,
+    tx: &Connection,
     case_id: &str,
     refs: &[String],
     reported: bool,
@@ -266,6 +266,74 @@ impl Application {
             QualificationPlan::InsufficientEvidence {
                 collection_task, ..
             } => text(collection_task, "collection_task", 2000)?,
+            QualificationPlan::Duplicate {
+                target_case,
+                relation_revision,
+                ..
+            } => {
+                text(target_case, "target_case", 128)?;
+                if *relation_revision == 0 {
+                    return Err(Error::Invalid(
+                        "duplicate requires an accepted correlation revision".into(),
+                    ));
+                }
+            }
+            QualificationPlan::AlreadyAddressed {
+                change_reference,
+                verification_task,
+                ..
+            } => {
+                text(change_reference, "change_reference", 2000)?;
+                text(verification_task, "verification_task", 2000)?;
+            }
+            QualificationPlan::ExternalDependency {
+                dependency,
+                dependency_owner,
+                status,
+                recovery_tracking,
+                resilience_task,
+                ..
+            } => {
+                for (v, n) in [
+                    (dependency, "dependency"),
+                    (dependency_owner, "dependency_owner"),
+                    (status, "dependency status"),
+                    (recovery_tracking, "recovery_tracking"),
+                    (resilience_task, "resilience_task"),
+                ] {
+                    text(v, n, 2000)?;
+                }
+            }
+            QualificationPlan::OperationalConfiguration {
+                workflow,
+                permitted_action_reference,
+                ..
+            } => {
+                text(workflow, "workflow", 2000)?;
+                text(
+                    permitted_action_reference,
+                    "permitted_action_reference",
+                    2000,
+                )?;
+            }
+            QualificationPlan::ApplicationDefect {
+                basis,
+                repair_assessment,
+                ..
+            } => {
+                text(repair_assessment, "repair_assessment", 2000)?;
+                match basis {
+                    DefectBasis::EvidenceGap { collection_task } => {
+                        text(collection_task, "defect collection_task", 2000)?
+                    }
+                    DefectBasis::AcceptedHypothesis { id, revision } => {
+                        text(id, "hypothesis id", 128)?;
+                        if *revision == 0 {
+                            return Err(Error::Invalid("hypothesis revision required".into()));
+                        }
+                    }
+                }
+            }
             _ => {}
         }
         let record = serde_json::to_string(&cmd)?;
@@ -293,6 +361,18 @@ impl Application {
             &cmd.evidence_refs,
             cmd.plan.needs_reported_evidence(),
         )?;
+        match &cmd.plan {
+            QualificationPlan::Duplicate{target_case,relation_revision,..} if !crate::correlation::duplicate_current(&tx,case_id,target_case,*relation_revision)? =>return Err(Error::Conflict("duplicate disposition requires an exact current accepted duplicate relation; linking never closes either case".into())),
+            QualificationPlan::ApplicationDefect{basis:DefectBasis::AcceptedHypothesis{id,revision},..}=>{
+                let artifacts=crate::incident_artifacts::snapshot(&tx,case_id)?;
+                let a=artifacts.iter().find(|a|a.id==*id && a.revision==*revision && a.approval_current).ok_or_else(||Error::Conflict("exact current independently accepted hypothesis required".into()))?;
+                match &a.data {
+                    crate::incident_artifacts::ArtifactData::Hypothesis{state:crate::incident_artifacts::Finding::Supported,supporting,..} if supporting.iter().all(|e|cmd.evidence_refs.contains(e))=>{},
+                    _=>return Err(Error::Conflict("defect basis needs a supported hypothesis and its cited evidence".into())),
+                }
+            },
+            _=>{}
+        }
         let supersedes: Option<String> = tx
             .query_row(
                 "SELECT id FROM dispositions WHERE case_id=?1 AND state!='superseded'",
@@ -458,7 +538,7 @@ impl Application {
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let now = self.now();
         let ids: Vec<String> = {
-            let mut stmt=tx.prepare("SELECT d.id FROM dispositions d JOIN obligations o ON o.disposition_id=d.id WHERE d.state='active' AND o.state='pending' AND o.due_at<=?1 ORDER BY o.due_at,o.id LIMIT 100")?;
+            let mut stmt=tx.prepare("SELECT d.id FROM dispositions d JOIN obligations o ON o.disposition_id=d.id WHERE d.state='active' AND o.state='pending' AND (o.due_at<=?1 OR (json_extract(d.record,'$.plan.kind')='duplicate' AND NOT EXISTS (SELECT 1 FROM case_correlations r WHERE r.left_case=MIN(d.case_id,json_extract(d.record,'$.plan.target_case')) AND r.right_case=MAX(d.case_id,json_extract(d.record,'$.plan.target_case')) AND r.revision=json_extract(d.record,'$.plan.relation_revision') AND r.revision=(SELECT MAX(x.revision) FROM case_correlations x WHERE x.left_case=r.left_case AND x.right_case=r.right_case) AND json_extract(r.record,'$.active')=1 AND json_extract(r.record,'$.kind')='duplicate' AND json_extract(r.record,'$.source_digest')=(SELECT digest FROM source_cases WHERE case_id=json_extract(r.record,'$.source_case')) AND json_extract(r.record,'$.target_digest')=(SELECT digest FROM source_cases WHERE case_id=json_extract(r.record,'$.target_case'))))) ORDER BY o.due_at,o.id LIMIT 100")?;
             stmt.query_map([&now], |r| r.get(0))?
                 .collect::<std::result::Result<_, _>>()?
         };
@@ -474,7 +554,11 @@ impl Application {
                 id,
                 &now,
                 d.record.evidence_refs.clone(),
-                "Disposition deadline reached; evidence and current scope require operator reassessment. Recovery remains unknown",
+                if d.due_at <= now {
+                    "Disposition deadline reached; evidence and current scope require operator reassessment. Recovery remains unknown"
+                } else {
+                    "Accepted duplicate relation was revoked, superseded or its source evidence changed; reassess without transferring or closing either case"
+                },
             )?;
         }
         tx.commit()?;

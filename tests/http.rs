@@ -372,6 +372,7 @@ async fn native_commands_remain_authenticated_and_cannot_install_governing_polic
         "/api/v1/model-worker",
         "/api/v1/publisher-policy",
         "/api/v1/publisher-worker",
+        "/api/v1/service-topology",
         "/api/v1/reconcile-publication",
     ] {
         assert_eq!(

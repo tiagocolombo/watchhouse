@@ -64,6 +64,13 @@ enum Command {
     },
     RepairSourceStatus,
     /// Install an immutable, pinned local Docker boundary through the OS operator plane.
+    ServiceTopology {
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long)]
+        operator: String,
+    },
+    ServiceTopologyStatus,
     PublisherPolicies,
     PublisherWorker {
         #[arg(long)]
@@ -137,6 +144,11 @@ enum Command {
 }
 #[derive(Subcommand)]
 enum CaseCommand {
+    AssessImpact {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
     Publish {
         id: String,
         #[arg(long)]
@@ -557,6 +569,21 @@ async fn run() -> anyhow::Result<()> {
             // Polling a running client must not busy-loop; it never extends the original deadline.
             tokio::time::sleep(Duration::from_millis(if ran { 100 } else { 250 })).await;
         },
+        Command::ServiceTopology { file, operator } => {
+            let source = std::fs::canonicalize(&file)?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&app.install_service_topology(
+                    read_command(file)?,
+                    &operator,
+                    &source.to_string_lossy()
+                )?)?
+            );
+        }
+        Command::ServiceTopologyStatus => println!(
+            "{}",
+            serde_json::to_string_pretty(&app.service_topology()?)?
+        ),
         Command::PublisherPolicies => println!(
             "{}",
             serde_json::to_string_pretty(&app.publisher_policies()?)?
@@ -746,6 +773,9 @@ async fn run() -> anyhow::Result<()> {
         }
         Command::Case { action } => {
             let output = match action {
+                CaseCommand::AssessImpact { id, file } => {
+                    serde_json::to_value(app.assess_impact(&id, read_command(file)?)?)?
+                }
                 CaseCommand::Publish { id, file } => {
                     serde_json::to_value(app.enqueue_publication(&id, read_command(file)?)?)?
                 }

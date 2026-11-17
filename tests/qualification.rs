@@ -658,3 +658,94 @@ fn migration_checksums_accept_legacy_crlf_and_reject_future_history_without_writ
         previous + 1
     );
 }
+#[test]
+fn remaining_dispositions_keep_evidence_owned_review_and_separate_execution_gates() {
+    let plans = vec![
+        QualificationPlan::AlreadyAddressed {
+            after_seconds: 60,
+            change_reference: "fixture/changes/7".into(),
+            verification_task: "Check deployed revision and recovery independently".into(),
+        },
+        QualificationPlan::ExternalDependency {
+            after_seconds: 60,
+            dependency: "fixture payments".into(),
+            dependency_owner: "payments-owner".into(),
+            status: "Reported degraded, not independently verified".into(),
+            recovery_tracking: "Collect success denominator".into(),
+            resilience_task: "Check retry/circuit behavior".into(),
+        },
+        QualificationPlan::OperationalConfiguration {
+            after_seconds: 60,
+            workflow: "Review reported configuration drift".into(),
+            permitted_action_reference: "No production action policy configured".into(),
+        },
+        QualificationPlan::ApplicationDefect {
+            after_seconds: 60,
+            basis: DefectBasis::EvidenceGap {
+                collection_task: "Reproduce the exact failure independently".into(),
+            },
+            repair_assessment: "Evidence collection required before separately gated preparation"
+                .into(),
+        },
+    ];
+    for plan in plans {
+        let (_d, a, t, c) = setup();
+        assert!(
+            a.record_disposition(&c.id, decision(&a, &c.id, plan.clone()))
+                .is_err()
+        );
+        reported(&a, &c.id, "required-report");
+        let cmd = decision(&a, &c.id, plan);
+        a.record_disposition(&c.id, cmd.clone()).unwrap();
+        let before = a.snapshot(&c.id).unwrap();
+        assert_eq!(before.qualification.obligations.len(), 1);
+        assert_eq!(before.qualification.obligations[0].owner, "service-owner");
+        assert_eq!(before.case.status, CaseStatus::AwaitingReview);
+        assert!(before.repairs.is_empty());
+        assert!(before.incident.is_none());
+        assert!(before.publications.is_empty());
+        t.advance(Duration::seconds(60));
+        assert_eq!(a.process_due_obligations().unwrap(), 1);
+        assert_eq!(a.process_due_obligations().unwrap(), 0);
+        assert_eq!(
+            a.record_disposition(&c.id, cmd).unwrap().version,
+            before.case.version
+        );
+        assert_eq!(
+            a.snapshot(&c.id).unwrap().qualification.dispositions[0].state,
+            DispositionState::Reopened
+        );
+    }
+}
+#[test]
+fn duplicate_and_accepted_cause_cannot_be_invented_from_a_report() {
+    let (_d, a, _t, c) = setup();
+    reported(&a, &c.id, "report");
+    for plan in [
+        QualificationPlan::Duplicate {
+            after_seconds: 60,
+            target_case: "missing-case".into(),
+            relation_revision: 1,
+        },
+        QualificationPlan::ApplicationDefect {
+            after_seconds: 60,
+            basis: DefectBasis::AcceptedHypothesis {
+                id: "missing-hypothesis".into(),
+                revision: 1,
+            },
+            repair_assessment: "Claimed cause is not acceptance".into(),
+        },
+    ] {
+        assert!(
+            a.record_disposition(&c.id, decision(&a, &c.id, plan))
+                .is_err()
+        );
+        assert!(
+            a.snapshot(&c.id)
+                .unwrap()
+                .qualification
+                .dispositions
+                .is_empty()
+        );
+    }
+}

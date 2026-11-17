@@ -1,6 +1,6 @@
 interface Case { id:string; title:string; description:string; owner:string; status:string; version:number }
 interface TimelineEvent { cursor:number; event_id:string; type:string; recorded_at:string; actor:{kind:string;id:string}; payload:{reason:string;evidence_refs?:string[]} }
-interface QualificationPlan { kind:string; after_seconds:number; recovery_indicators?:string; collection_task?:string }
+interface QualificationPlan { [key:string]:unknown; kind:string; after_seconds:number; recovery_indicators?:string; collection_task?:string }
 interface Disposition { id:string; state:string; occurrence_count:number; recorded_at:string; due_at:string; record:{owner:string;scope:string;uncertainty:string;reason:string;evidence_refs:string[];reconsideration_conditions:string;reopen_after_occurrences:number;plan:QualificationPlan} }
 interface Obligation { id:string; owner:string; task:string; due_at:string; state:string; triggered_at:string|null }
 interface EvidenceReference { digest:string; provenance:string; recorded_at:string; summary:string }
@@ -11,7 +11,7 @@ interface TeamHandoff {id:string;state:string;previous_owner:string;successor:st
 interface TeamEscalation {id:string;state:string;owner:string;reason:string;next_action:string}
 interface Team {control:{state:string;executor:string;overall_deadline:string|null;max_attempts:number}|null;messages:TeamMessage[];blocks:TeamBlock[];handoffs:TeamHandoff[];escalations:TeamEscalation[];runs:{run_id:string;state:string;executor:string;progress_deadline:string;heartbeat_at:string;progress_at:string}[];late_results:{run_id:string;digest:string}[]}
 interface SourceFreshness {source_key:string;state:string;age_seconds:number|null;last_success_at:string|null;error:string|null}
-interface Correlations {relations:{source_case:string;target_case:string;kind:string;active:boolean;context_current:boolean;reason:string;revision:number}[];candidates:{case_id:string;reason:string}[];limitation:string}
+interface Correlations {topology?:{revision:number;digest:string;paused:boolean};relations:{source_case:string;target_case:string;kind:string;active:boolean;context_current:boolean;reason:string;revision:number}[];candidates:{case_id:string;reason:string}[];limitation:string}
 interface RepairRequest {id:string;state:string;owner:string;repository:string;base_commit:string;denials:string[];next_action:string}
 interface LearningSnapshot {entries:{document:{id:string;revision:number;content:{type:string;draft:{title:string}};author:string;review_by:string};accepted_current:boolean;retired:boolean}[]}
 interface RecoverySnapshot {recovery:{response_resolved:boolean;context_current:boolean;revision:number;observation:{outcome:string;basis:string}|null};actions:{id:string;title:string;owner:string;verifier:string;state:string;due_at:string;escalated:boolean}[];records:unknown[]}
@@ -20,7 +20,8 @@ interface WorkerQualification {id:string;state:string;scope:string;owner:string;
 interface ContainerJob {id:string;kind:string;state:string;owner:string;deadline:string;reason:string;native:boolean;quarantined:boolean;evidence_digest:string|null}
 interface RepairProgress {candidates:{id:string;author:string;producer:string;model_job?:string;digest:string;base_commit:string;deadline:string}[];reviews:{id:string;candidate_id:string;author:string;model_job?:string;approve:boolean;current:boolean;findings:string}[]}
 interface ModelJob {id:string;state:string;reason:string;deadline:string;native:boolean;quarantined:boolean;cleanup_attempts:number;evidence_digest:string|null;plan:{role:string};output:{synthetic:boolean;client:{parsed:{session:string;actual_model:string|null;output:unknown}|null}}|null}
-interface Snapshot { case:Case; events:TimelineEvent[]; cursor:number; results:{summary:string;conclusion:string}[]; qualification:Qualification; team:Team; challenges:unknown[]; gate:{validated_version:number;closed_version:number|null}|null; policy:unknown; notifications:unknown[]; source:unknown; source_freshness:SourceFreshness|null; incident:unknown; incident_operations:unknown; incident_role_offers:unknown[]; incident_artifacts:unknown[]; correlations:Correlations; repairs:RepairRequest[]; worker_qualifications:WorkerQualification[]; adapter_trials:AdapterTrial[]; recovery:RecoverySnapshot; learning:LearningSnapshot; container_jobs:ContainerJob[]; model_jobs:ModelJob[]; repair_progress:RepairProgress; publications:{id:string;state:string;stage:string;owner:string;reason:string;branch:string;pr:number|null;native:boolean;deadline:string}[]; knowledge_imports:{id:string;source_namespace:string;source_path:string;digest:string;content:string;provenance:string}[] }
+interface Impact {id:string;revision:number;provenance:string;context_current:boolean;due:boolean;review_at:string;observation:string;record:{service:string;environment:string;scope:string;impact_statement:string;uncertainty:string;collection_owner:string;collection_task:string;window:unknown}}
+interface Snapshot { case:Case; events:TimelineEvent[]; cursor:number; results:{summary:string;conclusion:string}[]; qualification:Qualification; team:Team; challenges:unknown[]; gate:{validated_version:number;closed_version:number|null}|null; policy:unknown; notifications:unknown[]; source:unknown; source_freshness:SourceFreshness|null; incident:unknown; incident_operations:unknown; incident_role_offers:unknown[]; incident_artifacts:unknown[]; correlations:Correlations; repairs:RepairRequest[]; worker_qualifications:WorkerQualification[]; adapter_trials:AdapterTrial[]; recovery:RecoverySnapshot; learning:LearningSnapshot; container_jobs:ContainerJob[]; model_jobs:ModelJob[]; repair_progress:RepairProgress; impact:Impact[]; publications:{id:string;state:string;stage:string;owner:string;reason:string;branch:string;pr:number|null;native:boolean;deadline:string}[]; knowledge_imports:{id:string;source_namespace:string;source_path:string;digest:string;content:string;provenance:string}[] }
 const el = <T extends HTMLElement = HTMLElement>(id:string) => document.getElementById(id) as T;
 const input = (id:string) => el<HTMLInputElement>(id).value;
 let token = sessionStorage.getItem('watchhouse-token') ?? '';
@@ -106,6 +107,7 @@ function renderState(snapshot:Snapshot) {
   if(!snapshot.knowledge_imports.length) paragraph(imported,'No imported knowledge. External acceptance never grants local approval.');
   renderCorrelations(snapshot.correlations);
   renderQualification(snapshot);
+  renderImpact(snapshot.impact ?? []);
   renderTeam(snapshot);
   el('challenge-records').textContent=JSON.stringify({correlations:snapshot.correlations,incident_artifacts:snapshot.incident_artifacts,incident_operations:snapshot.incident_operations,incident_role_offers:snapshot.incident_role_offers,source:snapshot.source,source_freshness:snapshot.source_freshness,incident:snapshot.incident,notifications:snapshot.notifications,policy:snapshot.policy,challenges:snapshot.challenges,gate:snapshot.gate,gateCurrent:snapshot.gate?.closed_version===snapshot.case.version},null,2);
 }
@@ -175,7 +177,7 @@ async function command<T>(id:string,action:string,fields:Record<string,unknown>,
   let pending=pendingCommands.get(key);
   if(!pending || pending.signature!==signature) {
     const idempotency_key=crypto.randomUUID();
-    const body=action.startsWith('team/') ? (()=>{
+    const body=(action.startsWith('team/')||action==='impact') ? (()=>{
       const {reason,...data}=fields;
       return {command:{meta:{schema_version:1,idempotency_key,actor:'operator',reason},expected_version:expectedVersion},...data};
     })() : {schema_version:1,idempotency_key,actor:'operator',expected_version:expectedVersion,...fields};
@@ -206,6 +208,7 @@ function renderQualification(snapshot:Snapshot) {
     paragraph(panel,`Uncertainty: ${latest.record.uncertainty}`);
     paragraph(panel,`Reconsider when: ${latest.record.reconsideration_conditions}`);
     paragraph(panel,`Evidence: ${latest.record.evidence_refs.join(', ')}`);
+    const details=document.createElement('details');const heading=document.createElement('summary');heading.textContent='Inspect disposition details';const pre=document.createElement('pre');pre.textContent=JSON.stringify(latest.record.plan,null,2);details.append(heading,pre);panel.append(details);
     if(latest.state==='reopened') el('next').textContent=`Next: ${latest.record.owner} must reassess the reopened case. No repair or recovery is implied.`;
     else el('next').textContent=`Next: ${latest.record.owner} owns the scheduled review. This disposition applies only to its recorded scope.`;
     for(const older of qualification.dispositions.slice(0,-1)) {
@@ -225,8 +228,10 @@ function renderQualification(snapshot:Snapshot) {
   const previous=new Map(Array.from(el('evidence-refs').querySelectorAll<HTMLInputElement>('input')).map(c=>[c.value,c.checked]));
   if(evidenceCase!==snapshot.case.id) {
     previous.clear();evidenceCase=snapshot.case.id;formVersions.clear();
-    for(const id of ['evidence-form','disposition-form','reconsider-form','team-message-form','handoff-form']) el<HTMLFormElement>(id).reset();
+    for(const id of ['evidence-form','disposition-form','reconsider-form','team-message-form','handoff-form','impact-form']) el<HTMLFormElement>(id).reset();
     el<HTMLInputElement>('disposition-owner').value=snapshot.case.owner;el<HTMLInputElement>('handoff-owner').value=snapshot.case.owner;planFields();
+    el<HTMLInputElement>('impact-collection_owner').value=snapshot.case.owner;
+    const source=snapshot.source as {service?:string;environment?:string}|null;el<HTMLInputElement>('impact-service').value=source?.service??'';el<HTMLInputElement>('impact-environment').value=source?.environment??'';impactWindowFields();
   }
   const refs=el('evidence-refs');refs.replaceChildren();
   for(const evidence of qualification.evidence) {
@@ -240,12 +245,55 @@ function renderQualification(snapshot:Snapshot) {
 function chosenEvidence():string[] {
   return Array.from(el('evidence-refs').querySelectorAll<HTMLInputElement>('input:checked')).map(c=>c.value);
 }
+type Field={name:string;label:string;number?:boolean;optional?:boolean;basis?:string};
+const dispositionFields:Record<string,Field[]>={
+  duplicate:[{name:'target_case',label:'Reviewed duplicate case'},{name:'relation_revision',label:'Accepted duplicate link revision',number:true}],
+  already_addressed:[{name:'change_reference',label:'Reported change reference'},{name:'verification_task',label:'Verification still required'}],
+  external_dependency:[{name:'dependency',label:'External dependency'},{name:'dependency_owner',label:'Dependency owner'},{name:'status',label:'Reported dependency status'},{name:'recovery_tracking',label:'Recovery tracking'},{name:'resilience_task',label:'Resilience investigation'}],
+  operational_configuration:[{name:'workflow',label:'Response workflow'},{name:'permitted_action_reference',label:'Separately configured action authority reference'}],
+  application_defect:[{name:'collection_task',label:'Defect evidence collection task',basis:'evidence_gap'},{name:'hypothesis_id',label:'Independently accepted hypothesis',basis:'accepted_hypothesis'},{name:'hypothesis_revision',label:'Accepted hypothesis revision',number:true,basis:'accepted_hypothesis'},{name:'repair_assessment',label:'Repair eligibility assessment'}],
+};
+function addField(parent:HTMLElement,prefix:string,f:Field) {
+  const label=document.createElement('label');label.textContent=f.label;const control=document.createElement('input');control.id=prefix+f.name;control.required=!f.optional;control.maxLength=2000;
+  if(f.number){control.type='number';control.min=f.optional?'0':'1';control.max=String(Number.MAX_SAFE_INTEGER);control.step='1';}
+  label.append(control);parent.append(label);return {label,control};
+}
+function buildDispositionFields(kind:string) {
+  const group=el('disposition-extra');group.replaceChildren();const fields=dispositionFields[kind]??[];group.hidden=!fields.length;
+  let basis:HTMLSelectElement|null=null;
+  if(kind==='application_defect'){
+    const label=document.createElement('label');label.textContent='Defect evidence basis';basis=document.createElement('select');basis.id='disposition-extra-basis';
+    for(const [value,title] of [['evidence_gap','Evidence gap to investigate'],['accepted_hypothesis','Independently accepted hypothesis']]){const option=document.createElement('option');option.value=value;option.textContent=title;basis.append(option);}label.append(basis);group.append(label);
+  }
+  const controls=fields.map(f=>({f,...addField(group,'disposition-extra-',f)}));
+  const refresh=()=>{for(const {f,label,control}of controls){label.hidden=!!f.basis&&f.basis!==basis?.value;control.required=!label.hidden;}};
+  if(basis)basis.onchange=refresh;refresh();
+}
+function dispositionDetails(kind:string):Record<string,unknown> {
+  const value:Record<string,unknown>={};
+  for(const f of dispositionFields[kind]??[])if(!f.basis)value[f.name]=f.number?Number(input('disposition-extra-'+f.name)):input('disposition-extra-'+f.name);
+  if(kind==='application_defect')value.basis=input('disposition-extra-basis')==='evidence_gap'?{kind:'evidence_gap',collection_task:input('disposition-extra-collection_task')}:{kind:'accepted_hypothesis',id:input('disposition-extra-hypothesis_id'),revision:Number(input('disposition-extra-hypothesis_revision'))};
+  return value;
+}
+const impactFields:Field[]=[{name:'service',label:'Impact service'},{name:'environment',label:'Impact environment'},{name:'scope',label:'Affected scope'},{name:'critical_workflow',label:'Critical workflow'},{name:'impact_statement',label:'Reported impact'},{name:'uncertainty',label:'Impact uncertainty'},{name:'collection_owner',label:'Impact collection owner'},{name:'collection_task',label:'Next impact collection task'},{name:'review_seconds',label:'Impact review deadline (seconds)',number:true},{name:'reason',label:'Impact assessment reason'}];
+const windowFields:Field[]=[{name:'start',label:'Window start (RFC3339)'},{name:'end',label:'Window end (RFC3339)'},{name:'affected_requests',label:'Affected requests',number:true,optional:true},{name:'total_requests',label:'Total requests',number:true,optional:true},{name:'affected_users',label:'Affected users',number:true,optional:true},{name:'total_users',label:'Total users',number:true,optional:true},{name:'instrumentation',label:'Instrumentation coverage / limitations'}];
+for(const f of impactFields)addField(el('impact-fields'),'impact-',f);
+for(const f of windowFields)addField(el('impact-window'),'impact-window-',f);
+function impactWindowFields(){const enabled=el<HTMLInputElement>('impact-window-enabled').checked;el('impact-window').hidden=!enabled;for(const f of windowFields)el<HTMLInputElement>('impact-window-'+f.name).required=enabled&&!f.optional;}
+el('impact-window-enabled').onchange=impactWindowFields;impactWindowFields();
+let currentImpactRevision=0;
+function renderImpact(assessments:Impact[]) {
+  const panel=el('impact-state');panel.replaceChildren();currentImpactRevision=assessments[0]?.revision??0;
+  if(!assessments.length)paragraph(panel,'Impact unknown. No structured impact assessment recorded.');
+  for(const a of assessments){const card=document.createElement('article');card.className='team-card';card.dataset.impact=a.id;paragraph(card,`Impact revision ${a.revision} · ${a.provenance} · ${a.context_current?'source context unchanged':'source context changed; reassess'} · ${a.due?'collection review due':'review scheduled'}`);paragraph(card,`${a.record.impact_statement} · Scope: ${a.record.service} / ${a.record.environment} / ${a.record.scope}`);paragraph(card,`${a.observation} · Uncertainty: ${a.record.uncertainty}`);paragraph(card,`Collection owner: ${a.record.collection_owner} · ${a.record.collection_task} · Review: ${a.review_at}`);const pre=document.createElement('pre');pre.textContent=JSON.stringify(a.record.window,null,2);card.append(pre);paragraph(card,'Reported counts do not establish independent measurement, severity or service recovery.');panel.append(card);}
+}
 function planFields() {
   const kind=input('plan-kind');
   el('collection-label').hidden=kind!=='insufficient_evidence';
   el('indicators-label').hidden=kind!=='apparently_transient';
   el<HTMLInputElement>('disposition-collection').required=kind==='insufficient_evidence';
   el<HTMLInputElement>('disposition-indicators').required=kind==='apparently_transient';
+  buildDispositionFields(kind);
 }
 el('plan-kind').onchange=planFields;
 const formVersions = new Map<string,number>();
@@ -263,10 +311,18 @@ handleForm('evidence-form',(id,version)=>command(id,'evidence',{
   scope:input('evidence-scope'),statement:input('evidence-statement'),collection_method:input('evidence-method'),
   observed_at:input('evidence-time')||null,uncertainty:input('evidence-uncertainty'),reason:input('evidence-reason'),
 },version));
+handleForm('impact-form',(id,version)=>{
+  const fields:Record<string,unknown>={expected_revision:currentImpactRevision,evidence_refs:chosenEvidence()};
+  for(const f of impactFields)fields[f.name]=f.number?Number(input('impact-'+f.name)):input('impact-'+f.name);
+  const window:Record<string,unknown>={};for(const f of windowFields){const value=input('impact-window-'+f.name);window[f.name]=f.number?(value===''?null:Number(value)):value;}
+  fields.window=el<HTMLInputElement>('impact-window-enabled').checked?window:null;
+  return command(id,'impact',fields,version);
+});
 handleForm('disposition-form',(id,version)=>{
   const plan:QualificationPlan={kind:input('plan-kind'),after_seconds:Number(input('disposition-seconds'))};
   if(plan.kind==='apparently_transient') plan.recovery_indicators=input('disposition-indicators');
   if(plan.kind==='insufficient_evidence') plan.collection_task=input('disposition-collection');
+  Object.assign(plan,dispositionDetails(plan.kind));
   return command(id,'dispositions',{
     reason:input('disposition-reason'),owner:input('disposition-owner'),scope:input('disposition-scope'),uncertainty:input('disposition-uncertainty'),
     evidence_refs:chosenEvidence(),reconsideration_conditions:input('disposition-conditions'),reopen_after_occurrences:Number(input('disposition-threshold')),plan,
@@ -356,10 +412,10 @@ setInterval(()=>{if(!token||healthPolling||!el('login').hidden)return;healthPoll
 },5000);
 
 function renderCorrelations(value:Correlations) {
-  el('correlation-limits').textContent=value.limitation;
+  el('correlation-limits').textContent=value.limitation+(value.topology?` Active dependency mapping revision ${value.topology.revision} · ${value.topology.paused?'paused':'enabled'} · ${value.topology.digest}`:' No cross-service dependency mapping installed.');
   const links=el('correlation-links');links.replaceChildren();
   for(const r of value.relations) {
-    const li=document.createElement('li');li.textContent=`${r.kind} · revision ${r.revision} · ${!r.active?'revoked':r.context_current?'reviewed fact snapshots unchanged':'source facts changed; review required'} · ${r.source_case} → ${r.target_case} · ${r.reason}`;links.append(li);
+    const li=document.createElement('li');li.textContent=`${r.kind} · revision ${r.revision} · ${!r.active?'revoked':r.context_current?'reviewed fact snapshots unchanged':'source facts or dependency mapping changed; review required'} · ${r.source_case} → ${r.target_case} · ${r.reason}`;links.append(li);
   }
   if(!value.relations.length) links.textContent='No recorded links.';
   const candidates=el('correlation-candidates');candidates.replaceChildren();

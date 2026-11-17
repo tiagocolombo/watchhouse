@@ -144,6 +144,7 @@ pub fn router(app: Application, token: String, authority: String) -> Router {
         .route("/team/escalations", get(team_inbox))
         .route("/cases/{id}/evidence", post(record_evidence))
         .route("/cases/{id}/dispositions", post(record_disposition))
+        .route("/cases/{id}/impact", post(assess_impact))
         .route("/cases/{id}/reconsider", post(reconsider))
         .route("/cases/{id}/events", get(stream))
         .route("/evidence/{digest}", get(evidence))
@@ -262,6 +263,7 @@ macro_rules! worker_command {
         }
     };
 }
+case_command!(assess_impact, crate::impact::Assess, assess_impact);
 case_command!(
     case_correlation,
     crate::correlation::RelationCommand,
