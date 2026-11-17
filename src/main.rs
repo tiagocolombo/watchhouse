@@ -64,6 +64,24 @@ enum Command {
     },
     RepairSourceStatus,
     /// Install an immutable, pinned local Docker boundary through the OS operator plane.
+    PublisherPolicies,
+    PublisherWorker {
+        #[arg(long)]
+        once: bool,
+    },
+    /// Inspect a lost publisher effect through the OS operator plane; never replay a write.
+    ReconcilePublication {
+        case: String,
+        job: String,
+        #[arg(long)]
+        operator: String,
+    },
+    PublisherPolicy {
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long)]
+        operator: String,
+    },
     ContainerPolicy {
         #[arg(long)]
         file: PathBuf,
@@ -119,6 +137,11 @@ enum Command {
 }
 #[derive(Subcommand)]
 enum CaseCommand {
+    Publish {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
     PublicationPlan {
         id: String,
         #[arg(long)]
@@ -534,6 +557,41 @@ async fn run() -> anyhow::Result<()> {
             // Polling a running client must not busy-loop; it never extends the original deadline.
             tokio::time::sleep(Duration::from_millis(if ran { 100 } else { 250 })).await;
         },
+        Command::PublisherPolicies => println!(
+            "{}",
+            serde_json::to_string_pretty(&app.publisher_policies()?)?
+        ),
+        Command::PublisherWorker { once } => loop {
+            let a = app.clone();
+            let ran = tokio::task::spawn_blocking(move || {
+                a.supervise_team()?;
+                a.run_publisher_once(&watchhouse::delivery::lifecycle::Native)
+            })
+            .await??;
+            if once {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(if ran { 100 } else { 250 })).await;
+        },
+        Command::ReconcilePublication {
+            case,
+            job,
+            operator,
+        } => println!(
+            "{}",
+            serde_json::to_string_pretty(&app.reconcile_publication(&case, &job, &operator)?)?
+        ),
+        Command::PublisherPolicy { file, operator } => {
+            let source = std::fs::canonicalize(&file)?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&app.install_publisher_policy(
+                    read_command(file)?,
+                    &operator,
+                    &source.to_string_lossy()
+                )?)?
+            );
+        }
         Command::ContainerPolicy { file, operator } => println!(
             "{}",
             serde_json::to_string_pretty(
@@ -688,6 +746,9 @@ async fn run() -> anyhow::Result<()> {
         }
         Command::Case { action } => {
             let output = match action {
+                CaseCommand::Publish { id, file } => {
+                    serde_json::to_value(app.enqueue_publication(&id, read_command(file)?)?)?
+                }
                 CaseCommand::PublicationPlan {
                     id,
                     candidate,

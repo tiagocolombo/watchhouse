@@ -78,6 +78,10 @@ pub fn router(app: Application, token: String, authority: String) -> Router {
         )
         .route("/cases/{id}/model-reviews/adopt", post(adopt_model_review))
         .route("/cases/{id}/publication-plan", get(publication_plan))
+        .route(
+            "/cases/{id}/publications",
+            get(publications).post(enqueue_publication),
+        )
         .route("/cases/{id}/model-jobs", post(request_model))
         .route("/cases/{id}/model-jobs/{job}", get(model_job))
         .route("/cases/{id}/model-manage", post(manage_model))
@@ -324,6 +328,24 @@ case_command!(
 struct PublicationQuery {
     candidate: String,
     review: String,
+}
+async fn publications(
+    State(s): State<HttpState>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(
+        blocking(move || s.app.publication_statuses(&id)).await?,
+    ))
+}
+async fn enqueue_publication(
+    State(s): State<HttpState>,
+    Path(id): Path<String>,
+    body: Result<Json<crate::delivery::lifecycle::Enqueue>, JsonRejection>,
+) -> Result<impl IntoResponse, ApiError> {
+    let Json(cmd) = body.map_err(|e| ApiError(Error::Invalid(e.body_text())))?;
+    Ok(Json(
+        blocking(move || Ok(s.app.enqueue_publication(&id, cmd)?.status())).await?,
+    ))
 }
 async fn publication_plan(
     State(s): State<HttpState>,

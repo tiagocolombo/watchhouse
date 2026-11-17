@@ -48,6 +48,13 @@ pub struct Actor {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload", deny_unknown_fields)]
 pub enum EventData {
+    #[serde(rename = "publication.changed")]
+    PublicationChanged {
+        job_id: String,
+        state: String,
+        stage: String,
+        reason: String,
+    },
     #[serde(rename = "model.job_changed")]
     ModelJobChanged {
         job_id: String,
@@ -380,6 +387,8 @@ pub struct Snapshot {
     pub knowledge_imports: Vec<crate::hallmark::Imported>,
     #[serde(default)]
     pub model_jobs: Vec<crate::model_runtime::ops::Job>,
+    #[serde(default)]
+    pub publications: Vec<crate::delivery::lifecycle::Status>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

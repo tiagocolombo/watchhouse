@@ -20,7 +20,7 @@ interface WorkerQualification {id:string;state:string;scope:string;owner:string;
 interface ContainerJob {id:string;kind:string;state:string;owner:string;deadline:string;reason:string;native:boolean;quarantined:boolean;evidence_digest:string|null}
 interface RepairProgress {candidates:{id:string;author:string;producer:string;model_job?:string;digest:string;base_commit:string;deadline:string}[];reviews:{id:string;candidate_id:string;author:string;model_job?:string;approve:boolean;current:boolean;findings:string}[]}
 interface ModelJob {id:string;state:string;reason:string;deadline:string;native:boolean;quarantined:boolean;cleanup_attempts:number;evidence_digest:string|null;plan:{role:string};output:{synthetic:boolean;client:{parsed:{session:string;actual_model:string|null;output:unknown}|null}}|null}
-interface Snapshot { case:Case; events:TimelineEvent[]; cursor:number; results:{summary:string;conclusion:string}[]; qualification:Qualification; team:Team; challenges:unknown[]; gate:{validated_version:number;closed_version:number|null}|null; policy:unknown; notifications:unknown[]; source:unknown; source_freshness:SourceFreshness|null; incident:unknown; incident_operations:unknown; incident_role_offers:unknown[]; incident_artifacts:unknown[]; correlations:Correlations; repairs:RepairRequest[]; worker_qualifications:WorkerQualification[]; adapter_trials:AdapterTrial[]; recovery:RecoverySnapshot; learning:LearningSnapshot; container_jobs:ContainerJob[]; model_jobs:ModelJob[]; repair_progress:RepairProgress; knowledge_imports:{id:string;source_namespace:string;source_path:string;digest:string;content:string;provenance:string}[] }
+interface Snapshot { case:Case; events:TimelineEvent[]; cursor:number; results:{summary:string;conclusion:string}[]; qualification:Qualification; team:Team; challenges:unknown[]; gate:{validated_version:number;closed_version:number|null}|null; policy:unknown; notifications:unknown[]; source:unknown; source_freshness:SourceFreshness|null; incident:unknown; incident_operations:unknown; incident_role_offers:unknown[]; incident_artifacts:unknown[]; correlations:Correlations; repairs:RepairRequest[]; worker_qualifications:WorkerQualification[]; adapter_trials:AdapterTrial[]; recovery:RecoverySnapshot; learning:LearningSnapshot; container_jobs:ContainerJob[]; model_jobs:ModelJob[]; repair_progress:RepairProgress; publications:{id:string;state:string;stage:string;owner:string;reason:string;branch:string;pr:number|null;native:boolean;deadline:string}[]; knowledge_imports:{id:string;source_namespace:string;source_path:string;digest:string;content:string;provenance:string}[] }
 const el = <T extends HTMLElement = HTMLElement>(id:string) => document.getElementById(id) as T;
 const input = (id:string) => el<HTMLInputElement>(id).value;
 let token = sessionStorage.getItem('watchhouse-token') ?? '';
@@ -79,6 +79,13 @@ function renderState(snapshot:Snapshot) {
   if (!snapshot.results.length) el('results').textContent='No result recorded yet.';
   renderRepairReadiness(snapshot.repairs);
   renderNativeRepair(snapshot.container_jobs,snapshot.repair_progress);
+  for(const job of snapshot.publications ?? []) {
+    const card=document.createElement('article');card.className='team-card';card.dataset.publication=job.id;
+    paragraph(card,`Publication · ${job.state} · ${job.stage} · Owner: ${job.owner} · ${job.native?'GitHub adapter observation':'synthetic / no live authority'}`);
+    paragraph(card,job.reason);paragraph(card,`Branch: ${job.branch} · PR: ${job.pr ?? 'pending'} · Deadline: ${job.deadline}`);
+    paragraph(card,'Publication does not establish merge, deployment or recovery.');
+    el('native-repair').append(card);
+  }
   const workers=el('model-workers');workers.replaceChildren();
   for(const job of snapshot.model_jobs ?? []) {
     const card=document.createElement('article');card.className='team-card';

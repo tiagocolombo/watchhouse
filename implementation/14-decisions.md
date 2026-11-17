@@ -126,3 +126,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 - [ADR 0024 — Model-result adoption](adrs/0024-model-result-adoption.md): exact immutable proposal/review adoption, model-session authorship, independent reviewer sessions and continuing lineage/evidence currency; preserves operator command fingerprints and grants no publication authority.
 
 - [ADR 0025 — Reviewed delivery preparation](adrs/0025-reviewed-delivery-preparation.md): exact read-only publication artifacts bind current candidate/review/base identity to verified Git objects without providing external-write authority.
+
+- [ADR 0026 — Authorized publication outbox](adrs/0026-authorized-publication-outbox.md): separate immutable OS policy/credentials, deterministic Git identities, one branch/PR per repair, fenced reservations and read-only uncertain-effect reconciliation. No merge authority; live acceptance remains separate.

@@ -76,7 +76,7 @@ Current actor labels are single-operator attribution, not remote RBAC. A hostile
 
 ## Exact next step
 
-Complete the new native Linux model-client CI drill, model-result adoption/independent-review lineage and reconciled PR delivery; retain the already-passing Docker CI evidence. Complete the remaining M3/M5–M8 gates in COMPLETION.md. Continue independent fixture/adapter work while named activation inputs are missing. Do not hand off local acceptance testing or mark a phase complete without its required evidence.
+Retain the green native worker/model-client CI and complete publisher exact-head validation. Finish the remaining M3 disposition/impact/cross-service and M5–M8 development gates in COMPLETION.md. Continue independent fixture/adapter work while named activation inputs are missing. Do not hand off local acceptance testing or mark a phase complete without its required evidence.
 
 ## Coordinator-loss watchdog follow-up
 
@@ -120,3 +120,14 @@ Reviewed delivery preparation now computes exact Git tree identities from verifi
 Validation: 173 Rust tests passed; all eight Chromium scenarios passed after installing the missing browser in the restored environment. Strict Clippy, formatting, TypeScript and native build passed. Selected object/controller tests are rerun after bounded-read hardening. Durable authorized GitHub creation/update/reconciliation remains the next M4 implementation requirement. No live model, publisher integration, merge, deployment or recovery was exercised by this continuation. Other COMPLETION.md gates remain open.
 
 Native Windows CI exposed a coordinator entry-point stack overflow after publication preparation enlarged the debug dispatch future (exit 0xC00000FD). CLI fixture diagnostics now retain bounded stderr/status. The CLI constructs and polls its dispatcher on an explicitly bounded 8 MiB coordinator thread, matching the usual Linux main-stack scale; child worker/cgroup/container limits are unchanged. Fresh Windows CI must validate this fix.
+
+
+## Authorized publisher continuation
+
+PR #21's final head `396f9dc7ab45ae98be6cd6f36cb476c5c82fd1b1` passed all eight push/PR check runs on Linux/macOS/Windows plus protocol. This includes the native Docker and actual-Codex synthetic transport drills. The Windows coordinator stack fix is verified there. The preceding Linux diagnostic run failed before its second dispatch; exact-job diagnostics were added, and both subsequent Linux runs passed. No claim that a specific native preflight cause was established is made.
+
+Migrations 020/021 add immutable OS publisher policy/provenance and the separately authorized publication outbox. Current-owner/version enqueueing binds the exact reviewed candidate. Deterministic commits and exact trees, one branch/PR slot per repair, shared deadline/revision limits, pause/current-input gates, fenced reservations, bounded read-only reconciliation and explicit quarantine prevent blind replay of uncertain writes. Model-independent supervision retains ownership/escalation. CLI/authenticated API/status summaries/inert UI share records; internal fences, write bodies and publisher credentials are absent from incident snapshots. See [ADR 0026](adrs/0026-authorized-publication-outbox.md) and the [delivery contract](../contracts/v1/delivery/README.md).
+
+Selected delivery tests pass (13 total including existing preparation tests), including each lost write acknowledgment, delayed/duplicate PR observation, revision reuse, stale/paused/credential/base blocks, coordinator crash/late success, atomic rollback and competing idempotent commands. Actual benign Git independently verifies deterministic commits. Validation: the full run passed 183 Rust tests and all nine Chromium scenarios; strict Clippy, formatting, TypeScript/native builds, local Markdown links and diff checks passed. After the final fixture refinements, all 13 delivery tests and the integrated model-adoption-to-single-PR fixture passed again, followed by strict Clippy. Fresh CI is required on the publisher PR's final head.
+
+The publisher has not been live-activated. A dedicated authorized GitHub test repository and publisher-only credential/destination authority are missing; live account/model access remains unverified. The coding assistant's repository PRs are not factory integration proof. No PR merge, deployment or service recovery was performed. Complete the remaining M3 disposition/impact/cross-service work and M5–M8 gates while those activation inputs remain unavailable; local acceptance handoff stays deferred.

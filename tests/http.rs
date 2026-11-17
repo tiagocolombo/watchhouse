@@ -370,6 +370,9 @@ async fn native_commands_remain_authenticated_and_cannot_install_governing_polic
         "/api/v1/container-worker",
         "/api/v1/model-policy",
         "/api/v1/model-worker",
+        "/api/v1/publisher-policy",
+        "/api/v1/publisher-worker",
+        "/api/v1/reconcile-publication",
     ] {
         assert_eq!(
             router
@@ -381,6 +384,31 @@ async fn native_commands_remain_authenticated_and_cannot_install_governing_polic
             StatusCode::NOT_FOUND
         );
     }
+    let publications = format!("/api/v1/cases/{}/publications", case.id);
+    let mut denied = request("GET", &publications, "");
+    denied.headers_mut().remove("Authorization");
+    assert_eq!(
+        router.clone().oneshot(denied).await.unwrap().status(),
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        router
+            .clone()
+            .oneshot(request("GET", &publications, ""))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK
+    );
+    assert_eq!(
+        router
+            .clone()
+            .oneshot(request("POST", &publications, "{}"))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::BAD_REQUEST
+    );
     let path = format!(
         "/api/v1/cases/{}/publication-plan?candidate=missing&review=missing",
         case.id

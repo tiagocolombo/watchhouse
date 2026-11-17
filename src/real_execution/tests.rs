@@ -177,7 +177,7 @@ fn inspection_rejects_privilege_mount_image_and_limit_drift() {
     }
 }
 #[cfg(target_os = "linux")]
-mod controller {
+pub(crate) mod controller {
     use super::super::{pipeline::*, worker::*};
     use super::*;
     use crate::{
@@ -239,6 +239,66 @@ mod controller {
             },
             expected_version: f.app.snapshot(&f.case).unwrap().case.version,
         }
+    }
+    /// Only injected native-shaped observations, never kernel or live provider proof.
+    pub(crate) async fn reviewed_fixture() -> (
+        tempfile::TempDir,
+        Application,
+        ManualClock,
+        Candidate,
+        Review,
+    ) {
+        let f = fixture();
+        let b = FixtureBackend {
+            native: true,
+            ..Default::default()
+        };
+        qualify(&f, "publisher-qualification");
+        dispatch(&f, &b).await;
+        let repair = prepare(&f).await;
+        let c = freeze(&f, &repair, "publisher-candidate");
+        let base = f
+            .app
+            .request_candidate_check(
+                &f.case,
+                RequestCheck {
+                    command: command(&f, "publisher-base", "operator"),
+                    candidate_id: c.id.clone(),
+                    side: Side::Base,
+                },
+            )
+            .unwrap();
+        dispatch(&f, &b).await;
+        let fixed = f
+            .app
+            .request_candidate_check(
+                &f.case,
+                RequestCheck {
+                    command: command(&f, "publisher-fixed", "operator"),
+                    candidate_id: c.id.clone(),
+                    side: Side::Candidate,
+                },
+            )
+            .unwrap();
+        dispatch(&f, &b).await;
+        let evidence = observe(&f, "publisher-evidence", "reviewer");
+        let r = f
+            .app
+            .review_candidate(
+                &f.case,
+                ReviewCandidate {
+                    model_job: None,
+                    command: command(&f, "publisher-review", "reviewer"),
+                    candidate_id: c.id.clone(),
+                    base_check: base.id,
+                    candidate_check: fixed.id,
+                    approve: true,
+                    findings: "Injected controller fixture; not native proof".into(),
+                    evidence_refs: vec![evidence],
+                },
+            )
+            .unwrap();
+        (f._root, f.app, f.clock, c, r)
     }
     fn qualify(f: &Fixture, key: &str) -> ContainerJob {
         f.app
@@ -1243,6 +1303,7 @@ mod controller {
                 assert!(r.current);
                 assert_eq!(r.author, "model-session:reviewer-session");
                 assert_eq!(f.app.adopt_model_review(&f.case, cmd).unwrap().id, r.id);
+                crate::delivery::tests::exercise_model_lineage_publication(&f.app, &candidate, &r);
                 // Corruption of the engineer evidence invalidates both its candidate and the dependent review.
                 f.app
                     .store
