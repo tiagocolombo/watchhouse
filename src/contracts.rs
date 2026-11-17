@@ -48,6 +48,11 @@ pub struct Actor {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload", deny_unknown_fields)]
 pub enum EventData {
+    OperationChanged {
+        record_id: String,
+        kind: String,
+        reason: String,
+    },
     #[serde(rename = "hypothesis.accepted")]
     HypothesisAccepted {
         artifact_id: String,
@@ -404,6 +409,8 @@ pub struct Snapshot {
     pub publications: Vec<crate::delivery::lifecycle::Status>,
     #[serde(default)]
     pub impact: Vec<crate::impact::Assessment>,
+    #[serde(default)]
+    pub operations: crate::operations::Snapshot,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

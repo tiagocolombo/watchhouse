@@ -78,6 +78,26 @@ enum Command {
         operator: String,
     },
     ServiceTopologyStatus,
+    OperationPolicy {
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long)]
+        operator: String,
+    },
+    OperationPolicyStatus,
+    OperationWorker {
+        #[arg(long)]
+        once: bool,
+    },
+    CollectObservation {
+        case: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+    ReconcileOperation {
+        case: String,
+        job: String,
+    },
     PublisherPolicies,
     PublisherWorker {
         #[arg(long)]
@@ -151,6 +171,11 @@ enum Command {
 }
 #[derive(Subcommand)]
 enum CaseCommand {
+    Operations {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
     AssessImpact {
         id: String,
         #[arg(long)]
@@ -615,6 +640,49 @@ async fn run() -> anyhow::Result<()> {
             "{}",
             serde_json::to_string_pretty(&app.reconcile_publication(&case, &job, &operator)?)?
         ),
+        Command::OperationPolicy { file, operator } => {
+            let source = std::fs::canonicalize(&file)?;
+            print(&app.install_operation_policy(
+                read_command(file)?,
+                &operator,
+                &source.display().to_string(),
+            )?)?;
+        }
+        Command::OperationPolicyStatus => {
+            print(&app.operation_policy()?)?;
+        }
+        Command::OperationWorker { once } => loop {
+            let worker = app.clone();
+            tokio::task::spawn_blocking(move || {
+                worker.operation_tick(&watchhouse::operations::gateway::Native)
+            })
+            .await??;
+            if once {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        },
+        Command::CollectObservation { case, file } => {
+            let cmd = read_command(file)?;
+            print(
+                &tokio::task::spawn_blocking(move || {
+                    app.collect_operation_observation(
+                        &case,
+                        cmd,
+                        &watchhouse::operations::gateway::Native,
+                    )
+                })
+                .await??,
+            )?;
+        }
+        Command::ReconcileOperation { case, job } => {
+            print(
+                &tokio::task::spawn_blocking(move || {
+                    app.reconcile_operation(&case, &job, &watchhouse::operations::gateway::Native)
+                })
+                .await??,
+            )?;
+        }
         Command::PublisherPolicy { file, operator } => {
             let source = std::fs::canonicalize(&file)?;
             println!(
@@ -802,6 +870,9 @@ async fn run() -> anyhow::Result<()> {
         }
         Command::Case { action } => {
             let output = match action {
+                CaseCommand::Operations { id, file } => {
+                    serde_json::to_value(app.operation_command(&id, read_command(file)?)?)?
+                }
                 CaseCommand::AssessImpact { id, file } => {
                     serde_json::to_value(app.assess_impact(&id, read_command(file)?)?)?
                 }
@@ -1018,5 +1089,10 @@ async fn run() -> anyhow::Result<()> {
             }
         }
     }
+    Ok(())
+}
+
+fn print(value: &impl serde::Serialize) -> anyhow::Result<()> {
+    println!("{}", serde_json::to_string_pretty(value)?);
     Ok(())
 }

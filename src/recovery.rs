@@ -123,6 +123,11 @@ pub enum RecoveryAction {
         criteria: Criteria,
         review_seconds: u32,
     },
+    ObserveCollected {
+        plan_id: String,
+        observation_id: String,
+        evidence_refs: Vec<String>,
+    },
     Observe {
         plan_id: String,
         window: Window,
@@ -384,7 +389,49 @@ impl Application {
         let now = self.now();
         supervise(&tx, &now)?;
         let mut s = state(&tx, case)?;
-        match &cmd.action {
+        let resolved_action = if let RecoveryAction::ObserveCollected {
+            plan_id,
+            observation_id,
+            evidence_refs,
+        } = &cmd.action
+        {
+            let observed = crate::operations::snapshot(&tx, case)?
+                .observations
+                .into_iter()
+                .find(|o| o.id == *observation_id)
+                .ok_or(Error::NotFound)?;
+            if observed.source_digest != source_digest(&tx, case)?
+                || !crate::sentry_projects::context_current(&tx, case)?
+            {
+                return Err(Error::Conflict(
+                    "collected observation context changed".into(),
+                ));
+            }
+            let crate::operations::gateway::Observation::Telemetry { mut window, .. } =
+                observed.data
+            else {
+                return Err(Error::Invalid("telemetry observation required".into()));
+            };
+            window.collection_method = format!(
+                "{}; retained gateway observation {} ({})",
+                window.collection_method,
+                observed.id,
+                if observed.native {
+                    "authenticated transport"
+                } else {
+                    "fixture"
+                }
+            );
+            window.evidence_refs = evidence_refs.clone();
+            RecoveryAction::Observe {
+                plan_id: plan_id.clone(),
+                window,
+            }
+        } else {
+            cmd.action.clone()
+        };
+        match &resolved_action {
+            RecoveryAction::ObserveCollected { .. } => unreachable!(),
             RecoveryAction::Plan {
                 criteria,
                 review_seconds,

@@ -101,3 +101,5 @@ Completed: M0 plus manual case creation -> persisted event -> queued fake assign
 2026-11-15: Native coordinator test bundles add an independent portion of M7 distribution/M8 operator testing while real M4 execution remains blocked. Existing CI generates, packages and smoke-checks the demo on each native OS; broader compatibility/signing/installers and operational hardening remain open. See ADR 0020.
 
 2026-11-16: Hallmark JSON format compatibility implements bounded immutable imports, byte-preserving re-export and independently mapped native knowledge export/provenance (ADR 0022). This closes the M5 format-adapter item; production integrations, known-error/problem linkage and historical acceptance remain open.
+
+2026-11-17: M5 controlled runbook gateway dispatch/reconciliation, deployment/telemetry collection and problem/known-error review records implemented (ADR 0029). Existing recovery/learning gates remain governing. Physical gateway target/stop/rollback qualification, actual history and live activation remain blocked; M6 merge authority is the next independent development slice.

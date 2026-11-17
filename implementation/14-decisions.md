@@ -132,3 +132,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 - [ADR 0027 — Structured assessment and dependency review](adrs/0027-structured-assessment-and-dependency-review.md): remaining disposition categories, independent hypothesis acceptance, reported impact/denominator windows and OS-configured cross-service related-link review. Multi-project source transport and actual-history/live acceptance remain distinct gates.
 
 - [ADR 0028 — Independent Sentry project profiles](adrs/0028-independent-sentry-projects.md): immutable default identity, explicit project routes/read budgets, isolated credentials, durable fair reconciliation and configuration-change fencing. Actual-history/live acceptance remains separate.
+
+- [ADR 0029 — Controlled operations](adrs/0029-controlled-operations-gateway.md): fixed OS-authorized runbooks, independent approval, durable no-replay action dispatch/reconciliation, authenticated deployment/telemetry records and owned problem/known-error linkage. Physical gateway and live/history acceptance remain explicit activation gates.

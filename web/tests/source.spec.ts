@@ -80,4 +80,9 @@ test('signed Sentry intake leads to an explicit incident while credentials and m
   const qualification=await context.request.get(`/api/v1/cases/${id}/qualification/markdown`,{headers:auth});expect(qualification.ok()).toBe(true);expect(await qualification.text()).toContain('Correlations');
   await page.reload();await expect(page.locator('#correlation-links')).toContainText('No recorded links');
   await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+  const problem=await snapshotRecovery();
+  await page.getByText('Submit versioned review command',{exact:true}).click();await page.locator('#review-command-kind').selectOption('operations');
+  await page.locator('#review-command-json').fill(JSON.stringify({command:{meta:{schema_version:1,idempotency_key:crypto.randomUUID(),actor:'operator',reason:'Retain a problem after reported recovery'},expected_version:problem.case.version},action:{type:'problem',id:null,expected_revision:0,title:'<script>window.problemInjected=true</script> Pending permanent repair',known_error:true,cause_status:'unknown',hypothesis_id:null,hypothesis_revision:null,workaround:'Fixture-only workaround',invalidation:'Changed source or recurrence requires reassessment',owner:'problem-owner',review_seconds:300,related_cases:[],evidence_refs:[measured]}}));
+  await page.getByRole('button',{name:'Submit review command',exact:true}).click();await expect(page.locator('#operations')).toContainText('problem-owner');await expect(page.locator('#operations')).toContainText('Cause: unknown');expect(await page.evaluate(()=>('problemInjected' in window))).toBe(false);
+  await page.reload();await expect(page.locator('#operations')).toContainText('Pending permanent repair');await expect(page.locator('#recovery')).toContainText('resolved by reported review');
 });

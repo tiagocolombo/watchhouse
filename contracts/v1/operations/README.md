@@ -1,0 +1,24 @@
+# Controlled operations v1
+
+OS-only `operation-policy --file POLICY --operator NAME` installs immutable, consecutively versioned authority. `operation-policy-status` inspects it. Policy contains exact service/environment/repository, HTTPS gateway origin, dedicated `WATCHHOUSE_...` credential reference, pause, request/action limits, case-wide action budget, fixed runbook/target IDs, prerequisites, stop/rollback/verification requirements and allowlisted observation IDs. Model or HTTP commands cannot install policy. The gateway is an operator-controlled production executor; arbitrary shell/cloud commands are intentionally outside this protocol.
+
+`case operations CASE --file COMMAND` and authenticated `POST /api/v1/cases/CASE/operations` share strict commands. Each contains `command` (existing OperatorCommand) and `action`:
+
+- `propose`: `policy_revision`, `runbook_id`, `evidence_refs`. Current commander and exact source mapping required. One unresolved effect per case; attempts share a bounded budget.
+- `approve`: `job_id`, `evidence_refs`. Independent reviewer, fresh reviewer-authored evidence after submission, intact prerequisites and current incident/source/policy/challenge context required.
+- `cancel`: `job_id`. Owner can cancel only before dispatch. It cannot pretend an executed action was rolled back.
+- `problem`: `id` (null for new), `expected_revision` (0 for new), `title`, `known_error`, `cause_status` (`unknown`, `hypothesis`, `independently_supported`), `hypothesis_id`/`hypothesis_revision` (null unless exact current independently accepted cause), `workaround`, `invalidation`, `owner`, `review_seconds`, `related_cases`, `evidence_refs`. Links require exact service/environment/repository and never suppress cases. Review duties survive response resolution and restart.
+
+`operation-worker --once` dispatches a single approved action. It commits a stable identity before I/O and never repeats a reserved or uncertain write. `reconcile-operation CASE JOB` performs only a bounded GET using the original policy. Pauses and expired authority prevent new effects; read-only reconciliation remains possible. Model-independent deadlines escalate uncertain/blocked effects. A stale successful result remains `succeeded_stale`, requiring owned inspection.
+
+## Gateway protocol
+
+HTTPS only, no redirects/proxies, dedicated bearer authentication, bounded time and 64 KiB strict JSON. Origin and endpoint IDs come only from trusted policy. Production gateways **must** independently enforce exact target/runbook/version binding, deadline, prerequisite/stop checks, safe cancellation/checkpoints, rollback behavior and idempotency before executing an action. A gateway must retain operation identities durably across its own restart. Configure only a gateway whose physical target/stop/rollback drills have passed; fixture controller tests do not establish those properties.
+
+- `POST /v1/actions`: numeric `schema_version: 1`, `operation_id`, `runbook_id`, `target`, `policy_digest`, absolute `deadline`. No operator/model freeform steps or arguments are sent. A definitive 401/403 guarantees no effect; every transport, malformed, missing or ambiguous result remains unknown.
+- `GET /v1/actions/ID`: exact `operation_id`, `runbook_id`, `target`, `state` (`running`, `succeeded`, `failed`, `stopped`). Missing/foreign/invalid observations never permit another POST. POST and GET use the same result shape.
+- `GET /v1/observations/ID`: tagged `type: deployment` or `telemetry`. Deployment reports exact service/environment/repository, full Git `revision`, `artifact`, historical `observed_at`, bounded `included_commits`. Telemetry reports service/environment and the recovery `window`, with empty local evidence refs. Unknown traffic/coverage stays explicit. A transport-authenticated gateway report is not independent verification of service recovery.
+
+`collect-observation CASE --file COMMAND` uses action `collect` with `policy_revision` and `observation_id`. It performs only an allowlisted GET, rejects scope/count/window/config drift and retains immutable provenance. No gateway payload can name local evidence or alter policy. Recovery action `observe_collected` references `plan_id`, retained `observation_id`, and supporting case `evidence_refs`. It retains the gateway identity/fixture attribution and uses the existing prospective-window, denominator, independent-review and commander-resolution gates. Pre-plan or low-traffic observations cannot prove recovery. Deployment reports never imply recovery or repair.
+
+Snapshots, SSE timeline and web expose jobs, owners/deadlines, observations and problem records. Fixture backends are marked `native: false`. `native: true` means the configured HTTPS transport ran; only retained real activation evidence can establish live production correctness. No live gateway has been configured or tested.

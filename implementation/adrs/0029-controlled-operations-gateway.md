@@ -1,0 +1,7 @@
+# ADR 0029: Controlled operational actions and observations
+
+Implement M5 as a separately authorized versioned gateway boundary. OS policy supplies fixed runbook/target identifiers, prerequisites/stop/rollback/verification, scoped dedicated credentials, immutable provenance and shared budgets. Independent attributed review and current context are prerequisites. The coordinator reserves once before a write; uncertainty permits only read-only stable-identity reconciliation. Independent timers retain owned escalation. No arbitrary shell or model-provided production arguments are supported.
+
+Deployment and telemetry adapters validate exact scope, explicit coverage, historical windows and counts, retaining fixture versus authenticated-transport attribution. Recovery consumes a retained telemetry observation through the existing prospective criteria and independent acceptance gates; no action/merge/deployment success implies recovery. Versioned problem/known-error links retain uncertain causes, exact accepted hypothesis references where present, owned reviews and continuing duties.
+
+This is an integration implementation, not physical production executor certification. An operator-selected gateway must implement and demonstrate its target/stop/checkpoint/rollback/idempotency contract. Missing gateway origin/credential/target authority, real deployment mapping, telemetry instruments and sanitized historical truth remain activation blockers. No new production authority follows from this ADR.

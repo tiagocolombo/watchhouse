@@ -191,3 +191,7 @@ The [synthetic adapter lifecycle](contracts/v1/adapter-trials/README.md) exercis
 ## Reviewed PR delivery
 
 [Delivery v1](contracts/v1/delivery/README.md) prepares exact Git artifacts and queues separately authorized publication. The explicit publisher worker uses its own immutable OS policy and credential reference, retains one branch/PR per repair, and reconciles lost acknowledgments without repeating uncertain writes. CLI, authenticated API and the web interface expose owned status and quarantine. Automatic merge, deployment and recovery remain separate gates. Synthetic tests cover the controller; live publication still requires a dedicated authorized test repository and publisher credential.
+
+## Controlled operations and known errors
+
+[Operations v1](contracts/v1/operations/README.md) adds OS-installed runbook/target policy, independent proposal review, separately invoked no-replay dispatch, bounded read-only reconciliation, authenticated deployment/telemetry collection and versioned owned problem/known-error links. Retained telemetry can enter the existing prospective recovery review; action or deployment success never implies recovery. Fixtures verify controller behavior. Physical gateway target/stop/rollback and live integration activation require explicitly authorized configuration and independent evidence.

@@ -1,0 +1,10 @@
+CREATE TABLE operation_policies (revision INTEGER PRIMARY KEY, digest TEXT NOT NULL, record TEXT NOT NULL, operator TEXT NOT NULL, source TEXT NOT NULL, recorded_at TEXT NOT NULL);
+CREATE TRIGGER operation_policy_no_update BEFORE UPDATE ON operation_policies BEGIN SELECT RAISE(ABORT,'operation policies are immutable'); END;
+CREATE TRIGGER operation_policy_no_delete BEFORE DELETE ON operation_policies BEGIN SELECT RAISE(ABORT,'operation policies are immutable'); END;
+CREATE TABLE operation_jobs (id TEXT PRIMARY KEY, case_id TEXT NOT NULL REFERENCES cases(id), state TEXT NOT NULL, deadline TEXT NOT NULL, record TEXT NOT NULL);
+CREATE TABLE operation_observations (id TEXT PRIMARY KEY, case_id TEXT NOT NULL REFERENCES cases(id), record TEXT NOT NULL);
+CREATE TRIGGER operation_observation_no_update BEFORE UPDATE ON operation_observations BEGIN SELECT RAISE(ABORT,'observations are immutable'); END;
+CREATE TRIGGER operation_observation_no_delete BEFORE DELETE ON operation_observations BEGIN SELECT RAISE(ABORT,'observations are immutable'); END;
+CREATE TABLE problem_revisions (id TEXT NOT NULL, revision INTEGER NOT NULL, case_id TEXT NOT NULL REFERENCES cases(id), review_at TEXT NOT NULL, escalated INTEGER NOT NULL DEFAULT 0, record TEXT NOT NULL, PRIMARY KEY(id,revision));
+CREATE INDEX operation_due ON operation_jobs(state,deadline);
+CREATE INDEX problem_due ON problem_revisions(escalated,review_at);
