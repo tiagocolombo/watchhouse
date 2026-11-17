@@ -195,3 +195,7 @@ The [synthetic adapter lifecycle](contracts/v1/adapter-trials/README.md) exercis
 ## Controlled operations and known errors
 
 [Operations v1](contracts/v1/operations/README.md) adds OS-installed runbook/target policy, independent proposal review, separately invoked no-replay dispatch, bounded read-only reconciliation, authenticated deployment/telemetry collection and versioned owned problem/known-error links. Retained telemetry can enter the existing prospective recovery review; action or deployment success never implies recovery. Fixtures verify controller behavior. Physical gateway target/stop/rollback and live integration activation require explicitly authorized configuration and independent evidence.
+
+## Eligible automatic merging
+
+[Merging v1](contracts/v1/merging/README.md) adds separately installed merge authority and a deterministic controller after native publication. It checks exact candidate/base/head/tree, independently verified review, protected app-pinned CI and repository approvals before an exact-head merge-commit request. Sensitive paths, stale or unknown facts and policy pause deny admission. Reserved uncertainty is reconciled by reads without replay. Fixtures exercise eligibility, denial and crash recovery; no dedicated live merge repository or credentials are configured.

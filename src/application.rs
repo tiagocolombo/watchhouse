@@ -246,6 +246,7 @@ impl Application {
             publications: crate::delivery::lifecycle::statuses(&tx, id)?,
             impact: crate::impact::snapshot(&tx, id)?,
             operations: crate::operations::snapshot(&tx, id)?,
+            merges: crate::merging::snapshot(&tx, id)?,
             recovery: crate::recovery::snapshot(&tx, id)?,
             learning: crate::learning::snapshot(&tx, id, &self.now())?,
             adapter_trials: crate::adapter_trials::snapshot(&tx, id)?,

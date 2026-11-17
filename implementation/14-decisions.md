@@ -134,3 +134,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 - [ADR 0028 — Independent Sentry project profiles](adrs/0028-independent-sentry-projects.md): immutable default identity, explicit project routes/read budgets, isolated credentials, durable fair reconciliation and configuration-change fencing. Actual-history/live acceptance remains separate.
 
 - [ADR 0029 — Controlled operations](adrs/0029-controlled-operations-gateway.md): fixed OS-authorized runbooks, independent approval, durable no-replay action dispatch/reconciliation, authenticated deployment/telemetry records and owned problem/known-error linkage. Physical gateway and live/history acceptance remain explicit activation gates.
+
+- [ADR 0030 — Eligible merge controller](adrs/0030-eligible-merge-controller.md): separate immutable merge authority, exact candidate/publication/head/base/tree lineage, strict server protection, independent checks/reviews, durable no-replay reconciliation and bounded definitive-denial retry. Live dedicated-repository acceptance remains blocked.

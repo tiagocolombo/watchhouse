@@ -48,6 +48,13 @@ pub struct Actor {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload", deny_unknown_fields)]
 pub enum EventData {
+    #[serde(rename = "merge.changed")]
+    MergeChanged {
+        job_id: String,
+        state: String,
+        reason: String,
+    },
+    #[serde(rename = "operation.changed", alias = "OperationChanged")]
     OperationChanged {
         record_id: String,
         kind: String,
@@ -411,6 +418,8 @@ pub struct Snapshot {
     pub impact: Vec<crate::impact::Assessment>,
     #[serde(default)]
     pub operations: crate::operations::Snapshot,
+    #[serde(default)]
+    pub merges: Vec<crate::merging::Job>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
