@@ -2,6 +2,17 @@
 
 Last updated: 2026-11-16.
 
+## Latest continuation
+
+PRs #12–#22 remain open in dependency order; no PR was merged. PR #21 (`396f9dc`) and publisher PR #22 (`b2c5f68`) passed every final-head push/PR check (eight each), including Linux native Docker/model-client fixture drills and macOS/Windows checks. PRs #12–#20 retain their preceding exact-head green audit. The coding assistant's publication of these repository PRs is not live Watchhouse publisher verification.
+
+The current assessment slice adds all remaining disposition categories, independent exact hypothesis acceptance, structured reported impact/denominators with offline collection supervision, and trusted dependency-scoped cross-service related-link review. Local validation: 192 Rust tests, all ten Chromium scenarios, strict Clippy/fmt, TypeScript/native builds and diff checks passed. Missing actual service history/live credentials do not block this code work. See ADR 0027 and the assessment contract.
+
+Next: complete multi-project Sentry registration, authenticated per-project intake, fair discovery/known-issue reconciliation and configuration-change fencing. The current single-project transport is a real remaining development dependency for simultaneous cross-service use. Then continue M5–M8 under COMPLETION.md. Live model/account, notification destinations, authorized publisher test repository and Sentry/history activation still lack evidence/inputs. Local acceptance handoff remains deferred.
+
+The sections below retain earlier milestone observations; this continuation and the completion ledger supersede historical next-step/validation-pending statements.
+
+
 ## Completion direction and current native worker slice
 
 Local acceptance testing remains deferred until remaining development is complete. Automated checks continue. The [completion gates](COMPLETION.md) enumerate outstanding exit criteria.
@@ -61,8 +72,8 @@ The prior native Bubblewrap drill failed closed (`Failed to create NETLINK_ROUTE
 | M0 | Bootstrap, versioned contracts, migrations, deterministic fixtures, CI | Distribution/license decisions remain later work |
 | M1 | Durable cases/events/evidence, qualification/reopening, CLI/API/web replay | Operational hardening belongs to M8 |
 | M2 | Bounded fake collaboration, supervision, handoffs, independent challenges/gates, trusted policy, Slack fallback/retry/ack/resolution adapter | Actual human destinations/credentials and live delivery drill |
-| M3 | Sentry intake/enrichment/reconciliation/freshness, incident operations/roles, investigations/drafts/review, scoped correlation/diagnostics | Actual sanitized service history, configured live activation, richer impact windows/disposition categories/cross-service correlation |
-| M4 | Native-verified Docker isolation, cancellation/watchdog and regression; frozen candidates/operator review; bounded Codex text-role controller and explicit native test path | Native text-client CI and live authentication; candidate/model-review adoption and reconciled GitHub PR delivery |
+| M3 | Sentry intake/enrichment/reconciliation/freshness; complete disposition types; reported impact windows; incident roles/investigations/independent hypothesis review; scoped dependency correlation | Multi-project source transport, actual sanitized history and configured live acceptance |
+| M4 | Native-verified Docker/cgroup text-client fixture boundaries; frozen candidates/regression/independent model review; separately authorized reconciled publisher | Live account/model authentication and dedicated authorized publisher activation drill |
 | M5 | Operator recovery criteria/windows/review/resolution, deployment reports, blocked mitigation proposals, independently verified corrective actions, Hallmark knowledge exchange | Actual mitigation/deployment/telemetry integrations, problem/known-error linkage and actual-history evaluation |
 | M6 | Design/policy requirements | Eligible automatic merging and effect reconciliation |
 | M7 | Adapter/portability design; native coordinator test-bundle workflow | Second harness/source, native worker routing, packaging/platform drills |
@@ -131,3 +142,12 @@ Migrations 020/021 add immutable OS publisher policy/provenance and the separate
 Selected delivery tests pass (13 total including existing preparation tests), including each lost write acknowledgment, delayed/duplicate PR observation, revision reuse, stale/paused/credential/base blocks, coordinator crash/late success, atomic rollback and competing idempotent commands. Actual benign Git independently verifies deterministic commits. Validation: the full run passed 183 Rust tests and all nine Chromium scenarios; strict Clippy, formatting, TypeScript/native builds, local Markdown links and diff checks passed. After the final fixture refinements, all 13 delivery tests and the integrated model-adoption-to-single-PR fixture passed again, followed by strict Clippy. Fresh CI is required on the publisher PR's final head.
 
 The publisher has not been live-activated. A dedicated authorized GitHub test repository and publisher-only credential/destination authority are missing; live account/model access remains unverified. The coding assistant's repository PRs are not factory integration proof. No PR merge, deployment or service recovery was performed. Complete the remaining M3 disposition/impact/cross-service work and M5–M8 gates while those activation inputs remain unavailable; local acceptance handoff stays deferred.
+
+
+## Structured assessment continuation
+
+Migrations 022–024 retain immutable impact revisions, dependency policies and hypothesis acceptance. Duplicate assessment needs the exact accepted duplicate relation and reopens when that relation/facts change. Already-addressed, external-dependency, operational/configuration and defect judgments all retain evidence, uncertainty and owned review duties. Accepted defect basis requires independent acceptance of the exact supported claim/experiment; any participating author is denied as reviewer. Current supporting/counterevidence integrity, incident/source context and challenges remain governing.
+
+Reported impact keeps unknown windows/denominators null, validates historical/count bounds, exposes zero request traffic as inconclusive, and supervises collection deadlines/context changes without models. Cross-service hints/review use explicit immutable OS dependency maps, fresh separately mapped sources, bounded timing and topology provenance; they cannot become duplicates, causal proof, automatic graph merges or closed duties. CLI/API/web/escaped Markdown share records. The source adapter still needs independent multi-project transport, tracked above rather than waived by normalized fixtures.
+
+Validation: 192 Rust tests and ten Chromium scenarios passed, including API/CLI impact receipts, rollback/restart, invalid counts/windows/scope/version, independent hypothesis acceptance/integrity, all classification duties, duplicate invalidation and topology pause/restart. Strict Clippy/fmt, TypeScript/native build, Markdown links and diff checks passed before commit. Final-head remote CI is required for this PR. No live activation, merge, production action or recovery was performed.

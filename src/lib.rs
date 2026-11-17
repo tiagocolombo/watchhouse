@@ -7,6 +7,7 @@ pub mod domain;
 pub mod error;
 pub mod execution;
 pub mod http;
+pub mod impact;
 pub mod incident_artifacts;
 pub mod incident_ops;
 pub mod incidents;
@@ -23,6 +24,7 @@ pub mod sentry_refresh;
 pub mod source_context;
 pub mod store;
 pub mod team;
+pub mod topology;
 pub mod worker_qualification;
 
 pub mod hallmark;

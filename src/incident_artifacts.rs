@@ -94,6 +94,11 @@ pub struct ArtifactCommand {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ArtifactAction {
+    AcceptHypothesis {
+        id: String,
+        revision: u32,
+        evidence_refs: Vec<String>,
+    },
     Hypothesis {
         id: Option<String>,
         expected_revision: Option<u32>,
@@ -149,9 +154,14 @@ fn source_digest(db: &Connection, id: &str) -> Result<String> {
 fn record(db: &Connection, case: &str, id: &str) -> Result<Artifact> {
     let raw:Option<String>=db.query_row("SELECT record FROM incident_artifacts WHERE id=?1 AND case_id=?2 ORDER BY revision DESC LIMIT 1",params![id,case],|r|r.get(0)).optional()?;
     let mut a: Artifact = serde_json::from_str(&raw.ok_or(Error::NotFound)?)?;
+    let hypothesis = matches!(a.data, ArtifactData::Hypothesis { .. });
     let approval: Option<String> = db
         .query_row(
-            "SELECT record FROM communication_approvals WHERE id=?1 AND revision=?2",
+            if hypothesis {
+                "SELECT record FROM hypothesis_approvals WHERE id=?1 AND revision=?2"
+            } else {
+                "SELECT record FROM communication_approvals WHERE id=?1 AND revision=?2"
+            },
             params![a.id, a.revision],
             |r| r.get(0),
         )
@@ -161,7 +171,20 @@ fn record(db: &Connection, case: &str, id: &str) -> Result<Artifact> {
         let ops = incident_ops::snapshot(db, case)?.ok_or(Error::NotFound)?;
         a.approval_current = ops.revision == p.incident_revision
             && source_digest(db, case)? == p.source_digest
-            && store::case(db, case)?.version == p.reviewed_case_version + 1;
+            && (hypothesis || store::case(db, case)?.version == p.reviewed_case_version + 1);
+        if hypothesis {
+            a.approval_current &= crate::challenges::ensure_clear(db, case).is_ok()
+                && crate::qualification::evidence_refs(db, case, &p.evidence_refs, false).is_ok();
+            if let ArtifactData::Hypothesis {
+                supporting,
+                counterevidence,
+                ..
+            } = &a.data
+            {
+                a.approval_current &= optional_refs(db, case, supporting).is_ok()
+                    && optional_refs(db, case, counterevidence).is_ok();
+            }
+        }
         a.approval = Some(p)
     }
     Ok(a)
@@ -201,7 +224,7 @@ fn researcher(ops: &IncidentOperations, actor: &str) -> Result<()> {
     }
     Ok(())
 }
-fn optional_refs(tx: &Transaction<'_>, case: &str, refs: &[String]) -> Result<()> {
+fn optional_refs(tx: &Connection, case: &str, refs: &[String]) -> Result<()> {
     if !refs.is_empty() {
         crate::qualification::evidence_refs(tx, case, refs, false)?
     }
@@ -324,6 +347,70 @@ impl Application {
             approval_current: false,
         };
         match &cmd.action {
+            ArtifactAction::AcceptHypothesis {
+                id,
+                revision,
+                evidence_refs,
+            } => {
+                researcher(&ops, &m.actor)?;
+                let h = record(&tx, case, id)?;
+                let (supporting,counterevidence,experiment)=match &h.data {
+                    ArtifactData::Hypothesis{state:Finding::Supported,supporting,counterevidence,experiment_id:Some(exp),..} if h.revision==*revision=>(supporting,counterevidence,exp),
+                    _=>return Err(Error::Conflict("acceptance requires the exact supported hypothesis and discriminating experiment".into())),
+                };
+                let participated:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM incident_artifacts WHERE id IN (?1,?2) AND json_extract(record,'$.author')=?3)",params![id,experiment,m.actor],|r|r.get(0))?;
+                if participated {
+                    return Err(Error::Invalid(
+                        "hypothesis/experiment authors cannot independently accept their own work"
+                            .into(),
+                    ));
+                }
+                if h.approval.is_some()
+                    || h.incident_revision != ops.revision
+                    || h.source_digest != digest
+                {
+                    return Err(Error::Conflict("hypothesis already accepted or incident/source context changed; revise before review".into()));
+                }
+                crate::challenges::ensure_clear(&tx, case)?;
+                crate::qualification::evidence_refs(&tx, case, evidence_refs, false)?;
+                optional_refs(&tx, case, supporting)?;
+                optional_refs(&tx, case, counterevidence)?;
+                if !supporting.iter().all(|e| evidence_refs.contains(e)) {
+                    return Err(Error::Invalid(
+                        "acceptance must cite the hypothesis supporting evidence".into(),
+                    ));
+                }
+                let approval = Approval {
+                    reviewer: m.actor.clone(),
+                    reviewed_case_version: current.version,
+                    incident_revision: ops.revision,
+                    source_digest: digest,
+                    evidence_refs: evidence_refs.clone(),
+                    recorded_at: now.clone(),
+                    reason: m.reason.clone(),
+                };
+                tx.execute(
+                    "INSERT INTO hypothesis_approvals VALUES (?1,?2,?3)",
+                    params![id, revision, serde_json::to_string(&approval)?],
+                )?;
+                store::emit(
+                    &tx,
+                    case,
+                    operator(&m.actor),
+                    &m.idempotency_key,
+                    &now,
+                    EventData::HypothesisAccepted {
+                        artifact_id: id.clone(),
+                        revision: *revision,
+                        evidence_refs: evidence_refs.clone(),
+                        reason: m.reason.clone(),
+                    },
+                )?;
+                let out = record(&tx, case, id)?;
+                save_receipt(&tx, &m.idempotency_key, &fp, &out)?;
+                tx.commit()?;
+                return Ok(out);
+            }
             ArtifactAction::Hypothesis {
                 id,
                 expected_revision,

@@ -1,0 +1,13 @@
+# ADR 0027: Complete structured assessment and dependency review
+
+Status: implemented with sanitized contract fixtures; source/live acceptance remains open.
+
+Complete the requirement-backed disposition categories in the existing durable qualification lifecycle. Keep monitoring/collection/review duties even when the judgment is duplicate, already addressed, dependency, operational/configuration or application defect. Require an exact accepted duplicate relation before duplicate classification; invalidated relation facts/revision deterministically reopen that decision. No label closes an incident or grants production, repair or suppression authority.
+
+Application defect basis is an explicit evidence gap or an independently accepted supported hypothesis. Add immutable hypothesis acceptance tied to the exact claim/experiment, source and incident context. Any hypothesis/experiment author is ineligible as reviewer. Review validates retained evidence and blocking challenges, while preserving its reported/synthetic provenance. Unrelated case events do not stale an accepted hypothesis; relevant context, artifact revision, evidence integrity and challenges do. Existing communication review remains unchanged.
+
+Add append-only reported-impact windows with optional affected/total requests/users, instrumentation limitations, critical workflow, scope/uncertainty and a named collection duty. Unknown stays null; zero traffic is not recovery. Validate historical ordering, exact integer bounds and denominators. Snapshot/CLI/API/web/Markdown share records and distinguish reports from authenticated telemetry. Deterministic supervision escalates overdue or changed-context collection without models, retaining old revisions and independent incident obligations.
+
+Cross-service review requires an immutable OS-installed dependency map with explicit service/environment/repository pairs and bounded timing heuristic. Preserve same-scope diagnostic suggestions; add conservative mapped-dependency hints without equating releases or signatures across services. Cross-service acceptance permits related links only, freezes topology provenance and goes stale when that topology changes/pauses. It never produces graph merges, duplicates or causal conclusions.
+
+The old source adapter's one-project configuration is a remaining implementation dependency for live multi-service use. Continue with independent multi-project intake/reconciliation; do not present normalized contract fixtures as that live activation. Actual history, mappings, ingress, accounts and approved destinations remain named acceptance blockers. Local acceptance handoff stays deferred under COMPLETION.md.

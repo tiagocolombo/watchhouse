@@ -1,5 +1,7 @@
 # Case correlation v1
 
+The [structured assessment extension](../assessments/README.md) adds separately configured cross-service related-link review and duplicate assessment dispositions. Its explicit topology/current-source gates supersede the historical same-scope-only limitations below; no graph-level case merge/suppression is introduced.
+
 `case correlate CASE_ID --file FILE` and `POST /api/v1/cases/CASE_ID/correlations` share a strict versioned command. Case snapshots expose `correlations`, and the web has a read-only comparison/link panel plus the versioned command form. Refresh the panel to assess another case's latest facts; cross-case changes do not fan out synthetic events.
 
 ```json

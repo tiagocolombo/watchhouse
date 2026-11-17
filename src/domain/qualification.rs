@@ -6,6 +6,13 @@ pub const MAX_REVIEW_SECONDS: u32 = 30 * 24 * 60 * 60;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum DefectBasis {
+    EvidenceGap { collection_task: String },
+    AcceptedHypothesis { id: String, revision: u32 },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum QualificationPlan {
     ExpectedBehavior {
         after_seconds: u32,
@@ -18,6 +25,34 @@ pub enum QualificationPlan {
         after_seconds: u32,
         collection_task: String,
     },
+    Duplicate {
+        after_seconds: u32,
+        target_case: String,
+        relation_revision: u32,
+    },
+    AlreadyAddressed {
+        after_seconds: u32,
+        change_reference: String,
+        verification_task: String,
+    },
+    ExternalDependency {
+        after_seconds: u32,
+        dependency: String,
+        dependency_owner: String,
+        status: String,
+        recovery_tracking: String,
+        resilience_task: String,
+    },
+    OperationalConfiguration {
+        after_seconds: u32,
+        workflow: String,
+        permitted_action_reference: String,
+    },
+    ApplicationDefect {
+        after_seconds: u32,
+        basis: DefectBasis,
+        repair_assessment: String,
+    },
 }
 impl QualificationPlan {
     pub fn after_seconds(&self) -> u32 {
@@ -25,6 +60,11 @@ impl QualificationPlan {
             Self::ExpectedBehavior { after_seconds }
             | Self::ApparentlyTransient { after_seconds, .. }
             | Self::InsufficientEvidence { after_seconds, .. } => *after_seconds,
+            Self::Duplicate { after_seconds, .. }
+            | Self::AlreadyAddressed { after_seconds, .. }
+            | Self::ExternalDependency { after_seconds, .. }
+            | Self::OperationalConfiguration { after_seconds, .. }
+            | Self::ApplicationDefect { after_seconds, .. } => *after_seconds,
         }
     }
     pub fn review_task(&self) -> String {
@@ -32,6 +72,11 @@ impl QualificationPlan {
             Self::ExpectedBehavior { .. } => "Review whether the expected-behavior decision still applies to its scope and evidence".into(),
             Self::ApparentlyTransient { recovery_indicators, .. } => format!("Observe {recovery_indicators}; reassess the transient hypothesis. Missing traffic or observations cannot prove recovery"),
             Self::InsufficientEvidence { collection_task, .. } => format!("Collect evidence: {collection_task}; reassess the case"),
+            Self::Duplicate{target_case,..}=>format!("Reassess duplicate link to {target_case}; retain this case's separate impact, monitoring and incident duties"),
+            Self::AlreadyAddressed{change_reference,verification_task,..}=>format!("Verify reported change {change_reference}: {verification_task}. A reported change or merge is not recovery"),
+            Self::ExternalDependency{dependency,dependency_owner,recovery_tracking,resilience_task,..}=>format!("Track dependency {dependency} with {dependency_owner}: {recovery_tracking}. Assess resilience: {resilience_task}"),
+            Self::OperationalConfiguration{workflow,permitted_action_reference,..}=>format!("Review workflow {workflow} and independently configured authority {permitted_action_reference}; this classification authorizes no action"),
+            Self::ApplicationDefect{repair_assessment,..}=>format!("Reassess defect evidence and repair eligibility: {repair_assessment}; preparation/execution/review retain their own gates"),
         }
     }
     pub fn needs_reported_evidence(&self) -> bool {

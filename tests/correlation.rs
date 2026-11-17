@@ -101,6 +101,7 @@ fn link(a: &Application, id: &str, target: &str, key: &str) -> RelationCommand {
         target_case: target.into(),
         expected_target_version: a.snapshot(target).unwrap().case.version,
         expected_revision: 0,
+        expected_topology_revision: None,
         action: RelationAction::Link {
             kind: RelationKind::Related,
             source_evidence: vec![source_digest(a, id)],
@@ -443,6 +444,146 @@ fn different_trusted_scope_cannot_be_linked_and_competing_commands_serialize() {
         a.correlate_case(&id, link(&a, &id, &other, "wrong-scope"))
             .is_err()
     );
+}
+#[test]
+fn duplicate_disposition_reopens_when_the_exact_catalogue_judgment_changes() {
+    let (_d, a, _t, id) = fixture();
+    let target = ingest(&a, "1002", event(), None);
+    while a.run_once(&FakeAdapter).unwrap() {}
+    let left = report(
+        &a,
+        &id,
+        "left-duplicate-report",
+        "Reported same fixture failure",
+    );
+    let right = report(
+        &a,
+        &target,
+        "right-duplicate-report",
+        "Reported same fixture failure",
+    );
+    let mut cmd = link(&a, &id, &target, "duplicate-link");
+    if let RelationAction::Link {
+        kind,
+        source_evidence,
+        target_evidence,
+        ..
+    } = &mut cmd.action
+    {
+        *kind = RelationKind::Duplicate;
+        source_evidence.push(left.clone());
+        target_evidence.push(right);
+    }
+    a.correlate_case(&id, cmd).unwrap();
+    let d = RecordDisposition {
+        schema_version: V1,
+        idempotency_key: "duplicate-disposition".into(),
+        actor: "operator".into(),
+        reason: "Exact accepted duplicate relation".into(),
+        expected_version: a.snapshot(&id).unwrap().case.version,
+        owner: "operator".into(),
+        scope: "checkout / test".into(),
+        uncertainty: "Separate impact/incident and follow-up duties remain".into(),
+        evidence_refs: vec![source_digest(&a, &id), left],
+        reconsideration_conditions: "Changed or revoked relation, new evidence or deadline".into(),
+        reopen_after_occurrences: 1,
+        plan: QualificationPlan::Duplicate {
+            after_seconds: 60,
+            target_case: target.clone(),
+            relation_revision: 1,
+        },
+    };
+    a.record_disposition(&id, d).unwrap();
+    assert_eq!(a.process_due_obligations().unwrap(), 0);
+    let mut revoke = link(&a, &id, &target, "revoke-duplicate");
+    revoke.expected_revision = 1;
+    revoke.action = RelationAction::Revoke;
+    a.correlate_case(&id, revoke).unwrap();
+    assert_eq!(a.process_due_obligations().unwrap(), 1);
+    assert_eq!(a.process_due_obligations().unwrap(), 0);
+    assert_eq!(
+        a.snapshot(&id).unwrap().qualification.dispositions[0].state,
+        DispositionState::Reopened
+    );
+    assert!(
+        a.snapshot(&id)
+            .unwrap()
+            .incident
+            .unwrap()
+            .recovered_at
+            .is_none()
+    );
+}
+#[test]
+fn cross_service_hints_require_explicit_topology_and_never_become_duplicate_or_causal_authority() {
+    use watchhouse::topology::{Dependency, Policy, Scope};
+    let (d, a, t, id) = fixture();
+    let mut config = cfg();
+    config.revision = 2;
+    config.service = "payments".into();
+    config.repository = "example/payments-fixture".into();
+    a.configure_sentry(config.clone(), "operator").unwrap();
+    let target = ingest_with_cfg(&a, "1002", event(), None, &config);
+    assert!(a.snapshot(&id).unwrap().correlations.candidates.is_empty());
+    let p = Policy {
+        schema_version: V1,
+        revision: 1,
+        paused: false,
+        max_gap_seconds: 300,
+        dependencies: vec![Dependency {
+            caller: Scope {
+                service: "checkout".into(),
+                environment: "test".into(),
+                repository: "example/fixture-service".into(),
+            },
+            dependency: Scope {
+                service: "payments".into(),
+                environment: "test".into(),
+                repository: "example/payments-fixture".into(),
+            },
+            rationale: "Sanitized contract mapping; not live topology discovery".into(),
+        }],
+    };
+    assert!(
+        a.install_service_topology(p.clone(), "fake-engineer", "self-edit")
+            .is_err()
+    );
+    a.install_service_topology(p.clone(), "operator", "synthetic-dependency-map")
+        .unwrap();
+    let hints = a.snapshot(&id).unwrap().correlations.candidates;
+    assert_eq!(hints.len(), 1);
+    assert_eq!(hints[0].case_id, target);
+    assert_eq!(hints[0].topology_revision, Some(1));
+    assert!(hints[0].reason.contains("not a shared stack signature"));
+    let mut cmd = link(&a, &id, &target, "cross-review");
+    assert!(a.correlate_case(&id, cmd.clone()).is_err());
+    cmd.expected_topology_revision = Some(1);
+    let mut duplicate = cmd.clone();
+    duplicate.command.meta.idempotency_key = "cross-duplicate-denied".into();
+    if let RelationAction::Link { kind, .. } = &mut duplicate.action {
+        *kind = RelationKind::Duplicate;
+    }
+    assert!(a.correlate_case(&id, duplicate).is_err());
+    let accepted = a.correlate_case(&id, cmd).unwrap();
+    assert!(accepted.context_current);
+    assert_eq!(accepted.topology_revision, Some(1));
+    let mut paused = p.clone();
+    paused.revision = 2;
+    paused.paused = true;
+    a.install_service_topology(paused, "operator", "pause-dependency-review")
+        .unwrap();
+    assert!(!a.snapshot(&id).unwrap().correlations.relations[0].context_current);
+    let db = rusqlite::Connection::open(d.path().join("db")).unwrap();
+    assert!(db.execute("DELETE FROM service_topologies", []).is_err());
+    assert!(
+        a.install_service_topology(p, "operator", "idempotent-replay")
+            .is_ok()
+    );
+    let restarted = Application::new(Store::open(d.path().join("db")).unwrap(), Arc::new(t));
+    assert_eq!(restarted.service_topology().unwrap().unwrap().revision, 2);
+    assert_eq!(restarted.snapshot(&target).unwrap().case.owner, "operator");
+    // These normalized fixtures retain two config revisions. Multi-project live intake is a
+    // separate adapter continuation; this test is not a live multi-service activation claim.
 }
 #[test]
 fn candidate_output_is_capped_and_blocking_challenges_prevent_acceptance_but_not_revocation() {

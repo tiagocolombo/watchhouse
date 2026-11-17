@@ -1,5 +1,7 @@
 # Implemented v1 contracts
 
+The [structured assessment extension](assessments/README.md) completes the remaining disposition types, independently accepted hypothesis basis, reported impact windows and trusted cross-service review mapping. Existing qualification commands remain compatible.
+
 The Rust types in [contracts.rs](../../src/contracts.rs) and [domain.rs](../../src/domain.rs) are the executable schema. Numeric schema_version is exactly 1; missing/unsupported versions, unknown command/event fields, unknown event kinds, and malformed results are rejected. These are initial local-development contracts, not a released public API. Version them explicitly when changing compatibility.
 
 - [manual-case.json](manual-case.json) is the deterministic fake-source/manual intake fixture.

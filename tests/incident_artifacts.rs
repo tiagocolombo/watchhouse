@@ -64,6 +64,174 @@ fn draft(id: Option<String>, revision: Option<u32>, refs: Vec<String>) -> Artifa
     }
 }
 #[test]
+fn supported_hypothesis_needs_independent_acceptance_before_defect_classification() {
+    use watchhouse::{contracts::*, execution::FakeAdapter};
+    let (d, a, _t, id) = fixture();
+    a.run_once(&FakeAdapter).unwrap();
+    a.operate_incident(
+        &id,
+        IncidentOperation {
+            command: command(&a, &id, "offer-investigator", "operator"),
+            action: IncidentAction::OfferRole {
+                role: IncidentRole::Operations,
+                successor: "investigator".into(),
+                acknowledge_seconds: 10,
+            },
+        },
+    )
+    .unwrap();
+    let offer = a.snapshot(&id).unwrap().incident_role_offers[0].id.clone();
+    a.operate_incident(
+        &id,
+        IncidentOperation {
+            command: command(&a, &id, "accept-investigator", "investigator"),
+            action: IncidentAction::AcceptRole { offer_id: offer },
+        },
+    )
+    .unwrap();
+    let h = apply(
+        &a,
+        &id,
+        "new-supported-hyp",
+        "investigator",
+        hypothesis(None, None, Finding::Proposed, None, vec![]),
+    )
+    .unwrap();
+    let exp = apply(
+        &a,
+        &id,
+        "supporting-experiment",
+        "investigator",
+        plan(&h, 30),
+    )
+    .unwrap();
+    apply(
+        &a,
+        &id,
+        "supporting-result",
+        "investigator",
+        ArtifactAction::FinishExperiment {
+            id: exp.id.clone(),
+            expected_revision: 1,
+            outcome: Finding::Supported,
+            evidence_refs: evidence(&a, &id),
+            interpretation: "Synthetic reported outcome supports this exact claim".into(),
+            uncertainty: "Not a production experiment".into(),
+        },
+    )
+    .unwrap();
+    let mut supported = hypothesis(
+        Some(h.id.clone()),
+        Some(1),
+        Finding::Supported,
+        Some(exp.id),
+        vec![],
+    );
+    if let ArtifactAction::Hypothesis { supporting, .. } = &mut supported {
+        *supporting = evidence(&a, &id);
+    }
+    let h = apply(&a, &id, "supported-hyp", "investigator", supported).unwrap();
+    assert!(!h.approval_current);
+    assert!(
+        apply(
+            &a,
+            &id,
+            "self-accept-hyp",
+            "investigator",
+            ArtifactAction::AcceptHypothesis {
+                id: h.id.clone(),
+                revision: h.revision,
+                evidence_refs: evidence(&a, &id)
+            }
+        )
+        .is_err()
+    );
+    let report = a
+        .record_evidence(
+            &id,
+            RecordEvidence {
+                schema_version: V1,
+                idempotency_key: "defect-report".into(),
+                actor: "operator".into(),
+                reason: "Synthetic evidence report".into(),
+                expected_version: a.snapshot(&id).unwrap().case.version,
+                scope: "checkout / test".into(),
+                statement: "Reported defect; actual production impact unknown".into(),
+                collection_method: "Fixture report".into(),
+                observed_at: None,
+                uncertainty: "No live verification".into(),
+            },
+        )
+        .unwrap()
+        .evidence
+        .digest;
+    let accept = ArtifactCommand {
+        command: command(&a, &id, "independent-hyp-accept", "operator"),
+        action: ArtifactAction::AcceptHypothesis {
+            id: h.id.clone(),
+            revision: h.revision,
+            evidence_refs: evidence(&a, &id),
+        },
+    };
+    let reviewed = a.record_incident_artifact(&id, accept.clone()).unwrap();
+    assert!(reviewed.approval_current);
+    assert_eq!(a.record_incident_artifact(&id, accept).unwrap().id, h.id);
+    let mut refs = evidence(&a, &id);
+    refs.push(report);
+    a.record_disposition(
+        &id,
+        RecordDisposition {
+            schema_version: V1,
+            idempotency_key: "accepted-cause-disposition".into(),
+            actor: "operator".into(),
+            reason: "Independently reviewed reported hypothesis".into(),
+            expected_version: a.snapshot(&id).unwrap().case.version,
+            owner: "operator".into(),
+            scope: "checkout / test".into(),
+            uncertainty: "Accepted analysis is not independent execution or recovery proof".into(),
+            evidence_refs: refs,
+            reconsideration_conditions: "New evidence, scope change or deadline".into(),
+            reopen_after_occurrences: 1,
+            plan: QualificationPlan::ApplicationDefect {
+                after_seconds: 60,
+                basis: DefectBasis::AcceptedHypothesis {
+                    id: h.id.clone(),
+                    revision: h.revision,
+                },
+                repair_assessment: "Separate reproduction, execution and review gates still apply"
+                    .into(),
+            },
+        },
+    )
+    .unwrap();
+    assert!(
+        a.snapshot(&id)
+            .unwrap()
+            .incident_artifacts
+            .iter()
+            .find(|x| x.id == h.id)
+            .unwrap()
+            .approval_current
+    );
+    let db = rusqlite::Connection::open(d.path().join("db")).unwrap();
+    assert!(db.execute("DELETE FROM hypothesis_approvals", []).is_err());
+    db.execute(
+        "UPDATE evidence SET content='corrupted' WHERE digest=?1",
+        [evidence(&a, &id)[0].clone()],
+    )
+    .unwrap();
+    assert!(
+        !a.snapshot(&id)
+            .unwrap()
+            .incident_artifacts
+            .iter()
+            .find(|x| x.id == h.id)
+            .unwrap()
+            .approval_current
+    );
+    assert!(a.snapshot(&id).unwrap().repairs.is_empty());
+}
+#[test]
 fn experiments_bind_exact_claims_and_failed_hypotheses_remain_in_history() {
     let (_d, a, _t, id) = fixture();
     let h = apply(

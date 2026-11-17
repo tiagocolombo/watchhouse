@@ -244,6 +244,7 @@ impl Application {
             knowledge_imports: crate::hallmark::snapshot(&tx, id)?,
             model_jobs: crate::model_runtime::ops::snapshot(&tx, id)?,
             publications: crate::delivery::lifecycle::statuses(&tx, id)?,
+            impact: crate::impact::snapshot(&tx, id)?,
             recovery: crate::recovery::snapshot(&tx, id)?,
             learning: crate::learning::snapshot(&tx, id, &self.now())?,
             adapter_trials: crate::adapter_trials::snapshot(&tx, id)?,
