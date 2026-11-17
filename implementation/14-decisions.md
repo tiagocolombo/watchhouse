@@ -124,3 +124,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 - [ADR 0023 — Bounded text-role client](adrs/0023-bounded-text-model-client.md): implementation proposal separating inert model output from candidate execution, using explicit immutable OS policy, durable no-replay scheduling and native whole-cgroup lifecycle proof. The strict tool-free Codex spike remains denied; the distinct text-only profile permits an inert question advertisement but rejects tool/interaction events. Native/live acceptance is tracked independently.
 
 - [ADR 0024 — Model-result adoption](adrs/0024-model-result-adoption.md): exact immutable proposal/review adoption, model-session authorship, independent reviewer sessions and continuing lineage/evidence currency; preserves operator command fingerprints and grants no publication authority.
+
+- [ADR 0025 — Reviewed delivery preparation](adrs/0025-reviewed-delivery-preparation.md): exact read-only publication artifacts bind current candidate/review/base identity to verified Git objects without providing external-write authority.

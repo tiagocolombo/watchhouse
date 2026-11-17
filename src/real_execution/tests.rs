@@ -369,8 +369,25 @@ mod controller {
         }
     }
     async fn dispatch(f: &Fixture, b: &impl Backend) {
-        assert!(f.app.run_container_once(b).await.unwrap());
-        assert!(f.app.run_container_once(b).await.unwrap());
+        for stage in ["create", "start"] {
+            let worked = f.app.run_container_once(b).await.unwrap();
+            if !worked {
+                let db = f.app.store.connect().unwrap();
+                let mut q = db.prepare("SELECT id,state,json_extract(record,'$.reason') FROM container_jobs ORDER BY rowid").unwrap();
+                let jobs = q
+                    .query_map([], |r| {
+                        Ok((
+                            r.get::<_, String>(0)?,
+                            r.get::<_, String>(1)?,
+                            r.get::<_, String>(2)?,
+                        ))
+                    })
+                    .unwrap()
+                    .collect::<std::result::Result<Vec<_>, _>>()
+                    .unwrap();
+                panic!("No container work during {stage}; synthetic fixture jobs: {jobs:?}");
+            }
+        }
     }
     fn manage(f: &Fixture, id: &str, key: &str, action: ManageAction) -> Manage {
         Manage {
@@ -751,6 +768,13 @@ mod controller {
         cmd.command = command(&f, "fresh-review", "reviewer");
         let r = f.app.review_candidate(&f.case, cmd.clone()).unwrap();
         assert!(r.current);
+        let plan = f.app.prepare_publication(&f.case, &c.id, &r.id).unwrap();
+        assert!(!plan.external_writes_authorized);
+        assert_eq!(plan.tree.request["base_tree"], c.base_tree);
+        assert!(crate::delivery::objects::oid(&plan.tree.sha));
+        fs::write(c.root.join("answer.txt"), "6\n").unwrap();
+        assert!(f.app.prepare_publication(&f.case, &c.id, &r.id).is_err());
+        fs::write(c.root.join("answer.txt"), "4\n").unwrap();
         assert!(f.app.review_candidate(&f.case, cmd).unwrap().current);
         let c2 = freeze(&f, &repair, "candidate-revision");
         assert_eq!(c2.deadline, c.deadline);

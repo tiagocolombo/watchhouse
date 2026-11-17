@@ -1,12 +1,21 @@
 use std::process::{Command, Output};
 use tempfile::TempDir;
 fn run(db: &std::path::Path, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_watchhouse"))
+    let output = Command::new(env!("CARGO_BIN_EXE_watchhouse"))
         .arg("--db")
         .arg(db)
         .args(args)
         .output()
-        .unwrap()
+        .unwrap();
+    if !output.status.success() {
+        eprintln!(
+            "CLI fixture {:?} exited {:?}; stderr: {}",
+            args,
+            output.status.code(),
+            String::from_utf8_lossy(&output.stderr[..output.stderr.len().min(4096)])
+        );
+    }
+    output
 }
 #[test]
 fn cli_uses_durable_application_services_across_processes() {
