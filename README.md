@@ -186,3 +186,8 @@ The [synthetic adapter lifecycle](contracts/v1/adapter-trials/README.md) exercis
 ## Bounded model workers
 
 [Model runtime v1](contracts/v1/model-runtime/README.md) adds immutable OS-installed client profiles, explicitly queued engineer/reviewer text roles, native cgroup resource/cancellation qualification, sealed result journals and no-replay recovery for uncertain launches. `model-policy`, `model-worker`, and `case request-model`/`model-job`/`manage-model` share durable state with authenticated API and web inspection. The server does not start paid work automatically. Synthetic transport qualification does not verify live authentication, account access or a real model; those remain explicit activation gates. Candidate programs run only in the separate credential-free container worker.
+
+
+## Reviewed PR delivery
+
+[Delivery v1](contracts/v1/delivery/README.md) prepares exact Git artifacts and queues separately authorized publication. The explicit publisher worker uses its own immutable OS policy and credential reference, retains one branch/PR per repair, and reconciles lost acknowledgments without repeating uncertain writes. CLI, authenticated API and the web interface expose owned status and quarantine. Automatic merge, deployment and recovery remain separate gates. Synthetic tests cover the controller; live publication still requires a dedicated authorized test repository and publisher credential.

@@ -4,4 +4,4 @@ pub mod protocol;
 pub mod worker;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

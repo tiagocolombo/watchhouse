@@ -994,8 +994,9 @@ impl Application {
         let mut db = self.store.connect()?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let now = self.now();
-        let mut changed =
-            crate::challenges::supervise(&tx, &now)? + crate::incidents::supervise(&tx, &now)?;
+        let mut changed = crate::challenges::supervise(&tx, &now)?
+            + crate::incidents::supervise(&tx, &now)?
+            + crate::delivery::lifecycle::supervise(&tx, &now)?;
         let proofs: Vec<RunProof> = {
             let mut stmt=tx.prepare("SELECT r.id,rc.fence FROM runs r JOIN run_control rc ON rc.run_id=r.id JOIN jobs j ON j.assignment_id=r.assignment_id AND j.attempt=r.attempt JOIN assignment_control c ON c.assignment_id=r.assignment_id WHERE c.state='running' AND r.state='running' AND (j.lease_until<=?1 OR rc.progress_deadline<=?1 OR c.overall_deadline<=?1) ORDER BY r.rowid LIMIT 100")?;
             stmt.query_map([&now], |r| {
