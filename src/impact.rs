@@ -70,7 +70,8 @@ pub(crate) fn snapshot(db: &Connection, case: &str) -> Result<Vec<Assessment>> {
         let (raw, due) = r?;
         let mut a: Assessment = serde_json::from_str(&raw)?;
         a.due = due;
-        a.context_current = a.source_digest == digest && crate::sentry_projects::context_current(db, case)?;
+        a.context_current =
+            a.source_digest == digest && crate::sentry_projects::context_current(db, case)?;
         Ok(a)
     })
     .collect()

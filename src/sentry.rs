@@ -77,11 +77,13 @@ impl SentryConfig {
         let reads = self.read_limits();
         if !(1..=30).contains(&reads.request_seconds)
             || !(1..=2592000).contains(&reads.lookback_seconds)
-            || reads.overlap_seconds > reads.lookback_seconds
+            || reads.overlap_seconds >= reads.lookback_seconds
             || reads.overlap_seconds > 86400
             || !(1..=100).contains(&reads.max_pages)
         {
-            return Err(Error::Invalid("bounded versioned source read policy required".into()));
+            return Err(Error::Invalid(
+                "bounded versioned source read policy required".into(),
+            ));
         }
         if !(1..=86400).contains(&self.refresh_seconds)
             || self.revision < 1
@@ -190,7 +192,9 @@ fn get(cfg: &SentryConfig, path: &str, query: &[(&str, &str)]) -> Result<(Value,
         ));
     }
     let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(cfg.read_limits().request_seconds.into()))
+        .timeout(std::time::Duration::from_secs(
+            cfg.read_limits().request_seconds.into(),
+        ))
         .redirect(reqwest::redirect::Policy::none())
         .no_proxy()
         .build()
@@ -437,7 +441,9 @@ impl Application {
         Ok(n + self.process_sentry_intake(api)? + self.refresh_known_sentry(api)?)
     }
     pub fn reconcile_sentry(&self, api: &dyn SentryApi) -> Result<usize> {
-        let Some(cfg) = crate::sentry_projects::select_poll(self)? else { return Ok(0) };
+        let Some(cfg) = crate::sentry_projects::select_poll(self)? else {
+            return Ok(0);
+        };
         let result = self.reconcile_sentry_project(cfg.clone(), api);
         if matches!(result, Err(Error::Invalid(_) | Error::Conflict(_))) {
             self.store.connect()?.execute("UPDATE source_sync SET error='Invalid or conflicting project page; coverage incomplete',next_at=?1 WHERE revision=?2",params![(self.clock.now()+Duration::seconds(cfg.refresh_seconds.into())).to_rfc3339_opts(SecondsFormat::Millis,true),cfg.revision])?;
@@ -457,17 +463,24 @@ impl Application {
                 {
                     (start, end, c)
                 }
-                Some((_, _, _, Some(covered), _)) => (
-                    (DateTime::parse_from_rfc3339(&covered)
+                Some((_, _, _, Some(covered), _)) => {
+                    let start = DateTime::parse_from_rfc3339(&covered)
                         .map_err(|_| Error::Invalid("invalid coverage watermark".into()))?
-                        - Duration::seconds(cfg.read_limits().overlap_seconds.into()))
-                    .to_rfc3339_opts(SecondsFormat::Millis, true),
-                    now.clone(),
-                    None,
-                ),
+                        - Duration::seconds(cfg.read_limits().overlap_seconds.into());
+                    let end = std::cmp::min(
+                        self.clock.now(),
+                        (start + Duration::seconds(cfg.read_limits().lookback_seconds.into())).with_timezone(&Utc),
+                    );
+                    (
+                        start.to_rfc3339_opts(SecondsFormat::Millis, true),
+                        end.to_rfc3339_opts(SecondsFormat::Millis, true),
+                        None,
+                    )
+                }
                 _ => (
-                    (self.clock.now() - Duration::seconds(cfg.read_limits().lookback_seconds.into()))
-                        .to_rfc3339_opts(SecondsFormat::Millis, true),
+                    (self.clock.now()
+                        - Duration::seconds(cfg.read_limits().lookback_seconds.into()))
+                    .to_rfc3339_opts(SecondsFormat::Millis, true),
                     now.clone(),
                     None,
                 ),
@@ -476,9 +489,15 @@ impl Application {
             tx.commit()?;
             window
         };
-        let pages: u32 = self.store.connect()?.query_row("SELECT COUNT(*) FROM source_cursors WHERE revision=?1 AND window_end=?2",params![cfg.revision,end],|r|r.get(0))?;
+        let pages: u32 = self.store.connect()?.query_row(
+            "SELECT COUNT(*) FROM source_cursors WHERE revision=?1 AND window_end=?2",
+            params![cfg.revision, end],
+            |r| r.get(0),
+        )?;
         if pages >= cfg.read_limits().max_pages {
-            return Err(Error::Invalid("configured source page budget exhausted; coverage remains incomplete".into()));
+            return Err(Error::Invalid(
+                "configured source page budget exhausted; coverage remains incomplete".into(),
+            ));
         }
         let page = match api.page(&cfg, &start, &end, c.as_deref()) {
             Ok(p) => p,

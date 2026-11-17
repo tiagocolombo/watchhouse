@@ -126,7 +126,8 @@ fn persist(
         [source],
         |r| r.get(0),
     )?;
-    let active = current == generation && crate::sentry_projects::revision_active(&tx, cfg.revision)?;
+    let active =
+        current == generation && crate::sentry_projects::revision_active(&tx, cfg.revision)?;
     let old = sentry::snapshot(&tx, &case.id)?;
     let projectable = active
         && old.as_ref().is_none_or(|v| {
@@ -202,8 +203,11 @@ pub(crate) fn intake(a: &Application, api: &dyn SentryApi) -> Result<usize> {
     };
     let hint: Signal = serde_json::from_str(&raw)?;
     let original: SentryConfig = serde_json::from_str(&cfg)?;
-    let cfg = crate::sentry_projects::config_for(&db, &original.organization, &original.project_id)?
-        .ok_or_else(|| Error::Conflict("delivery project configuration is unavailable".into()))?;
+    let cfg =
+        crate::sentry_projects::config_for(&db, &original.organization, &original.project_id)?
+            .ok_or_else(|| {
+                Error::Conflict("delivery project configuration is unavailable".into())
+            })?;
     let generation = claim(a, &cfg, &key(&cfg, &hint.issue_id))?;
     let observed_at = a.now();
     let (signal, event, authoritative) = match api
@@ -229,13 +233,17 @@ pub(crate) fn intake(a: &Application, api: &dyn SentryApi) -> Result<usize> {
 pub(crate) fn refresh_known(a: &Application, api: &dyn SentryApi) -> Result<usize> {
     let db = a.store.connect()?;
     let row:Option<(String,String)>=db.query_row("SELECT c.record,active.record FROM source_cases c JOIN source_configs old ON old.revision=json_extract(c.record,'$.configuration_revision') JOIN source_projects p ON p.organization=json_extract(old.record,'$.organization') AND p.project_id=json_extract(old.record,'$.project_id') JOIN source_configs active ON active.revision=p.revision LEFT JOIN source_read_state s ON s.source_key=c.source_key WHERE c.source_key LIKE 'sentry:%' AND (s.next_at IS NULL OR s.next_at<=?1 OR s.configuration_revision!=active.revision) ORDER BY CASE WHEN s.configuration_revision!=active.revision THEN 0 ELSE 1 END,COALESCE(s.next_at,''),c.rowid LIMIT 1",[a.now()],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
-    let Some((raw, profile)) = row else { return Ok(0) };
+    let Some((raw, profile)) = row else {
+        return Ok(0);
+    };
     let old: SourceObservation = serde_json::from_str(&raw)?;
     let cfg: SentryConfig = serde_json::from_str(&profile)?;
     cfg.validate()?;
     let source = key(&cfg, &old.signal.issue_id);
     if source != old.source_key {
-        return Err(Error::Conflict("known issue project identity changed; no cross-project fetch is allowed".into()));
+        return Err(Error::Conflict(
+            "known issue project identity changed; no cross-project fetch is allowed".into(),
+        ));
     }
     let generation = claim(a, &cfg, &source)?;
     let observed_at = a.now();

@@ -524,8 +524,19 @@ fn cross_service_hints_require_explicit_topology_and_never_become_duplicate_or_c
     config.service = "payments".into();
     config.repository = "example/payments-fixture".into();
     config.project_id = "43".into();
-    config.read_policy = Some(ReadPolicy {schema_version:V1,request_seconds:5,lookback_seconds:86400,overlap_seconds:300,max_pages:10});
-    a.configure_sentry_project(config.clone(), "operator", "independent-project-contract-fixture").unwrap();
+    config.read_policy = Some(ReadPolicy {
+        schema_version: V1,
+        request_seconds: 5,
+        lookback_seconds: 86400,
+        overlap_seconds: 300,
+        max_pages: 10,
+    });
+    a.configure_sentry_project(
+        config.clone(),
+        "operator",
+        "independent-project-contract-fixture",
+    )
+    .unwrap();
     let target = ingest_with_cfg(&a, "1002", event(), None, &config);
     assert!(a.snapshot(&id).unwrap().correlations.candidates.is_empty());
     let p = Policy {

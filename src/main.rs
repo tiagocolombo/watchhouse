@@ -669,12 +669,29 @@ async fn run() -> anyhow::Result<()> {
         }
         Command::SentryProject { file, operator } => {
             let source = std::fs::canonicalize(&file)?;
-            println!("{}", serde_json::to_string_pretty(&app.configure_sentry_project(read_command(file)?, &operator, &source.to_string_lossy())?)?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&app.configure_sentry_project(
+                    read_command(file)?,
+                    &operator,
+                    &source.to_string_lossy()
+                )?)?
+            );
         }
-        Command::SentryProjects => println!("{}", serde_json::to_string_pretty(&app.configured_sentry_projects()?)?),
+        Command::SentryProjects => println!(
+            "{}",
+            serde_json::to_string_pretty(&app.configured_sentry_projects()?)?
+        ),
         Command::Sentry { file, operator } => {
             let source = std::fs::canonicalize(&file)?;
-            println!("{}", serde_json::to_string_pretty(&app.configure_sentry_with_source(read_command(file)?, &operator, &source.to_string_lossy())?)?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&app.configure_sentry_with_source(
+                    read_command(file)?,
+                    &operator,
+                    &source.to_string_lossy()
+                )?)?
+            );
         }
         Command::RepairSource { file, operator } => println!(
             "{}",
