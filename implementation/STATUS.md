@@ -4,11 +4,11 @@ Last updated: 2026-11-16.
 
 ## Latest continuation
 
-PRs #12–#22 remain open in dependency order; no PR was merged. PR #21 (`396f9dc`) and publisher PR #22 (`b2c5f68`) passed every final-head push/PR check (eight each), including Linux native Docker/model-client fixture drills and macOS/Windows checks. PRs #12–#20 retain their preceding exact-head green audit. The coding assistant's publication of these repository PRs is not live Watchhouse publisher verification.
+PRs #12–#23 remain open in dependency order; no PR was merged. PR #21 (`396f9dc`) and publisher PR #22 (`b2c5f68`) passed every final-head push/PR check (eight each), including Linux native Docker/model-client fixture drills and macOS/Windows checks. PRs #12–#20 retain their preceding exact-head green audit. The coding assistant's publication of these repository PRs is not live Watchhouse publisher verification.
 
 The current assessment slice adds all remaining disposition categories, independent exact hypothesis acceptance, structured reported impact/denominators with offline collection supervision, and trusted dependency-scoped cross-service related-link review. Local validation: 192 Rust tests, all ten Chromium scenarios, strict Clippy/fmt, TypeScript/native builds and diff checks passed. Missing actual service history/live credentials do not block this code work. See ADR 0027 and the assessment contract.
 
-Next: complete multi-project Sentry registration, authenticated per-project intake, fair discovery/known-issue reconciliation and configuration-change fencing. The current single-project transport is a real remaining development dependency for simultaneous cross-service use. Then continue M5–M8 under COMPLETION.md. Live model/account, notification destinations, authorized publisher test repository and Sentry/history activation still lack evidence/inputs. Local acceptance handoff remains deferred.
+Independent project registration, signed routes, fair bounded discovery/known-issue recovery and active-configuration fences are implemented with remote CI fixtures (ADR 0028). Next: complete the M5 authorized runbook/deployment/telemetry boundaries and problem/known-error linkage, followed by M6–M8 under COMPLETION.md. Live model/account, notification destinations, authorized publisher test repository and Sentry/history activation still lack evidence/inputs. Local acceptance handoff remains deferred.
 
 The sections below retain earlier milestone observations; this continuation and the completion ledger supersede historical next-step/validation-pending statements.
 
@@ -72,7 +72,7 @@ The prior native Bubblewrap drill failed closed (`Failed to create NETLINK_ROUTE
 | M0 | Bootstrap, versioned contracts, migrations, deterministic fixtures, CI | Distribution/license decisions remain later work |
 | M1 | Durable cases/events/evidence, qualification/reopening, CLI/API/web replay | Operational hardening belongs to M8 |
 | M2 | Bounded fake collaboration, supervision, handoffs, independent challenges/gates, trusted policy, Slack fallback/retry/ack/resolution adapter | Actual human destinations/credentials and live delivery drill |
-| M3 | Sentry intake/enrichment/reconciliation/freshness; complete disposition types; reported impact windows; incident roles/investigations/independent hypothesis review; scoped dependency correlation | Multi-project source transport, actual sanitized history and configured live acceptance |
+| M3 | Sentry intake/enrichment/reconciliation/freshness; complete disposition types; reported impact windows; incident roles/investigations/independent hypothesis review; scoped dependency correlation | Actual sanitized history and configured live acceptance |
 | M4 | Native-verified Docker/cgroup text-client fixture boundaries; frozen candidates/regression/independent model review; separately authorized reconciled publisher | Live account/model authentication and dedicated authorized publisher activation drill |
 | M5 | Operator recovery criteria/windows/review/resolution, deployment reports, blocked mitigation proposals, independently verified corrective actions, Hallmark knowledge exchange | Actual mitigation/deployment/telemetry integrations, problem/known-error linkage and actual-history evaluation |
 | M6 | Design/policy requirements | Eligible automatic merging and effect reconciliation |
@@ -151,3 +151,20 @@ Migrations 022–024 retain immutable impact revisions, dependency policies and 
 Reported impact keeps unknown windows/denominators null, validates historical/count bounds, exposes zero request traffic as inconclusive, and supervises collection deadlines/context changes without models. Cross-service hints/review use explicit immutable OS dependency maps, fresh separately mapped sources, bounded timing and topology provenance; they cannot become duplicates, causal proof, automatic graph merges or closed duties. CLI/API/web/escaped Markdown share records. The source adapter still needs independent multi-project transport, tracked above rather than waived by normalized fixtures.
 
 Validation: 192 Rust tests and ten Chromium scenarios passed, including API/CLI impact receipts, rollback/restart, invalid counts/windows/scope/version, independent hypothesis acceptance/integrity, all classification duties, duplicate invalidation and topology pause/restart. Strict Clippy/fmt, TypeScript/native build, Markdown links and diff checks passed before commit. Final-head remote CI is required for this PR. No live activation, merge, production action or recovery was performed.
+
+
+## Hosted multi-project continuation checkpoint
+
+The local execution workspace became unavailable after the assessment phase. PR #23's final head `2d260afd0744483f2a03b31598bdce7e1855f115` passed all eight push/PR checks. The multi-project patch was not locally validated before workspace loss. This branch preserves the reconstructed source work through GitHub; validation must come from exact-head CI and no live integration is claimed.
+
+Migration 025 introduces independent active Sentry project heads, an immutable legacy default identity, retained configuration-source provenance and a durable round-robin discovery cursor. The source worker, known-issue refresh and signed project route are being completed with configuration-change fences and explicit versioned read budgets. Multi-project fixtures, remote formatting/build/test checks and operating documentation remain required before this slice is complete. M5–M8 remain open and local acceptance testing is not handed off.
+
+## Independent project transport continuation
+
+Migration 025 retains independent active Sentry project heads, immutable default identity, canonical input provenance and a durable discovery cursor. Explicit project profiles require validated versioned request/window/overlap/page budgets; legacy default profiles retain named frozen-v1 compatibility. Signed routes use the selected project's secret and reject wrong-project payloads. Discovery rotates across due projects; backlog windows resume from watermarks without jumping across offline gaps. Known issue refresh and queued enrichment select their own active project profile; late obsolete reads/pages cannot project current facts.
+
+Configuration changes are immediately visible in freshness and invalidate candidate/model authority, hypothesis acceptance and reported-impact context. Impact collection can escalate before another provider read. Original source/case/receipt keys and all prior configuration/coverage history remain retained. The source-health/CLI view exposes each profile's provenance and credential-presence booleans, never secret values. See [ADR 0028](adrs/0028-independent-sentry-projects.md) and the [project contract](../contracts/v1/sentry-projects/README.md).
+
+The workspace was unavailable during this continuation. Remote CI at `9dc2c39` passed 201 Rust tests, strict Clippy/fmt, native builds and packaging on Linux/macOS/Windows; Linux also passed the two separate native Docker/model-client fixtures and all ten Chromium scenarios. The fixture set covers duplicate IDs/out-of-order/missed deliveries, restart/fairness, per-project outage, bounded backlog/page budgets, configuration changes during discovery/enrichment, stale impact, immutable provenance and real synthetic HMAC routing with distinct keys. Final documentation/stale-context follow-up requires fresh exact-head CI, recorded in the implementing PR.
+
+No live account, Sentry integration, factory GitHub publication, notification, production action, merge, deployment or recovery was exercised. Actual sanitized history and configured live acceptance remain blocked on operator inputs. M5–M8 development is still open; local acceptance handoff stays deferred.

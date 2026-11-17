@@ -392,6 +392,11 @@ pub(crate) fn current(db: &Connection, j: &Job, p: &ModelPolicy, now: &str) -> R
     context_current(db, j, p, now)
 }
 pub(crate) fn context_current(db: &Connection, j: &Job, p: &ModelPolicy, now: &str) -> Result<()> {
+    if !crate::sentry_projects::context_current(db, &j.case_id)? {
+        return Err(Error::Conflict(
+            "source project configuration changed; model authority withdrawn".into(),
+        ));
+    }
     active(db, p)?;
     separate_roots(db, p)?;
     if store::case(db, &j.case_id)?.owner != j.owner {

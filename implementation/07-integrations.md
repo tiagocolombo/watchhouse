@@ -79,3 +79,8 @@ The Slack notification adapter and first read-only Sentry Cloud adapter are impl
 ## Implemented bounded correlation
 
 M3 now retains allowlisted representative-event diagnostic symbols and offers conservative same-scope suggestions. Evidence-backed reversible links catalogue related/duplicate cases without merging or suppressing duties. See the [executable correlation contract](../contracts/v1/correlations/README.md) and ADR 0014. Cross-service correlation, arbitrary agent-proposed graph merges/splits and full historical evidence remain planned.
+
+
+## Independent project and dependency continuation
+
+[ADR 0027](adrs/0027-structured-assessment-and-dependency-review.md) implements trusted dependency-scoped cross-service related review. [ADR 0028](adrs/0028-independent-sentry-projects.md) supplies its independent Sentry project transport: signed per-project intake, retained configuration/credential provenance, fair bounded discovery and known-issue reconciliation, and active-profile fencing. These supersede the historical same-scope/single-project-only limitations above. Neither introduces causal proof, graph-level case merging, source suppression or live-activation evidence.

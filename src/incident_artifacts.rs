@@ -173,6 +173,7 @@ fn record(db: &Connection, case: &str, id: &str) -> Result<Artifact> {
             && source_digest(db, case)? == p.source_digest
             && (hypothesis || store::case(db, case)?.version == p.reviewed_case_version + 1);
         if hypothesis {
+            a.approval_current &= crate::sentry_projects::context_current(db, case)?;
             a.approval_current &= crate::challenges::ensure_clear(db, case).is_ok()
                 && crate::qualification::evidence_refs(db, case, &p.evidence_refs, false).is_ok();
             if let ArtifactData::Hypothesis {
@@ -353,6 +354,9 @@ impl Application {
                 evidence_refs,
             } => {
                 researcher(&ops, &m.actor)?;
+                if !crate::sentry_projects::context_current(&tx, case)? {
+                    return Err(Error::Conflict("project configuration changed; refresh source before accepting a hypothesis".into()));
+                }
                 let h = record(&tx, case, id)?;
                 let (supporting,counterevidence,experiment)=match &h.data {
                     ArtifactData::Hypothesis{state:Finding::Supported,supporting,counterevidence,experiment_id:Some(exp),..} if h.revision==*revision=>(supporting,counterevidence,exp),

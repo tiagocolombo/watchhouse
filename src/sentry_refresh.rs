@@ -16,6 +16,8 @@ pub struct SourceFreshness {
     pub state: String,
     pub generation: i64,
     pub configuration_revision: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_configuration_revision: Option<i64>,
     pub started_at: Option<String>,
     pub next_at: Option<String>,
     pub last_success_at: Option<String>,
@@ -124,7 +126,8 @@ fn persist(
         [source],
         |r| r.get(0),
     )?;
-    let active = current == generation;
+    let active =
+        current == generation && crate::sentry_projects::revision_active(&tx, cfg.revision)?;
     let old = sentry::snapshot(&tx, &case.id)?;
     let projectable = active
         && old.as_ref().is_none_or(|v| {
@@ -171,7 +174,7 @@ fn persist(
                     source_key: source.clone(),
                     authoritative: o.authoritative && projectable,
                     reason: if !active {
-                        "Late read retained as unaccepted evidence; a newer read owns source projection".into()
+                        "Late read retained as unaccepted evidence; a newer read or project configuration owns source projection".into()
                     } else if !projectable {
                         "Older or unverified read cannot replace the retained API snapshot".into()
                     } else {
@@ -199,7 +202,12 @@ pub(crate) fn intake(a: &Application, api: &dyn SentryApi) -> Result<usize> {
         return Ok(0);
     };
     let hint: Signal = serde_json::from_str(&raw)?;
-    let cfg: SentryConfig = serde_json::from_str(&cfg)?;
+    let original: SentryConfig = serde_json::from_str(&cfg)?;
+    let cfg =
+        crate::sentry_projects::config_for(&db, &original.organization, &original.project_id)?
+            .ok_or_else(|| {
+                Error::Conflict("delivery project configuration is unavailable".into())
+            })?;
     let generation = claim(a, &cfg, &key(&cfg, &hint.issue_id))?;
     let observed_at = a.now();
     let (signal, event, authoritative) = match api
@@ -224,13 +232,19 @@ pub(crate) fn intake(a: &Application, api: &dyn SentryApi) -> Result<usize> {
 }
 pub(crate) fn refresh_known(a: &Application, api: &dyn SentryApi) -> Result<usize> {
     let db = a.store.connect()?;
-    let Some(cfg) = sentry::config(&db)? else {
+    let row:Option<(String,String)>=db.query_row("SELECT c.record,active.record FROM source_cases c JOIN source_configs old ON old.revision=json_extract(c.record,'$.configuration_revision') JOIN source_projects p ON p.organization=json_extract(old.record,'$.organization') AND p.project_id=json_extract(old.record,'$.project_id') JOIN source_configs active ON active.revision=p.revision LEFT JOIN source_read_state s ON s.source_key=c.source_key WHERE c.source_key LIKE 'sentry:%' AND (s.next_at IS NULL OR s.next_at<=?1 OR s.configuration_revision!=active.revision) ORDER BY CASE WHEN s.configuration_revision!=active.revision THEN 0 ELSE 1 END,COALESCE(s.next_at,''),c.rowid LIMIT 1",[a.now()],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
+    let Some((raw, profile)) = row else {
         return Ok(0);
     };
-    let raw:Option<String>=db.query_row("SELECT c.record FROM source_cases c LEFT JOIN source_read_state s ON s.source_key=c.source_key WHERE s.next_at IS NULL OR s.next_at<=?1 ORDER BY COALESCE(s.next_at,''),c.rowid LIMIT 1",[a.now()],|r|r.get(0)).optional()?;
-    let Some(raw) = raw else { return Ok(0) };
     let old: SourceObservation = serde_json::from_str(&raw)?;
+    let cfg: SentryConfig = serde_json::from_str(&profile)?;
+    cfg.validate()?;
     let source = key(&cfg, &old.signal.issue_id);
+    if source != old.source_key {
+        return Err(Error::Conflict(
+            "known issue project identity changed; no cross-project fetch is allowed".into(),
+        ));
+    }
     let generation = claim(a, &cfg, &source)?;
     let observed_at = a.now();
     let (signal, event) = match api
@@ -273,6 +287,7 @@ fn health(db: &Connection, key: &str, now: DateTime<Utc>) -> Result<SourceFreshn
             state: "untracked".into(),
             generation: 0,
             configuration_revision: None,
+            active_configuration_revision: None,
             started_at: None,
             next_at: None,
             last_success_at: None,
@@ -291,9 +306,14 @@ fn health(db: &Connection, key: &str, now: DateTime<Utc>) -> Result<SourceFreshn
                 .map_err(|_| Error::Invalid("invalid source freshness timestamp".into()))
         })
         .transpose()?;
+    let active_revision: Option<i64> = db.query_row("SELECT p.revision FROM source_configs c JOIN source_projects p ON p.organization=json_extract(c.record,'$.organization') AND p.project_id=json_extract(c.record,'$.project_id') WHERE c.revision=?1",[revision],|r|r.get(0)).optional()?;
     Ok(SourceFreshness {
         source_key: key.into(),
-        state: if error.is_some() {
+        state: if active_revision.is_none() {
+            "configuration_unavailable"
+        } else if active_revision != Some(revision) {
+            "configuration_changed"
+        } else if error.is_some() {
             "unavailable"
         } else if last_gen != Some(generation) {
             "refreshing_or_interrupted"
@@ -305,6 +325,7 @@ fn health(db: &Connection, key: &str, now: DateTime<Utc>) -> Result<SourceFreshn
         .into(),
         generation,
         configuration_revision: Some(revision),
+        active_configuration_revision: active_revision,
         started_at: Some(started),
         next_at: Some(next),
         last_success_at: last_success,

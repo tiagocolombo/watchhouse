@@ -125,6 +125,9 @@ fn source_digest(db: &Connection, case: &str) -> Result<Option<String>> {
         .optional()?)
 }
 pub(crate) fn current(db: &Connection, c: &Candidate, now: &str) -> Result<()> {
+    if !crate::sentry_projects::context_current(db, &c.case_id)? {
+        return Err(Error::Conflict("source project configuration changed; revalidation required before candidate authority".into()));
+    }
     if c.deadline.as_str() <= now || c.source_digest != source_digest(db, &c.case_id)? {
         return Err(Error::Conflict(
             "repair budget/source context changed; new validation required".into(),

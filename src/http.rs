@@ -153,6 +153,10 @@ pub fn router(app: Application, token: String, authority: String) -> Router {
         .nest("/api/v1", api)
         .route("/integrations/sentry", post(sentry_intake))
         .route(
+            "/integrations/sentry/{organization}/{project}",
+            post(sentry_project_intake),
+        )
+        .route(
             "/",
             get(|| async {
                 (
@@ -558,6 +562,27 @@ async fn sentry_intake(
         .unwrap_or("")
         .to_owned();
     let id = blocking(move || s.app.receive_sentry(&body, &signature)).await?;
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(serde_json::json!({"delivery_id":id})),
+    ))
+}
+async fn sentry_project_intake(
+    State(s): State<HttpState>,
+    Path((organization, project)): Path<(String, String)>,
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> Result<impl IntoResponse, ApiError> {
+    let signature = headers
+        .get("sentry-hook-signature")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("")
+        .to_owned();
+    let id = blocking(move || {
+        s.app
+            .receive_sentry_project(&organization, &project, &body, &signature)
+    })
+    .await?;
     Ok((
         StatusCode::ACCEPTED,
         Json(serde_json::json!({"delivery_id":id})),
