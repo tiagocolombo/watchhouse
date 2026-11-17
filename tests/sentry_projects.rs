@@ -427,6 +427,11 @@ fn project_change_invalidates_reported_impact_before_the_next_source_read() {
     assert!(!a.snapshot(&id).unwrap().impact[0].context_current);
     a.supervise_team().unwrap();
     assert!(a.snapshot(&id).unwrap().impact[0].due);
+    let mut later = a.snapshot(&id).unwrap().impact[0].record.clone();
+    later.command.meta.idempotency_key = "stale-config-report".into();
+    later.command.expected_version = a.snapshot(&id).unwrap().case.version;
+    later.expected_revision = 1;
+    assert!(!a.assess_impact(&id, later).unwrap().context_current);
 }
 #[test]
 fn signed_project_http_child() {

@@ -1,5 +1,7 @@
 # First Sentry / incident slice v1
 
+The [independent project extension](../sentry-projects/README.md) adds explicit per-project profiles/routes, fair discovery/known-issue recovery and versioned read budgets. It supersedes the historical single-project-only limitation below while preserving the default identity.
+
 This implements one explicitly mapped Sentry Cloud organization/project, Integration Platform issue webhooks and read-only API enrichment/reconciliation. It does not require per-error webhooks. No live account, relay, token or destination is configured by this repository.
 
 ## Operator configuration

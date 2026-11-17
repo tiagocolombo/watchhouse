@@ -215,7 +215,7 @@ impl Application {
             due: false,
             provenance: "operator-reported-impact-v1".into(),
             source_digest: source_digest(&tx, case)?,
-            context_current: true,
+            context_current: crate::sentry_projects::context_current(&tx, case)?,
             observation,
             record: cmd,
         };
