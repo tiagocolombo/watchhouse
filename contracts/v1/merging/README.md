@@ -1,0 +1,20 @@
+# Eligible merging v1
+
+`merge-policy --file POLICY --operator NAME` installs immutable consecutive OS authority with repository/base, merger-only credential reference, pause, allowed/denied paths, app-pinned required check names, required independent approvals, changed-byte and request/job limits. No HTTP/model command can change this policy. Sensitive factory instructions/policy, workflows, migrations and secret-file conventions remain denied even if an allow rule includes them. Other sensitive paths (auth, billing, deployment etc.) must be included in the operator's explicit deny list. This version supports low-risk bounded text changes using GitHub's merge-commit strategy only; it has no emergency exception/bypass path.
+
+`case merge CASE --file COMMAND` / authenticated `POST /api/v1/cases/CASE/merges` takes `command` (OperatorCommand), `publication_id`, `policy_revision`. Only the current owned/versioned case and exact current native publication/candidate/base/regression/review lineage can enqueue. One pending merge per repository/base prevents competing factory changes. A published PR or operator assertion alone is insufficient.
+
+`merge-worker --once` reserves a job before provider I/O. The GitHub adapter verifies:
+
+- Exact same-repository head, branch, target, base, head tree and single frozen-base parent.
+- Exact changed paths, bounded text size, local challenges, source/profile/admission/knowledge currency and independent candidate review.
+- Completed successful required checks from pinned app IDs, no failing/pending checks/statuses, exact-head independent approvals and no outstanding requested changes. Repository requirements can add stricter gates.
+- Non-draft, open, clean/conflict-free PR and strict protected branch with up-to-date checks, stale-review dismissal, conversation resolution, admin enforcement, no force/deletion and no configured PR-review bypass actors. Unknown/incomplete/paginated observations deny admission. Administrative merger credentials are rejected.
+
+Immediately before PUT, the native adapter repeats remote eligibility and checks the original absolute deadline. It sends only `PUT /repos/REPO/pulls/NUMBER/merge` with `{ "sha": "EXACT_HEAD", "merge_method": "merge" }`. It does not update/rebase branches, bypass protections, set automatic merge, alter checks/reviews or merge a stack. Server-enforced strict up-to-date protection is essential: the REST endpoint compares the head but provides no base compare-and-swap. A concurrent base advance must be refused by the server; an unprotected test repository is intentionally ineligible.
+
+Success is accepted only after reading the actual merged PR and commit and matching both ordered parents `[frozen_base, exact_head]` and the expected tree. Unknown/invalid results or read failures after an acknowledged effect remain uncertain. `reconcile-merge CASE JOB` performs only those GETs using the original immutable policy, even when paused. It never repeats PUT. A late successful observation becomes `merged_stale` and escalates. Merge is never a deployment or recovery claim.
+
+`case retry-merge` / `POST .../merges/retry` takes `command` and `job_id`. Only a definitively blocked, current owned job may return to eligibility checking, within three total attempts and its original deadline. Unknown/reserved jobs must reconcile; a new policy revision cannot silently reauthorize an old job. Duplicate command receipts do not repeat effects. Model-independent deadline escalation preserves ownership across restart.
+
+Snapshots/SSE/web expose decisions, reasons, deadlines, owners, observations and simulated/native attribution. Native means the configured transport ran. Controller fixtures inject native-shaped publication facts and simulate the GitHub server; they are not live GitHub proof. Live acceptance needs a dedicated authorized repository with strict protection and app-pinned checks, independent reviewers and a dedicated non-bypass credential with contents/pull-request write, checks/status/review read and protection read permissions. The coding assistant does not exercise this adapter by opening development PRs.

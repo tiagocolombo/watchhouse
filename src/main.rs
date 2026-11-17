@@ -84,6 +84,21 @@ enum Command {
         #[arg(long)]
         operator: String,
     },
+    MergePolicy {
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long)]
+        operator: String,
+    },
+    MergePolicyStatus,
+    MergeWorker {
+        #[arg(long)]
+        once: bool,
+    },
+    ReconcileMerge {
+        case: String,
+        job: String,
+    },
     OperationPolicyStatus,
     OperationWorker {
         #[arg(long)]
@@ -171,6 +186,16 @@ enum Command {
 }
 #[derive(Subcommand)]
 enum CaseCommand {
+    RetryMerge {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
+    Merge {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
     Operations {
         id: String,
         #[arg(long)]
@@ -648,6 +673,36 @@ async fn run() -> anyhow::Result<()> {
                 &source.display().to_string(),
             )?)?;
         }
+        Command::MergePolicy { file, operator } => {
+            let source = std::fs::canonicalize(&file)?;
+            print(&app.install_merge_policy(
+                read_command(file)?,
+                &operator,
+                &source.display().to_string(),
+            )?)?;
+        }
+        Command::MergePolicyStatus => {
+            print(&app.merge_policy()?)?;
+        }
+        Command::MergeWorker { once } => loop {
+            let worker = app.clone();
+            tokio::task::spawn_blocking(move || {
+                worker.run_merge_once(&watchhouse::merging::github::Native)
+            })
+            .await??;
+            if once {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        },
+        Command::ReconcileMerge { case, job } => {
+            print(
+                &tokio::task::spawn_blocking(move || {
+                    app.reconcile_merge(&case, &job, &watchhouse::merging::github::Native)
+                })
+                .await??,
+            )?;
+        }
         Command::OperationPolicyStatus => {
             print(&app.operation_policy()?)?;
         }
@@ -870,6 +925,12 @@ async fn run() -> anyhow::Result<()> {
         }
         Command::Case { action } => {
             let output = match action {
+                CaseCommand::RetryMerge { id, file } => {
+                    serde_json::to_value(app.retry_merge(&id, read_command(file)?)?)?
+                }
+                CaseCommand::Merge { id, file } => {
+                    serde_json::to_value(app.enqueue_merge(&id, read_command(file)?)?)?
+                }
                 CaseCommand::Operations { id, file } => {
                     serde_json::to_value(app.operation_command(&id, read_command(file)?)?)?
                 }

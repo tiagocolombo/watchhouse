@@ -507,3 +507,17 @@ async fn reservation_rollback_and_competing_enqueues_cannot_dispatch_extra_effec
     assert!(b.0.lock().unwrap().writes.is_empty());
     assert_eq!(f.job(&jobs.0.id).state, "reading");
 }
+
+/// Injected native-shaped publication for merge-controller tests; never real GitHub proof.
+pub(crate) async fn published_fixture() -> (tempfile::TempDir, Application, ManualClock, Job) {
+    let f = Fixture::new().await;
+    let j = f.enqueue("merge-controller-publication");
+    let b = Mock::new(&j);
+    b.0.lock().unwrap().native = true;
+    for _ in 0..4 {
+        f.tick(&b);
+    }
+    let j = f.job(&j.id);
+    assert_eq!(j.state, "published");
+    (f._root, f.app, f.clock, j)
+}
