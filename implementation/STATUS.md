@@ -151,3 +151,10 @@ Migrations 022–024 retain immutable impact revisions, dependency policies and 
 Reported impact keeps unknown windows/denominators null, validates historical/count bounds, exposes zero request traffic as inconclusive, and supervises collection deadlines/context changes without models. Cross-service hints/review use explicit immutable OS dependency maps, fresh separately mapped sources, bounded timing and topology provenance; they cannot become duplicates, causal proof, automatic graph merges or closed duties. CLI/API/web/escaped Markdown share records. The source adapter still needs independent multi-project transport, tracked above rather than waived by normalized fixtures.
 
 Validation: 192 Rust tests and ten Chromium scenarios passed, including API/CLI impact receipts, rollback/restart, invalid counts/windows/scope/version, independent hypothesis acceptance/integrity, all classification duties, duplicate invalidation and topology pause/restart. Strict Clippy/fmt, TypeScript/native build, Markdown links and diff checks passed before commit. Final-head remote CI is required for this PR. No live activation, merge, production action or recovery was performed.
+
+
+## Hosted multi-project continuation checkpoint
+
+The local execution workspace became unavailable after the assessment phase. PR #23's final head `2d260afd0744483f2a03b31598bdce7e1855f115` passed all eight push/PR checks. The multi-project patch was not locally validated before workspace loss. This branch preserves the reconstructed source work through GitHub; validation must come from exact-head CI and no live integration is claimed.
+
+Migration 025 introduces independent active Sentry project heads, an immutable legacy default identity, retained configuration-source provenance and a durable round-robin discovery cursor. The source worker, known-issue refresh and signed project route are being completed with configuration-change fences and explicit versioned read budgets. Multi-project fixtures, remote formatting/build/test checks and operating documentation remain required before this slice is complete. M5–M8 remain open and local acceptance testing is not handed off.

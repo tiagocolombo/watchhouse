@@ -43,6 +43,7 @@ fn ingest_with_cfg(
     let mut issue: Value =
         serde_json::from_str(include_str!("fixtures/sentry/issue.json")).unwrap();
     issue["id"] = n.into();
+    issue["project"]["id"] = config.project_id.clone().into();
     if a.list_cases()
         .unwrap()
         .iter()
@@ -522,7 +523,9 @@ fn cross_service_hints_require_explicit_topology_and_never_become_duplicate_or_c
     config.revision = 2;
     config.service = "payments".into();
     config.repository = "example/payments-fixture".into();
-    a.configure_sentry(config.clone(), "operator").unwrap();
+    config.project_id = "43".into();
+    config.read_policy = Some(ReadPolicy {schema_version:V1,request_seconds:5,lookback_seconds:86400,overlap_seconds:300,max_pages:10});
+    a.configure_sentry_project(config.clone(), "operator", "independent-project-contract-fixture").unwrap();
     let target = ingest_with_cfg(&a, "1002", event(), None, &config);
     assert!(a.snapshot(&id).unwrap().correlations.candidates.is_empty());
     let p = Policy {
@@ -582,8 +585,8 @@ fn cross_service_hints_require_explicit_topology_and_never_become_duplicate_or_c
     let restarted = Application::new(Store::open(d.path().join("db")).unwrap(), Arc::new(t));
     assert_eq!(restarted.service_topology().unwrap().unwrap().revision, 2);
     assert_eq!(restarted.snapshot(&target).unwrap().case.owner, "operator");
-    // These normalized fixtures retain two config revisions. Multi-project live intake is a
-    // separate adapter continuation; this test is not a live multi-service activation claim.
+    // Independent project transports/mappings are exercised by the project adapter fixtures.
+    // This injected API result is not a live multi-service activation claim.
 }
 #[test]
 fn candidate_output_is_capped_and_blocking_challenges_prevent_acceptance_but_not_revocation() {

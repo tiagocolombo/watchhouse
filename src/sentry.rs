@@ -31,7 +31,32 @@ pub struct SentryConfig {
         skip_serializing_if = "is_default_refresh"
     )]
     pub refresh_seconds: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub read_policy: Option<ReadPolicy>,
 }
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReadPolicy {
+    pub schema_version: V1,
+    pub request_seconds: u32,
+    pub lookback_seconds: u32,
+    pub overlap_seconds: u32,
+    pub max_pages: u32,
+}
+impl SentryConfig {
+    pub(crate) fn read_limits(&self) -> ReadPolicy {
+        // Frozen v1 compatibility; explicit project installation requires its own read_policy.
+        self.read_policy.unwrap_or(ReadPolicy {
+            schema_version: V1,
+            request_seconds: 10,
+            lookback_seconds: 86400,
+            overlap_seconds: 300,
+            max_pages: 100,
+        })
+    }
+}
+
 fn default_refresh() -> u32 {
     60
 }
@@ -48,7 +73,16 @@ fn digits(s: &str) -> bool {
     !s.is_empty() && s.len() <= 64 && s.bytes().all(|c| c.is_ascii_digit())
 }
 impl SentryConfig {
-    fn validate(&self) -> Result<()> {
+    pub(crate) fn validate(&self) -> Result<()> {
+        let reads = self.read_limits();
+        if !(1..=30).contains(&reads.request_seconds)
+            || !(1..=2592000).contains(&reads.lookback_seconds)
+            || reads.overlap_seconds > reads.lookback_seconds
+            || reads.overlap_seconds > 86400
+            || !(1..=100).contains(&reads.max_pages)
+        {
+            return Err(Error::Invalid("bounded versioned source read policy required".into()));
+        }
         if !(1..=86400).contains(&self.refresh_seconds)
             || self.revision < 1
             || !slug(&self.organization)
@@ -156,8 +190,9 @@ fn get(cfg: &SentryConfig, path: &str, query: &[(&str, &str)]) -> Result<(Value,
         ));
     }
     let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(cfg.read_limits().request_seconds.into()))
         .redirect(reqwest::redirect::Policy::none())
+        .no_proxy()
         .build()
         .map_err(|_| Error::Invalid("Sentry client unavailable".into()))?;
     let response = client
@@ -291,14 +326,7 @@ pub(crate) fn normalize(v: &Value, cfg: &SentryConfig) -> Result<Signal> {
     })
 }
 pub(crate) fn config(db: &Connection) -> Result<Option<SentryConfig>> {
-    let raw: Option<String> = db
-        .query_row(
-            "SELECT record FROM source_configs ORDER BY revision DESC LIMIT 1",
-            [],
-            |r| r.get(0),
-        )
-        .optional()?;
-    raw.map(|s| Ok(serde_json::from_str(&s)?)).transpose()
+    crate::sentry_projects::default_config(db)
 }
 fn queue(tx: &Transaction<'_>, cfg: &SentryConfig, signal: &Signal, now: &str) -> Result<String> {
     let raw = serde_json::to_string(signal)?;
@@ -333,37 +361,7 @@ pub(crate) fn snapshot(db: &Connection, id: &str) -> Result<Option<SourceObserva
 type SyncRow = (String, String, Option<String>, Option<String>, String);
 impl Application {
     pub fn configure_sentry(&self, cfg: SentryConfig, who: &str) -> Result<SentryConfig> {
-        cfg.validate()?;
-        text(who, "operator", 128)?;
-        if who.starts_with("fake-") {
-            return Err(Error::Invalid(
-                "agents cannot configure source authority".into(),
-            ));
-        }
-        let mut db = self.store.connect()?;
-        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let raw = serde_json::to_string(&cfg)?;
-        if let Some(old) = config(&tx)? {
-            if old.revision == cfg.revision && serde_json::to_string(&old)? == raw {
-                return Ok(cfg);
-            }
-            if cfg.revision != old.revision + 1
-                || cfg.organization != old.organization
-                || cfg.project_id != old.project_id
-            {
-                return Err(Error::Conflict(
-                    "source revision must advance; organization/project cannot be remapped".into(),
-                ));
-            }
-        } else if cfg.revision != 1 {
-            return Err(Error::Invalid("first source revision must be 1".into()));
-        }
-        tx.execute(
-            "INSERT INTO source_configs VALUES (?1,?2,?3,?4)",
-            params![cfg.revision, raw, who, self.now()],
-        )?;
-        tx.commit()?;
-        Ok(cfg)
+        self.install_sentry_project(cfg, who, "legacy default-project operator control", true)
     }
     pub fn receive_sentry(&self, raw: &[u8], signature: &str) -> Result<String> {
         let cfg = config(&self.store.connect()?)?
@@ -427,26 +425,26 @@ impl Application {
             |r| Ok((r.get(0)?, r.get(1)?)),
         )?;
         Ok(
-            json!({"known_issue_freshness":crate::sentry_refresh::all_health(&db,self.clock.now())?,"api_credential_present":cfg.as_ref().is_some_and(|c|std::env::var(&c.api_token_env).is_ok_and(|s|!s.trim().is_empty())),"webhook_credential_present":cfg.as_ref().is_some_and(|c|std::env::var(&c.webhook_secret_env).is_ok()),"configuration":cfg,"reconciliation":rows,"pending":pending.0,"oldest_pending":pending.1,"coverage_limit":"Issue snapshots in requested window; not complete historical event coverage or recovery evidence"}),
+            json!({"known_issue_freshness":crate::sentry_refresh::all_health(&db,self.clock.now())?,"api_credential_present":cfg.as_ref().is_some_and(|c|std::env::var(&c.api_token_env).is_ok_and(|s|!s.trim().is_empty())),"webhook_credential_present":cfg.as_ref().is_some_and(|c|std::env::var(&c.webhook_secret_env).is_ok()),"configuration":cfg,"projects":self.configured_sentry_projects()?,"reconciliation":rows,"pending":pending.0,"oldest_pending":pending.1,"coverage_limit":"Issue snapshots in requested window; not complete historical event coverage or recovery evidence"}),
         )
     }
     pub fn sentry_tick(&self, api: &dyn SentryApi) -> Result<usize> {
         let n = match self.reconcile_sentry(api) {
             Ok(n) => n,
-            Err(Error::Invalid(_) | Error::Conflict(_)) => {
-                if let Some(cfg) = config(&self.store.connect()?)? {
-                    self.store.connect()?.execute("UPDATE source_sync SET error='Invalid or conflicting page; coverage incomplete',next_at=?1 WHERE revision=?2",params![(self.clock.now()+Duration::seconds(cfg.refresh_seconds.into())).to_rfc3339_opts(SecondsFormat::Millis,true),cfg.revision])?;
-                }
-                0
-            }
+            Err(Error::Invalid(_) | Error::Conflict(_)) => 0,
             Err(e) => return Err(e),
         };
         Ok(n + self.process_sentry_intake(api)? + self.refresh_known_sentry(api)?)
     }
     pub fn reconcile_sentry(&self, api: &dyn SentryApi) -> Result<usize> {
-        let Some(cfg) = config(&self.store.connect()?)? else {
-            return Ok(0);
-        };
+        let Some(cfg) = crate::sentry_projects::select_poll(self)? else { return Ok(0) };
+        let result = self.reconcile_sentry_project(cfg.clone(), api);
+        if matches!(result, Err(Error::Invalid(_) | Error::Conflict(_))) {
+            self.store.connect()?.execute("UPDATE source_sync SET error='Invalid or conflicting project page; coverage incomplete',next_at=?1 WHERE revision=?2",params![(self.clock.now()+Duration::seconds(cfg.refresh_seconds.into())).to_rfc3339_opts(SecondsFormat::Millis,true),cfg.revision])?;
+        }
+        result
+    }
+    fn reconcile_sentry_project(&self, cfg: SentryConfig, api: &dyn SentryApi) -> Result<usize> {
         let now = self.now();
         let (start, end, c) = {
             let mut db = self.store.connect()?;
@@ -462,13 +460,13 @@ impl Application {
                 Some((_, _, _, Some(covered), _)) => (
                     (DateTime::parse_from_rfc3339(&covered)
                         .map_err(|_| Error::Invalid("invalid coverage watermark".into()))?
-                        - Duration::seconds(300))
+                        - Duration::seconds(cfg.read_limits().overlap_seconds.into()))
                     .to_rfc3339_opts(SecondsFormat::Millis, true),
                     now.clone(),
                     None,
                 ),
                 _ => (
-                    (self.clock.now() - Duration::hours(24))
+                    (self.clock.now() - Duration::seconds(cfg.read_limits().lookback_seconds.into()))
                         .to_rfc3339_opts(SecondsFormat::Millis, true),
                     now.clone(),
                     None,
@@ -478,6 +476,10 @@ impl Application {
             tx.commit()?;
             window
         };
+        let pages: u32 = self.store.connect()?.query_row("SELECT COUNT(*) FROM source_cursors WHERE revision=?1 AND window_end=?2",params![cfg.revision,end],|r|r.get(0))?;
+        if pages >= cfg.read_limits().max_pages {
+            return Err(Error::Invalid("configured source page budget exhausted; coverage remains incomplete".into()));
+        }
         let page = match api.page(&cfg, &start, &end, c.as_deref()) {
             Ok(p) => p,
             Err(_) => {
@@ -517,6 +519,9 @@ impl Application {
                 "INSERT INTO source_cursors VALUES (?1,?2,?3)",
                 params![cfg.revision, end, n],
             )?;
+        }
+        if !crate::sentry_projects::revision_active(&tx, cfg.revision)? {
+            return Err(Error::Conflict("project configuration changed during discovery; old page cannot queue observations".into()));
         }
         for signal in &signals {
             queue(&tx, &cfg, signal, &now)?;

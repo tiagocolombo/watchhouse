@@ -49,6 +49,13 @@ enum Command {
         #[arg(long)]
         operator: String,
     },
+    SentryProject {
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long)]
+        operator: String,
+    },
+    SentryProjects,
     Sentry {
         #[arg(long)]
         file: PathBuf,
@@ -660,10 +667,15 @@ async fn run() -> anyhow::Result<()> {
                 )?
             );
         }
-        Command::Sentry { file, operator } => println!(
-            "{}",
-            serde_json::to_string_pretty(&app.configure_sentry(read_command(file)?, &operator)?)?
-        ),
+        Command::SentryProject { file, operator } => {
+            let source = std::fs::canonicalize(&file)?;
+            println!("{}", serde_json::to_string_pretty(&app.configure_sentry_project(read_command(file)?, &operator, &source.to_string_lossy())?)?);
+        }
+        Command::SentryProjects => println!("{}", serde_json::to_string_pretty(&app.configured_sentry_projects()?)?),
+        Command::Sentry { file, operator } => {
+            let source = std::fs::canonicalize(&file)?;
+            println!("{}", serde_json::to_string_pretty(&app.configure_sentry_with_source(read_command(file)?, &operator, &source.to_string_lossy())?)?);
+        }
         Command::RepairSource { file, operator } => println!(
             "{}",
             serde_json::to_string_pretty(

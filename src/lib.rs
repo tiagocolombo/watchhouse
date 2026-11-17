@@ -20,6 +20,7 @@ pub mod real_execution;
 pub mod recovery;
 pub mod repair;
 pub mod sentry;
+pub mod sentry_projects;
 pub mod sentry_refresh;
 pub mod source_context;
 pub mod store;
