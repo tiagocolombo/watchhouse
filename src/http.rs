@@ -91,6 +91,7 @@ pub fn router(app: Application, token: String, authority: String) -> Router {
         .route("/cases/{id}/candidate-checks", post(check_candidate))
         .route("/cases/{id}/candidate-reviews", post(review_candidate))
         .route("/cases/{id}/recovery", post(recovery_command))
+        .route("/cases/{id}/operations", post(operation_command))
         .route("/cases/{id}/learning", post(learning_command))
         .route("/cases/{id}/knowledge-imports", post(import_hallmark))
         .route("/cases/{id}/hallmark-export", post(export_hallmark))
@@ -684,4 +685,10 @@ case_command!(
     export_hallmark,
     crate::hallmark::ExportSelection,
     export_hallmark
+);
+
+case_command!(
+    operation_command,
+    crate::operations::Command,
+    operation_command
 );
