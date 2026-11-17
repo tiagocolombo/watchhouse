@@ -99,6 +99,18 @@ impl Application {
         {
             return Err(Error::Conflict("default organization/project cannot be remapped; register an independent project explicitly".into()));
         }
+        let alias: Option<String> = tx
+            .query_row(
+                "SELECT organization FROM source_projects WHERE project_id=?1",
+                [&cfg.project_id],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if alias.as_ref().is_some_and(|org| org != &cfg.organization) {
+            return Err(Error::Invalid(
+                "this adapter forbids aliasing one project ID across organizations".into(),
+            ));
+        }
         let raw = serde_json::to_string(&cfg)?;
         let existing: Option<String> = tx
             .query_row(

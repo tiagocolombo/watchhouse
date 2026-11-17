@@ -429,7 +429,7 @@ impl Application {
             |r| Ok((r.get(0)?, r.get(1)?)),
         )?;
         Ok(
-            json!({"known_issue_freshness":crate::sentry_refresh::all_health(&db,self.clock.now())?,"api_credential_present":cfg.as_ref().is_some_and(|c|std::env::var(&c.api_token_env).is_ok_and(|s|!s.trim().is_empty())),"webhook_credential_present":cfg.as_ref().is_some_and(|c|std::env::var(&c.webhook_secret_env).is_ok()),"configuration":cfg,"projects":self.configured_sentry_projects()?,"reconciliation":rows,"pending":pending.0,"oldest_pending":pending.1,"coverage_limit":"Issue snapshots in requested window; not complete historical event coverage or recovery evidence"}),
+            json!({"known_issue_freshness":crate::sentry_refresh::all_health(&db,self.clock.now())?,"api_credential_present":cfg.as_ref().is_some_and(|c|std::env::var(&c.api_token_env).is_ok_and(|s|!s.trim().is_empty())),"webhook_credential_present":cfg.as_ref().is_some_and(|c|std::env::var(&c.webhook_secret_env).is_ok_and(|s|s.len()>=32)),"configuration":cfg,"projects":self.configured_sentry_projects()?,"reconciliation":rows,"pending":pending.0,"oldest_pending":pending.1,"coverage_limit":"Issue snapshots in requested window; not complete historical event coverage or recovery evidence"}),
         )
     }
     pub fn sentry_tick(&self, api: &dyn SentryApi) -> Result<usize> {
@@ -469,7 +469,8 @@ impl Application {
                         - Duration::seconds(cfg.read_limits().overlap_seconds.into());
                     let end = std::cmp::min(
                         self.clock.now(),
-                        (start + Duration::seconds(cfg.read_limits().lookback_seconds.into())).with_timezone(&Utc),
+                        (start + Duration::seconds(cfg.read_limits().lookback_seconds.into()))
+                            .with_timezone(&Utc),
                     );
                     (
                         start.to_rfc3339_opts(SecondsFormat::Millis, true),

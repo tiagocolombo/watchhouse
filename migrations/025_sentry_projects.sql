@@ -1,5 +1,6 @@
 CREATE TABLE source_projects(organization TEXT NOT NULL,project_id TEXT NOT NULL,revision INTEGER NOT NULL UNIQUE REFERENCES source_configs(revision),PRIMARY KEY(organization,project_id));
 INSERT INTO source_projects SELECT json_extract(record,'$.organization'),json_extract(record,'$.project_id'),MAX(revision) FROM source_configs GROUP BY json_extract(record,'$.organization'),json_extract(record,'$.project_id');
+CREATE UNIQUE INDEX source_project_identity ON source_projects(project_id);
 CREATE TABLE source_primary(singleton INTEGER PRIMARY KEY CHECK(singleton=1),organization TEXT NOT NULL,project_id TEXT NOT NULL,FOREIGN KEY(organization,project_id) REFERENCES source_projects(organization,project_id));
 INSERT INTO source_primary SELECT 1,json_extract(record,'$.organization'),json_extract(record,'$.project_id') FROM source_configs ORDER BY revision LIMIT 1;
 CREATE TRIGGER immutable_source_primary BEFORE UPDATE ON source_primary BEGIN SELECT RAISE(ABORT,'default source identity is immutable'); END;
