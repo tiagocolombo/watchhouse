@@ -199,3 +199,7 @@ The [synthetic adapter lifecycle](contracts/v1/adapter-trials/README.md) exercis
 ## Eligible automatic merging
 
 [Merging v1](contracts/v1/merging/README.md) adds separately installed merge authority and a deterministic controller after native publication. It checks exact candidate/base/head/tree, independently verified review, protected app-pinned CI and repository approvals before an exact-head merge-commit request. Sensitive paths, stale or unknown facts and policy pause deny admission. Reserved uncertainty is reconciled by reads without replay. Fixtures exercise eligibility, denial and crash recovery; no dedicated live merge repository or credentials are configured.
+
+## Datadog monitor intake
+
+[Datadog v1](contracts/v1/datadog/README.md) adds independently mapped current-monitor polling and fair bounded reconciliation. Native read transport, configuration fencing, read health, common incident timers and web coverage are implemented. Monitor `OK` never means recovered; traffic, historical transitions, release and deployment remain unknown. Fixtures validate the controller; actual account/history activation requires explicit mappings and scoped credentials.

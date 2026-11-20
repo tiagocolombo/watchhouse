@@ -136,3 +136,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 - [ADR 0029 — Controlled operations](adrs/0029-controlled-operations-gateway.md): fixed OS-authorized runbooks, independent approval, durable no-replay action dispatch/reconciliation, authenticated deployment/telemetry records and owned problem/known-error linkage. Physical gateway and live/history acceptance remain explicit activation gates.
 
 - [ADR 0030 — Eligible merge controller](adrs/0030-eligible-merge-controller.md): separate immutable merge authority, exact candidate/publication/head/base/tree lineage, strict server protection, independent checks/reviews, durable no-replay reconciliation and bounded definitive-denial retry. Live dedicated-repository acceptance remains blocked.
+
+- [ADR 0031 — Independent Datadog monitors](adrs/0031-independent-datadog-monitors.md): separately mapped read-only monitor polling, fair fenced reconciliation, common source validity/timers and explicit capability/coverage limits. Fixtures do not establish live account/history acceptance. Remaining M7/M8 development stays open.

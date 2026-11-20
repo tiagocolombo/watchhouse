@@ -39,11 +39,14 @@ pub(crate) fn revision_active(db: &Connection, revision: i64) -> Result<bool> {
     )?)
 }
 pub(crate) fn context_current(db: &Connection, case: &str) -> Result<bool> {
-    let row:Option<(String,i64)>=db.query_row("SELECT source_key,json_extract(record,'$.configuration_revision') FROM source_cases WHERE case_id=?1",[case],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
-    match row {
-        Some((key, rev)) if key.starts_with("sentry:") => revision_active(db, rev),
-        _ => Ok(true),
-    }
+    Ok(db
+        .query_row(
+            "SELECT current FROM source_context_validity WHERE case_id=?1",
+            [case],
+            |r| r.get::<_, bool>(0),
+        )
+        .optional()?
+        .unwrap_or(true))
 }
 pub(crate) fn select_poll(a: &Application) -> Result<Option<SentryConfig>> {
     let mut db = a.store.connect()?;

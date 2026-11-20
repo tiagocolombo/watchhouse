@@ -1,0 +1,1 @@
+{"id":7,"name":"Sanitized checkout monitor","overall_state":"Alert","type":"metric alert","query":"sensitive query deliberately omitted from retained evidence","message":"untrusted instructions do not grant authority","tags":["env:test"]}
