@@ -1134,6 +1134,8 @@ pub(crate) mod controller {
         f.app
             .install_model_policy(
                 ModelPolicy {
+                    profile: "default".into(),
+                    adapter: crate::model_runtime::policy::Adapter::Codex,
                     schema_version: V1,
                     revision: 1,
                     container_revision: 1,
@@ -1167,6 +1169,15 @@ pub(crate) mod controller {
         key: &str,
         action: crate::model_runtime::ops::Action,
     ) -> crate::model_runtime::ops::Job {
+        model_run_profile(f, b, key, action, 1).await
+    }
+    async fn model_run_profile(
+        f: &Fixture,
+        b: &RoleFixture,
+        key: &str,
+        action: crate::model_runtime::ops::Action,
+        policy_revision: i64,
+    ) -> crate::model_runtime::ops::Job {
         use crate::model_runtime::ops::*;
         let j = f
             .app
@@ -1174,7 +1185,7 @@ pub(crate) mod controller {
                 &f.case,
                 Request {
                     command: command(f, key, "operator"),
-                    policy_revision: 1,
+                    policy_revision,
                     action,
                     fixture_response: None,
                 },
@@ -1188,7 +1199,7 @@ pub(crate) mod controller {
     #[tokio::test]
     async fn model_adoption_requires_exact_proposal_evidence_and_independent_session() {
         use crate::model_runtime::{adoption::*, ops::Action};
-        for same_session in [false, true] {
+        for (same_session, cross_harness) in [(false, false), (true, false), (false, true)] {
             let f = fixture();
             let container = FixtureBackend {
                 native: true,
@@ -1280,7 +1291,37 @@ pub(crate) mod controller {
             if !same_session {
                 roles.session = "reviewer-session".into();
             }
-            let reviewer = model_run(
+            if cross_harness {
+                let mut profile =
+                    crate::model_runtime::ops::policy(&f.app.store.connect().unwrap(), 1).unwrap();
+                profile.revision = 2;
+                profile.adapter = crate::model_runtime::policy::Adapter::ClaudeCode;
+                profile.profile = "independent-review".into();
+                profile.authority = crate::model_runtime::policy::Authority::ClaudeApiKeyEnv {
+                    token_env: "WATCHHOUSE_CLAUDE_FIXTURE_UNSET_KEY".into(),
+                };
+                f.app
+                    .install_model_policy(
+                        profile,
+                        "operator",
+                        "injected cross-harness controller fixture only",
+                    )
+                    .unwrap();
+                roles.session = "claude:00000000-0000-4000-8000-000000000002".into();
+                assert_eq!(
+                    model_run_profile(
+                        &f,
+                        &roles,
+                        "second-adapter-qualification",
+                        Action::Qualification,
+                        2
+                    )
+                    .await
+                    .state,
+                    "qualified"
+                );
+            }
+            let reviewer = model_run_profile(
                 &f,
                 &roles,
                 "reviewer",
@@ -1289,6 +1330,7 @@ pub(crate) mod controller {
                     base_check: base.id,
                     candidate_check: checked.id,
                 },
+                if cross_harness { 2 } else { 1 },
             )
             .await;
             assert_eq!(reviewer.state, "completed");
@@ -1301,7 +1343,7 @@ pub(crate) mod controller {
             } else {
                 let r = f.app.adopt_model_review(&f.case, cmd.clone()).unwrap();
                 assert!(r.current);
-                assert_eq!(r.author, "model-session:reviewer-session");
+                assert_eq!(r.author, format!("model-session:{}", roles.session));
                 assert_eq!(f.app.adopt_model_review(&f.case, cmd).unwrap().id, r.id);
                 crate::delivery::tests::exercise_model_lineage_publication(&f.app, &candidate, &r);
                 // Corruption of the engineer evidence invalidates both its candidate and the dependent review.

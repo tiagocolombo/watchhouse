@@ -49,10 +49,7 @@ impl Envelope {
             ));
         }
         if !self.qualification
-            && matches!(
-                self.profile.authority,
-                super::policy::Authority::OpenaiAuthHome { .. }
-            )
+            && !matches!(self.profile.authority, super::policy::Authority::Fixture)
             && self.fixture_response.is_some()
         {
             return Err(Error::Invalid(

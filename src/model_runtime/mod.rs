@@ -15,3 +15,5 @@ pub mod ops;
 mod tests;
 
 pub mod adoption;
+
+pub mod claude;

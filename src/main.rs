@@ -154,6 +154,7 @@ enum Command {
         #[arg(long)]
         once: bool,
     },
+    ModelProfiles,
     WorkerPolicyStatus,
     WorkerPolicy {
         #[arg(long)]
@@ -613,6 +614,7 @@ async fn run() -> anyhow::Result<()> {
     }
     let app = Application::new(Store::open(cli.db)?, Arc::new(SystemClock));
     match cli.command {
+        Command::ModelProfiles => print(&app.model_profiles()?)?,
         Command::ModelPolicy { file, operator } => {
             let source = std::fs::canonicalize(&file)?;
             println!(
