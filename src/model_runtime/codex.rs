@@ -155,10 +155,21 @@ pub fn parse(lines: &str, role: Role) -> Result<Parsed> {
         return Err(invalid("harness stream ended without terminal completion"));
     }
     let text = message.ok_or_else(|| invalid("harness returned no structured role output"))?;
-    let output = match role {
-        Role::Qualification => RoleOutput::Qualification(serde_json::from_str(&text)?),
+    let output = parse_role(&text, role)?;
+    Ok(Parsed {
+        output,
+        session: session.ok_or_else(|| invalid("harness session not observed"))?,
+        actual_model: None,
+        usage,
+        events,
+    })
+}
+
+pub(crate) fn parse_role(text: &str, role: Role) -> Result<RoleOutput> {
+    Ok(match role {
+        Role::Qualification => RoleOutput::Qualification(serde_json::from_str(text)?),
         Role::Engineer => {
-            let p: Proposal = serde_json::from_str(&text)?;
+            let p: Proposal = serde_json::from_str(text)?;
             if p.summary.trim().is_empty()
                 || p.summary.len() > 4000
                 || p.changes.is_empty()
@@ -184,18 +195,11 @@ pub fn parse(lines: &str, role: Role) -> Result<Parsed> {
             RoleOutput::Engineer(p)
         }
         Role::Reviewer => {
-            let p: Assessment = serde_json::from_str(&text)?;
+            let p: Assessment = serde_json::from_str(text)?;
             if p.findings.trim().is_empty() || p.findings.len() > 8000 {
                 return Err(invalid("review exceeds bounded role schema"));
             }
             RoleOutput::Reviewer(p)
         }
-    };
-    Ok(Parsed {
-        output,
-        session: session.ok_or_else(|| invalid("harness session not observed"))?,
-        actual_model: None,
-        usage,
-        events,
     })
 }

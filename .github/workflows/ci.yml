@@ -35,6 +35,14 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: npm install --prefix "$RUNNER_TEMP/watchhouse-codex-runtime" --ignore-scripts --no-audit --no-fund @openai/codex@0.167.0-alpha.4
+      - name: Install pinned native Claude Code for independent text-client fixture drill
+        if: runner.os == 'Linux'
+        shell: bash
+        run: npm install --prefix "$RUNNER_TEMP/watchhouse-claude-runtime" --ignore-scripts --no-audit --no-fund @anthropic-ai/claude-code-linux-x64@2.1.329
+      - name: Native Claude Code resource/protocol drill (no account or models)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: bash tools/native_model_drill.sh claude
       - name: Native model-client resource/protocol drill (no account or models)
         if: runner.os == 'Linux'
         shell: bash

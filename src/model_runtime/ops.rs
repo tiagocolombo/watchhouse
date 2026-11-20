@@ -298,8 +298,11 @@ pub(crate) fn snapshot(db: &Connection, case: &str) -> Result<Vec<Job>> {
         .collect()
 }
 fn active(db: &Connection, p: &ModelPolicy) -> Result<()> {
-    let latest: Option<i64> =
-        db.query_row("SELECT MAX(revision) FROM model_policies", [], |r| r.get(0))?;
+    let adapter = match p.adapter {
+        super::policy::Adapter::Codex => "codex",
+        super::policy::Adapter::ClaudeCode => "claude_code",
+    };
+    let latest:Option<i64>=db.query_row("SELECT MAX(revision) FROM model_policies WHERE COALESCE(json_extract(record,'$.adapter'),'codex')=?1 AND COALESCE(json_extract(record,'$.profile'),'default')=?2",params![adapter,p.profile],|r|r.get(0))?;
     if latest != Some(p.revision) {
         return Err(Error::Conflict(
             "model profile superseded; no new client effect is authorized".into(),
@@ -1334,4 +1337,51 @@ pub(crate) fn supervise(tx: &Transaction<'_>, now: &str) -> Result<usize> {
         count += 1;
     }
     Ok(count)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProfileStatus {
+    pub policy: ModelPolicy,
+    pub current: bool,
+    pub installed_by: String,
+    pub installed_at: String,
+    pub source: String,
+    pub credential_present: bool,
+    pub native_admission_current: bool,
+}
+impl Application {
+    pub fn model_profiles(&self) -> Result<Vec<ProfileStatus>> {
+        let db = self.store.connect()?;
+        let mut q=db.prepare("SELECT record,operator,installed_at,source FROM model_policies ORDER BY revision DESC LIMIT 100")?;
+        q.query_map([], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+                r.get::<_, String>(3)?,
+            ))
+        })?
+        .map(|r| {
+            let (raw, installed_by, installed_at, source) = r?;
+            let stored: ModelPolicy = serde_json::from_str(&raw)?;
+            let p = policy(&db, stored.revision)?;
+            let credential_present = match &p.authority {
+                Authority::Fixture => false,
+                Authority::OpenaiAuthHome { path } => path.join("auth.json").is_file(),
+                Authority::ClaudeApiKeyEnv { token_env } => {
+                    std::env::var(token_env).is_ok_and(|s| !s.is_empty())
+                }
+            };
+            Ok(ProfileStatus {
+                current: active(&db, &p).is_ok(),
+                native_admission_current: admission(&db, &p, &self.now()).is_ok(),
+                policy: p,
+                installed_by,
+                installed_at,
+                source,
+                credential_present,
+            })
+        })
+        .collect()
+    }
 }

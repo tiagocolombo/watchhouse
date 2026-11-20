@@ -127,6 +127,7 @@ pub fn router(app: Application, token: String, authority: String) -> Router {
         .route("/cases/{id}/incident/markdown", get(incident_markdown))
         .route("/sources/sentry", get(source_health))
         .route("/sources/datadog", get(datadog_status))
+        .route("/model-profiles", get(model_profiles))
         .route("/cases/{id}/team/messages", post(team_message))
         .route("/cases/{id}/team/message-ack", post(team_message_ack))
         .route("/cases/{id}/team/handoffs", post(team_handoff))
@@ -703,6 +704,13 @@ case_command!(retry_merge, crate::merging::Retry, retry_merge);
 async fn datadog_status(State(s): State<HttpState>) -> Result<Json<serde_json::Value>, ApiError> {
     Ok(Json(
         serde_json::to_value(blocking(move || s.app.datadog_status()).await?)
+            .map_err(|e| ApiError(e.into()))?,
+    ))
+}
+
+async fn model_profiles(State(s): State<HttpState>) -> Result<Json<serde_json::Value>, ApiError> {
+    Ok(Json(
+        serde_json::to_value(blocking(move || s.app.model_profiles()).await?)
             .map_err(|e| ApiError(e.into()))?,
     ))
 }

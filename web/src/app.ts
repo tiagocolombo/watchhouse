@@ -46,6 +46,7 @@ async function queue() {
   const cases = await api<Case[]>('/cases');
   el('source-health').textContent=JSON.stringify(await api('/sources/sentry'),null,2);
   el('datadog-health').textContent=JSON.stringify(await api('/sources/datadog'),null,2);
+  el('model-profiles').textContent=JSON.stringify(await api('/model-profiles'),null,2);
   el('cases').replaceChildren();
   for (const item of cases) {
     const button = document.createElement('button'); button.textContent = `${item.title} · ${item.status.replaceAll('_',' ')}`;
@@ -150,6 +151,7 @@ async function follow(id:string,cursor:number,current:number,signal:AbortSignal)
   }
 }
 async function openCase(id:string) {
+  if(selected?.id!==id)inspectedEvidence.clear();
   active?.abort(); const current=++generation; active=new AbortController();
   const snapshot=await api<Snapshot>(`/cases/${id}`); if(current!==generation) return;
   el('empty').hidden=true;el('case-view').hidden=false;el('timeline').replaceChildren();seen.clear();
@@ -338,11 +340,22 @@ handleForm('reconsider-form',(id,version)=>command(id,'reconsider',{
   reason:input('reconsider-reason'),disposition_id:qualification.dispositions.at(-1)?.id,trigger:input('reconsider-trigger'),evidence_refs:chosenEvidence(),
 },version));
 
+// Keep an opened inspection across snapshot replacement, including an in-flight read.
+const inspectedEvidence=new Map<string,Promise<unknown>>();
 function inspect(parent:HTMLElement,digest:string) {
+  const show=(pending:Promise<unknown>)=>{
+    const pre=document.createElement('pre');pre.textContent='Loading evidence…';pre.style.whiteSpace='pre-wrap';parent.append(pre);
+    void pending.then(value=>{pre.textContent=JSON.stringify(value,null,2);}).catch(error=>{
+      if(inspectedEvidence.get(digest)===pending)inspectedEvidence.delete(digest);
+      pre.remove();inspect(parent,digest);if(parent.isConnected)fail(error);
+    });
+  };
+  const pending=inspectedEvidence.get(digest);
+  if(pending){show(pending);return;}
   const button=document.createElement('button');button.type='button';button.textContent='Inspect checkpoint / evidence';
-  button.onclick=()=>void api<unknown>(`/evidence/${digest}`).then(value=>{
-    const pre=document.createElement('pre');pre.textContent=JSON.stringify(value,null,2);pre.style.whiteSpace='pre-wrap';parent.append(pre);button.remove();
-  }).catch(fail);parent.append(button);
+  button.onclick=()=>{
+    const pending=api<unknown>(`/evidence/${digest}`);inspectedEvidence.set(digest,pending);button.remove();show(pending);
+  };parent.append(button);
 }
 function renderTeam(snapshot:Snapshot) {
   team=snapshot.team;

@@ -140,6 +140,8 @@ fn fixture() -> Fixture {
         std::fs::set_permissions(&jobs, std::fs::Permissions::from_mode(0o700)).unwrap();
     }
     let p = ModelPolicy {
+        profile: "default".into(),
+        adapter: crate::model_runtime::policy::Adapter::Codex,
         schema_version: V1,
         revision: 1,
         container_revision: 1,
@@ -463,7 +465,20 @@ fn fixed_adapter_flags_and_native_root_fail_closed() {
 #[tokio::test]
 #[ignore = "requires an explicitly delegated native Linux cgroup and pinned Codex; no account/models"]
 async fn native_codex_cgroup_qualification_and_coordinator_offline_watchdog() {
+    native_text_client_drill(super::policy::Adapter::Codex, "WATCHHOUSE_MODEL_CODEX").await;
+}
+#[tokio::test]
+#[ignore = "requires an explicitly delegated Linux cgroup and pinned Claude Code; no account/models"]
+async fn native_claude_cgroup_qualification_and_coordinator_offline_watchdog() {
+    native_text_client_drill(
+        super::policy::Adapter::ClaudeCode,
+        "WATCHHOUSE_MODEL_CLAUDE",
+    )
+    .await;
+}
+async fn native_text_client_drill(adapter: super::policy::Adapter, runtime_env: &str) {
     let mut f = fixture();
+    f.p.adapter = adapter;
     f.clock
         .advance(Utc::now() - Utc.with_ymd_and_hms(2026, 11, 16, 12, 0, 0).unwrap());
     f.p.revision = 2;
@@ -472,7 +487,7 @@ async fn native_codex_cgroup_qualification_and_coordinator_offline_watchdog() {
     )
     .unwrap();
     f.p.runtime.path = std::fs::canonicalize(
-        std::env::var_os("WATCHHOUSE_MODEL_CODEX").expect("pinned native Codex required"),
+        std::env::var_os(runtime_env).expect("pinned native text client required"),
     )
     .unwrap();
     f.p.runtime.digest = crate::repair::snapshot::file_digest(&f.p.runtime.path).unwrap();
@@ -714,4 +729,52 @@ fn queued_model_control_directory_is_private_before_dispatch() {
     let f = fixture();
     let j = queue(&f, "private-control-directory");
     super::policy::private_dir(&j.root).unwrap();
+}
+
+#[test]
+fn independent_profiles_preserve_legacy_digest_shape_and_do_not_inherit_admission() {
+    let f = fixture();
+    let raw = serde_json::to_value(&f.p).unwrap();
+    assert!(raw.get("adapter").is_none());
+    assert!(raw.get("profile").is_none());
+    let mut second = f.p.clone();
+    second.revision = 2;
+    second.adapter = super::policy::Adapter::ClaudeCode;
+    second.profile = "reviewer".into();
+    f.app
+        .install_model_policy(second.clone(), "operator", "fixture second profile")
+        .unwrap();
+    let status = f.app.model_profiles().unwrap();
+    assert_eq!(status.iter().filter(|s| s.current).count(), 2);
+    assert!(status.iter().all(|s| !s.native_admission_current));
+    let mut changed = f.p.clone();
+    changed.revision = 3;
+    changed.requested_model = "new-explicit-model".into();
+    f.app
+        .install_model_policy(
+            changed,
+            "operator",
+            "supersede only the default Codex profile",
+        )
+        .unwrap();
+    let status = f.app.model_profiles().unwrap();
+    assert!(
+        !status
+            .iter()
+            .find(|s| s.policy.revision == 1)
+            .unwrap()
+            .current
+    );
+    assert!(
+        status
+            .iter()
+            .find(|s| s.policy.revision == 2)
+            .unwrap()
+            .current
+    );
+    second.revision = 4;
+    second.authority = super::policy::Authority::OpenaiAuthHome {
+        path: f.p.jobs_root.clone(),
+    };
+    assert!(second.validate().is_err());
 }

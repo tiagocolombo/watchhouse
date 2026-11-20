@@ -11,8 +11,17 @@ test('core coordination remains authoritative while browser observes handoff and
   const proof={run_id:claim.run_id,fence:claim.fence};
   await post('/team/block',{run:{meta:meta('browser-block','fake-investigator'),proof},details:{reason_code:'missing_evidence',work_attempted:'Read objective',last_useful_progress:'Need a trace',checkpoint:'No mutable workspace or external effects',assistance_needed:'A second fake investigator must collect evidence',uncertainty:'Cause and recovery remain unknown',evidence_refs:[]}});
   await expect(page.locator('#team-state')).toContainText('blocked');await expect(page.locator('#team-blocks')).toContainText('Owner: operator');
-  await page.locator('#team-blocks').getByRole('button',{name:'Inspect checkpoint / evidence'}).click();await expect(page.locator('#team-blocks pre')).toContainText('No mutable workspace');
+  // Hold the evidence response while another event replaces the snapshot DOM.
+  let releaseEvidence!:()=>void;const evidenceReady=new Promise<void>(resolve=>{releaseEvidence=resolve;});
+  await page.route('**/api/v1/evidence/*',async route=>{await evidenceReady;await route.continue();});
+  const requested=page.waitForRequest('**/api/v1/evidence/*');
+  await page.locator('#team-blocks').getByRole('button',{name:'Inspect checkpoint / evidence'}).click();await requested;
+  const inspected=await get();await post(`/cases/${id}/team/messages`,{command:{meta:meta('browser-inspection-refresh'),expected_version:inspected.case.version},kind:'question',body:'Evidence inspection must survive this snapshot refresh',recipients:['operator'],evidence_refs:[],reply_to:null,ack_within_seconds:null});
+  await expect(page.locator('#team-messages')).toContainText('Evidence inspection must survive this snapshot refresh');
+  releaseEvidence();await expect(page.locator('#team-blocks pre')).toContainText('No mutable workspace');
+  await page.unroute('**/api/v1/evidence/*');
   await page.getByText('Send team message',{exact:true}).click();await page.getByLabel('Message',{exact:true}).fill('<script>window.teamInjected=true</script> Need bounded independent evidence.');await page.getByLabel('Message reason',{exact:true}).fill('Direct a scoped observation to the successor');await page.getByLabel('Local recipients (comma separated)',{exact:true}).fill('fake-specialist');await page.getByRole('button',{name:'Record team message',exact:true}).click();
+  await expect(page.locator('#team-blocks pre')).toContainText('No mutable workspace');
   await expect(page.locator('#team-messages')).toContainText('<script>window.teamInjected=true</script>');expect(await page.evaluate(()=>('teamInjected' in window))).toBe(false);
   await page.getByText('Arrange handoff',{exact:true}).click();await page.getByLabel('Owner after acceptance',{exact:true}).fill('fake-specialist');await page.getByLabel('Handoff reason',{exact:true}).fill('Transfer only after successor accepts');await page.getByRole('button',{name:'Offer bounded handoff',exact:true}).click();
   await expect(page.locator('#team-handoffs')).toContainText('Handoff proposed');await expect(page.locator('#owner')).toHaveText('Owner: operator');

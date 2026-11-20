@@ -138,3 +138,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 - [ADR 0030 — Eligible merge controller](adrs/0030-eligible-merge-controller.md): separate immutable merge authority, exact candidate/publication/head/base/tree lineage, strict server protection, independent checks/reviews, durable no-replay reconciliation and bounded definitive-denial retry. Live dedicated-repository acceptance remains blocked.
 
 - [ADR 0031 — Independent Datadog monitors](adrs/0031-independent-datadog-monitors.md): separately mapped read-only monitor polling, fair fenced reconciliation, common source validity/timers and explicit capability/coverage limits. Fixtures do not establish live account/history acceptance. Remaining M7/M8 development stays open.
+
+- [ADR 0032 — Independent Claude text client](adrs/0032-independent-claude-text-client.md): fixed pinned tool-free CLI adapter, independent model-profile currency/admission, common role schemas and exact cross-harness lineage. Bare API-key authority is explicit; subscription access and live model behavior are not inferred.

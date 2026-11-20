@@ -42,6 +42,9 @@ pub const DISABLED: &[&str] = &[
 /// Only the fixed synthetic endpoint may override the provider. Production uses supported
 /// harness-owned OpenAI authentication; user-provided shell flags or endpoint overrides do not exist.
 pub fn args(policy: &ModelPolicy, schema: &Path, fixture_port: Option<u16>) -> Vec<String> {
+    if policy.adapter == super::policy::Adapter::ClaudeCode {
+        return super::claude::args(policy);
+    }
     let mut args = vec![
         "exec".into(),
         "--json".into(),
@@ -167,6 +170,19 @@ pub async fn run(invocation: Invocation<'_>) -> Result<ClientResult> {
             "client briefing/cwd/auth scope is invalid".into(),
         ));
     }
+    let mut effective_prompt = prompt.to_owned();
+    if policy.adapter == super::policy::Adapter::ClaudeCode {
+        let schema = std::fs::read_to_string(schema)
+            .map_err(|_| Error::Invalid("sealed role schema unavailable".into()))?;
+        if schema.len() > 16384 {
+            return Err(Error::Invalid("role schema exceeds bound".into()));
+        }
+        effective_prompt.push_str("\nReturn one JSON value conforming to this schema:\n");
+        effective_prompt.push_str(&schema);
+        if effective_prompt.len() > 262144 {
+            return Err(Error::Invalid("role briefing exceeds bound".into()));
+        }
+    }
     let mut c = Command::new(&policy.runtime.path);
     c.args(args(policy, schema, fixture_port))
         .current_dir(cwd)
@@ -177,6 +193,34 @@ pub async fn run(invocation: Invocation<'_>) -> Result<ClientResult> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
+    if policy.adapter == super::policy::Adapter::ClaudeCode {
+        c.env_remove("CODEX_HOME")
+            .env("CLAUDE_CONFIG_DIR", auth_home)
+            .env("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1")
+            .env("DISABLE_AUTOUPDATER", "1")
+            .env("DISABLE_TELEMETRY", "1")
+            .env("DISABLE_ERROR_REPORTING", "1");
+        if let Some(port) = fixture_port {
+            c.env(
+                "ANTHROPIC_API_KEY",
+                "watchhouse-synthetic-claude-not-a-credential",
+            )
+            .env("ANTHROPIC_BASE_URL", format!("http://127.0.0.1:{port}"));
+        } else {
+            let super::policy::Authority::ClaudeApiKeyEnv { token_env } = &policy.authority else {
+                return Err(Error::Invalid("dedicated Claude authority required".into()));
+            };
+            let token = std::env::var(token_env)
+                .map_err(|_| Error::Invalid("Claude API credential unavailable".into()))?;
+            if token.is_empty()
+                || token.len() > 4096
+                || token.bytes().any(|b| !b.is_ascii_graphic())
+            {
+                return Err(Error::Invalid("Claude API credential unavailable".into()));
+            }
+            c.env("ANTHROPIC_API_KEY", token);
+        }
+    }
     if let Some(path) = std::env::var_os("PATH") {
         c.env("PATH", path);
     }
@@ -197,7 +241,7 @@ pub async fn run(invocation: Invocation<'_>) -> Result<ClientResult> {
         .ok_or_else(|| Error::Invalid("client stderr unavailable".into()))?;
     let work = async {
         let (_, out, err, status) = tokio::try_join!(
-            send_prompt(input, prompt),
+            send_prompt(input, &effective_prompt),
             bounded(stdout, policy.limits.output_bytes),
             bounded(stderr, 65536),
             async {
@@ -218,10 +262,15 @@ pub async fn run(invocation: Invocation<'_>) -> Result<ClientResult> {
         Ok(Ok((out, err, status))) => {
             result.stderr_digest = crate::real_execution::protocol::bytes_digest(&err);
             if status.success() {
-                match String::from_utf8(out)
-                    .ok()
-                    .and_then(|s| codex::parse(&s, role).ok())
-                {
+                match String::from_utf8(out).ok().and_then(|s| {
+                    if policy.adapter == super::policy::Adapter::ClaudeCode {
+                        super::claude::parse(&s, role)
+                            .ok()
+                            .filter(|p| p.actual_model.as_deref() == Some(&policy.requested_model))
+                    } else {
+                        codex::parse(&s, role).ok()
+                    }
+                }) {
                     Some(parsed) => result.parsed = Some(parsed),
                     None => result.failure_code = Some("invalid_or_blocked_output".into()),
                 }

@@ -39,10 +39,36 @@ impl Pin {
 pub enum Authority {
     Fixture,
     OpenaiAuthHome { path: PathBuf },
+    ClaudeApiKeyEnv { token_env: String },
+}
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Adapter {
+    #[default]
+    Codex,
+    ClaudeCode,
+}
+impl Adapter {
+    fn is_default(v: &Self) -> bool {
+        *v == Self::Codex
+    }
+}
+fn default_profile() -> String {
+    "default".into()
+}
+fn is_default_profile(s: &str) -> bool {
+    s == "default"
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModelPolicy {
+    #[serde(
+        default = "default_profile",
+        skip_serializing_if = "is_default_profile"
+    )]
+    pub profile: String,
+    #[serde(default, skip_serializing_if = "Adapter::is_default")]
+    pub adapter: Adapter,
     pub schema_version: V1,
     pub revision: i64,
     pub container_revision: i64,
@@ -61,7 +87,8 @@ pub struct ModelPolicy {
 impl ModelPolicy {
     pub fn validate(&self) -> Result<()> {
         self.limits.validate()?;
-        if self.revision < 1
+        if !crate::operations::ident(&self.profile)
+            || self.revision < 1
             || self.container_revision < 1
             || !(10..=120).contains(&self.dispatch_grace_seconds)
             || !(1..=3600).contains(&self.proof_seconds)
@@ -100,6 +127,26 @@ impl ModelPolicy {
             return Err(Error::Invalid(
                 "supported harness auth home must remain separate from factory jobs".into(),
             ));
+        }
+        match (&self.adapter, &self.authority) {
+            (Adapter::Codex, Authority::ClaudeApiKeyEnv { .. })
+            | (Adapter::ClaudeCode, Authority::OpenaiAuthHome { .. }) => {
+                return Err(Error::Invalid(
+                    "authentication does not match the fixed harness adapter".into(),
+                ));
+            }
+            (_, Authority::ClaudeApiKeyEnv { token_env })
+                if !token_env.starts_with("WATCHHOUSE_CLAUDE_")
+                    || token_env.len() > 128
+                    || !token_env
+                        .bytes()
+                        .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_') =>
+            {
+                return Err(Error::Invalid(
+                    "dedicated Claude API credential reference required".into(),
+                ));
+            }
+            _ => {}
         }
         Ok(())
     }

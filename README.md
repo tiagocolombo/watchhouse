@@ -203,3 +203,7 @@ The [synthetic adapter lifecycle](contracts/v1/adapter-trials/README.md) exercis
 ## Datadog monitor intake
 
 [Datadog v1](contracts/v1/datadog/README.md) adds independently mapped current-monitor polling and fair bounded reconciliation. Native read transport, configuration fencing, read health, common incident timers and web coverage are implemented. Monitor `OK` never means recovered; traffic, historical transitions, release and deployment remain unknown. Fixtures validate the controller; actual account/history activation requires explicit mappings and scoped credentials.
+
+## Independent text harness profiles
+
+[Claude Code text roles](contracts/v1/claude-runtime/README.md) add a second fixed adapter with its own profile, credential reference and native admission. Profiles are active independently by adapter/name; a Codex-authored candidate can receive fresh independent review through another configured harness without transferring its private transcript. Actual local CLI compatibility was tested against a synthetic endpoint. Live account/model access and native worker platform gates remain separate.

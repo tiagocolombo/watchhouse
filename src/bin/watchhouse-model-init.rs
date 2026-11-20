@@ -89,7 +89,8 @@ async fn run(root: PathBuf, job: Envelope) -> Result<()> {
     write_once(&root.join("schema.json"), &job.output_schema)?;
     let fixture = job.qualification || matches!(job.profile.authority, Authority::Fixture);
     let mut auth_temp = None;
-    let auth_home = if fixture {
+    let auth_home = if fixture || matches!(job.profile.authority, Authority::ClaudeApiKeyEnv { .. })
+    {
         let dir = tempfile::Builder::new()
             .prefix("client-auth-fixture-")
             .tempdir_in(&root)
@@ -100,7 +101,7 @@ async fn run(root: PathBuf, job: Envelope) -> Result<()> {
     } else {
         match &job.profile.authority {
             Authority::OpenaiAuthHome { path } => path.clone(),
-            Authority::Fixture => unreachable!(),
+            Authority::Fixture | Authority::ClaudeApiKeyEnv { .. } => unreachable!(),
         }
     };
     let mut server = None;
@@ -113,7 +114,7 @@ async fn run(root: PathBuf, job: Envelope) -> Result<()> {
                 .clone()
                 .ok_or_else(|| Error::Invalid("fixture role response missing".into()))?
         };
-        let (p, m, t) = model_runtime::fixture::serve(response).await?;
+        let (p, m, t) = model_runtime::fixture::serve_for(job.profile.adapter, response).await?;
         server = Some(t);
         measurement = Some(m);
         Some(p)
