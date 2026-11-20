@@ -45,6 +45,7 @@ async function api<T>(path:string,body?:unknown):Promise<T> {
 async function queue() {
   const cases = await api<Case[]>('/cases');
   el('source-health').textContent=JSON.stringify(await api('/sources/sentry'),null,2);
+  el('datadog-health').textContent=JSON.stringify(await api('/sources/datadog'),null,2);
   el('cases').replaceChildren();
   for (const item of cases) {
     const button = document.createElement('button'); button.textContent = `${item.title} · ${item.status.replaceAll('_',' ')}`;
@@ -413,7 +414,7 @@ function renderFreshness(value:SourceFreshness|null) {
   el('source-freshness-summary').textContent=value?`Source read: ${value.state.replaceAll('_',' ')} · ${value.age_seconds===null?'No successful API read tracked':`Last successful API read ${value.age_seconds}s ago`} · ${value.error??'Source status does not establish service recovery'}`:'';
 }
 setInterval(()=>{if(!token||healthPolling||!el('login').hidden)return;healthPolling=true;
-  void api<{known_issue_freshness:SourceFreshness[]}>('/sources/sentry').then(health=>{el('source-health').textContent=JSON.stringify(health,null,2);const value=health.known_issue_freshness.find(v=>v.source_key===selectedSourceKey);if(value)renderFreshness(value);}).catch(()=>{if(selectedSourceKey)el('source-freshness-summary').textContent='Source health unavailable; retained observations may be stale.';}).finally(()=>{healthPolling=false;});
+  void api<{known_issue_freshness:SourceFreshness[]}>('/sources/sentry').then(health=>{el('source-health').textContent=JSON.stringify(health,null,2);const value=health.known_issue_freshness.find(v=>v.source_key===selectedSourceKey);if(value)renderFreshness(value);void api('/sources/datadog').then(data=>{el('datadog-health').textContent=JSON.stringify(data,null,2);}).catch(()=>{el('datadog-health').textContent='Datadog health unavailable';});}).catch(()=>{if(selectedSourceKey)el('source-freshness-summary').textContent='Source health unavailable; retained observations may be stale.';}).finally(()=>{healthPolling=false;});
 },5000);
 
 function renderCorrelations(value:Correlations) {

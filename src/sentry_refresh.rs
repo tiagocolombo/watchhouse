@@ -279,8 +279,8 @@ type ReadRow = (
     Option<i64>,
     Option<String>,
 );
-fn health(db: &Connection, key: &str, now: DateTime<Utc>) -> Result<SourceFreshness> {
-    let row:Option<ReadRow>=db.query_row("SELECT generation,configuration_revision,started_at,next_at,last_success_at,last_success_generation,error FROM source_read_state WHERE source_key=?1",[key],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?))).optional()?;
+pub(crate) fn health(db: &Connection, key: &str, now: DateTime<Utc>) -> Result<SourceFreshness> {
+    let row:Option<ReadRow>=db.query_row("SELECT generation,configuration_revision,started_at,next_at,last_success_at,last_success_generation,error FROM source_reads WHERE source_key=?1",[key],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?))).optional()?;
     let Some((generation, revision, started, next, last_success, last_gen, error)) = row else {
         return Ok(SourceFreshness {
             source_key: key.into(),
@@ -306,7 +306,12 @@ fn health(db: &Connection, key: &str, now: DateTime<Utc>) -> Result<SourceFreshn
                 .map_err(|_| Error::Invalid("invalid source freshness timestamp".into()))
         })
         .transpose()?;
-    let active_revision: Option<i64> = db.query_row("SELECT p.revision FROM source_configs c JOIN source_projects p ON p.organization=json_extract(c.record,'$.organization') AND p.project_id=json_extract(c.record,'$.project_id') WHERE c.revision=?1",[revision],|r|r.get(0)).optional()?;
+    let active_revision: Option<i64> = if key.starts_with("datadog:") {
+        crate::datadog::active_revision(db, key)?
+    } else {
+        let active_revision: Option<i64> = db.query_row("SELECT p.revision FROM source_configs c JOIN source_projects p ON p.organization=json_extract(c.record,'$.organization') AND p.project_id=json_extract(c.record,'$.project_id') WHERE c.revision=?1",[revision],|r|r.get(0)).optional()?;
+        active_revision
+    };
     Ok(SourceFreshness {
         source_key: key.into(),
         state: if active_revision.is_none() {

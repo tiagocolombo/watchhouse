@@ -173,6 +173,14 @@ enum Command {
         #[arg(long, default_value = "")]
         query: String,
     },
+    Datadog {
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long)]
+        operator: String,
+    },
+    DatadogStatus,
+    DatadogSync,
     SourceStatus,
     SourceSync,
     /// Apply and validate migrations without starting workers.
@@ -572,6 +580,8 @@ async fn sources(app: Application) -> anyhow::Result<()> {
         let a = app.clone();
         tokio::task::spawn_blocking(move || a.sentry_tick(&watchhouse::sentry::LiveSentry))
             .await??;
+        let d = app.clone();
+        tokio::task::spawn_blocking(move || d.sync_datadog(&watchhouse::datadog::Native)).await??;
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
 }
@@ -853,6 +863,19 @@ async fn run() -> anyhow::Result<()> {
                 &query
             )?)?
         ),
+        Command::Datadog { file, operator } => {
+            let source = std::fs::canonicalize(&file)?;
+            print(&app.configure_datadog(
+                read_command(file)?,
+                &operator,
+                &source.display().to_string(),
+            )?)?;
+        }
+        Command::DatadogStatus => print(&app.datadog_status()?)?,
+        Command::DatadogSync => print(
+            &tokio::task::spawn_blocking(move || app.sync_datadog(&watchhouse::datadog::Native))
+                .await??,
+        )?,
         Command::SourceStatus => {
             println!("{}", serde_json::to_string_pretty(&app.sentry_health()?)?)
         }

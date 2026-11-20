@@ -37,3 +37,5 @@ pub mod delivery;
 pub mod operations;
 
 pub mod merging;
+
+pub mod datadog;

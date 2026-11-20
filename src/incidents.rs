@@ -151,16 +151,7 @@ impl Application {
                 return Err(Error::Invalid("start cannot be in the future".into()));
             }
         }
-        let raw: String = tx.query_row(
-            "SELECT record FROM source_configs WHERE revision=?1",
-            [source.configuration_revision],
-            |r| r.get(0),
-        )?;
-        let cfg: crate::sentry::SentryConfig = serde_json::from_str(&raw)?;
-        let seconds = *cfg
-            .incident_update_seconds
-            .get(cmd.severity.key())
-            .ok_or_else(|| Error::Invalid("missing trusted severity profile".into()))?;
+        let seconds = crate::datadog::update_seconds(&tx, &source, cmd.severity.key())?;
         let due = (self.clock.now() + Duration::seconds(seconds.into()))
             .to_rfc3339_opts(SecondsFormat::Millis, true);
         let incident=Incident{schema_version:V1,id:store::id("inc"),case_id:id.into(),declared_at:self.now(),state:"declared".into(),policy_provenance:crate::policy::for_case(&tx,id)?.provenance(),source_snapshot:source,next_update_at:due.clone(),mitigation_at:None,recovered_at:None,recovery_assessment:"Not assessed. Source status, patch, merge or deployment do not establish recovery. Traffic denominator and observation window remain unknown.".into(),communication_draft:format!("INTERNAL DRAFT — not sent. {}. Impact: {}. Uncertainty: {}. Commander: {}. Next update: {}.",cmd.objective,cmd.impact,cmd.uncertainty,cmd.roles.commander,due),investigation_register:cmd.evidence_refs.clone(),declaration:cmd.clone()};

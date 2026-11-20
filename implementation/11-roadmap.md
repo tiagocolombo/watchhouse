@@ -105,3 +105,5 @@ Completed: M0 plus manual case creation -> persisted event -> queued fake assign
 2026-11-17: M5 controlled runbook gateway dispatch/reconciliation, deployment/telemetry collection and problem/known-error review records implemented (ADR 0029). Existing recovery/learning gates remain governing. Physical gateway target/stop/rollback qualification, actual history and live activation remain blocked; M6 merge authority is the next independent development slice.
 
 2026-11-17: M6 separate policy, sensitive-change denial, exact publication/candidate/head/base/tree gates, final checks/approvals/protection, bounded retry and no-replay merge reconciliation implemented (ADR 0030). Native transport is present; dedicated protected-repository live acceptance remains blocked. Development PRs remain unmerged.
+
+2026-11-20: M7 independent Datadog current-monitor polling/reconciliation, configuration/read namespaces, source validity and common incident timers implemented (ADR 0031). Broader Datadog capabilities are explicitly unadvertised. Live account/history activation remains blocked; second harness, capability routing/platform cancellation and M8 remain development work.

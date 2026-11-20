@@ -265,21 +265,12 @@ impl Application {
                 }
                 crate::qualification::evidence_refs(&tx, id, evidence_refs, false)?;
                 let i = crate::incidents::snapshot(&tx, id)?.ok_or(Error::NotFound)?;
-                let raw: String = tx.query_row(
-                    "SELECT record FROM source_configs WHERE revision=?1",
-                    [i.source_snapshot.configuration_revision],
-                    |r| r.get(0),
-                )?;
-                let cfg: crate::sentry::SentryConfig = serde_json::from_str(&raw)?;
                 let key = match severity {
                     Severity::Critical => "critical",
                     Severity::High => "high",
                     Severity::Moderate => "moderate",
                 };
-                let seconds = *cfg
-                    .incident_update_seconds
-                    .get(key)
-                    .ok_or_else(|| Error::Invalid("missing trusted severity profile".into()))?;
+                let seconds = crate::datadog::update_seconds(&tx, &i.source_snapshot, key)?;
                 // Materialize an overdue duty before scheduling the next one; an update never resolves it.
                 if !ops.update_escalated && ops.next_update_at <= now {
                     let source = if ops.update_cycle == 0 {

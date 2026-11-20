@@ -198,7 +198,8 @@ pub(crate) fn state(db: &Connection, id: &str) -> Result<RecoveryState> {
         .transpose()?
         .unwrap_or_default();
     s.context_current = if let Some(p) = &s.plan {
-        source_digest(db, id)? == p.source_digest
+        crate::sentry_projects::context_current(db, id)?
+            && source_digest(db, id)? == p.source_digest
             && crate::incident_ops::snapshot(db, id)?
                 .is_some_and(|o| o.revision == p.incident_revision)
     } else {
@@ -821,7 +822,7 @@ pub(crate) fn supervise(tx: &Transaction<'_>, now: &str) -> Result<usize> {
         )?;
     }
     let cases: Vec<String> = {
-        let mut q=tx.prepare("SELECT r.case_id FROM recovery_state r JOIN source_cases c ON c.case_id=r.case_id LEFT JOIN incident_operations o ON o.case_id=r.case_id WHERE json_extract(r.record,'$.response_resolved')=1 AND (json_extract(r.record,'$.plan.source_digest')!=c.digest OR json_extract(r.record,'$.plan.incident_revision')!=COALESCE(json_extract(o.record,'$.revision'),1) OR EXISTS(SELECT 1 FROM challenges h WHERE h.case_id=r.case_id AND json_extract(h.record,'$.blocking')=1 AND h.state!='resolved')) ORDER BY r.rowid LIMIT 100")?;
+        let mut q=tx.prepare("SELECT r.case_id FROM recovery_state r JOIN source_cases c ON c.case_id=r.case_id LEFT JOIN incident_operations o ON o.case_id=r.case_id WHERE json_extract(r.record,'$.response_resolved')=1 AND (EXISTS(SELECT 1 FROM source_context_validity v WHERE v.case_id=r.case_id AND v.current=0) OR json_extract(r.record,'$.plan.source_digest')!=c.digest OR json_extract(r.record,'$.plan.incident_revision')!=COALESCE(json_extract(o.record,'$.revision'),1) OR EXISTS(SELECT 1 FROM challenges h WHERE h.case_id=r.case_id AND json_extract(h.record,'$.blocking')=1 AND h.state!='resolved')) ORDER BY r.rowid LIMIT 100")?;
         q.query_map([], |r| r.get(0))?
             .collect::<std::result::Result<_, _>>()?
     };
