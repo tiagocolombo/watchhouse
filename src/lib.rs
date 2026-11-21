@@ -50,3 +50,5 @@ pub mod capacity;
 pub mod restore;
 
 pub mod retention;
+
+pub mod bundles;

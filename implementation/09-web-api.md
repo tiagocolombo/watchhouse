@@ -109,3 +109,5 @@ Case snapshots expose `evidence_redactions`; evidence reads return an explicit t
 ## Implemented retention health
 
 Authenticated global `/api/v1/retention` and factory health expose body-class configuration, owner, interval, counts, deferrals, unknown ages and restored deletion hold without returning bodies. The workspace shows configured/paused/held/unavailable expiry and review counts. Scoped service owners cannot inspect global policy, and no HTTP deletion/policy installation is exposed. The isolated browser fixture observes automatic core expiry before opening any workspace.
+
+Internal case bundle downloads and metadata use case authorization, explicit raw-evidence/code-change options, an 8 MiB frame bound and two held-through-response permits. Observer access is read-only, with session-bound attribution and scope-filtered correlation rows. See [v1 case bundle contract](../contracts/v1/case-bundles.md) and ADR 0043. The browser labels preparation rather than client delivery or recovery.

@@ -26,7 +26,7 @@ const el = <T extends HTMLElement = HTMLElement>(id:string) => document.getEleme
 const input = (id:string) => el<HTMLInputElement>(id).value;
 let token = sessionStorage.getItem('watchhouse-token') ?? '';
 let operatorIdentity='operator';let canOperate=true;let canManageFactory=true;let canCreate=true;let globalData=true;
-function applyAccess(){for(const form of el('workspace').querySelectorAll('form')){const allowed=form.id==='factory-control-form'?canManageFactory:form.id==='create-form'?canCreate:canOperate;for(const item of form.querySelectorAll<HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement|HTMLButtonElement>('input,select,textarea,button'))item.disabled=!allowed;}}
+function applyAccess(){for(const form of el('workspace').querySelectorAll('form')){const allowed=form.id==='bundle-form'?true:form.id==='factory-control-form'?canManageFactory:form.id==='create-form'?canCreate:canOperate;for(const item of form.querySelectorAll<HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement|HTMLButtonElement>('input,select,textarea,button'))item.disabled=!allowed;}}
 async function refreshIdentity(){const session=await api<{principal:string;role:string;mode:string;can_operate:boolean;can_manage_factory:boolean;can_create:boolean;global_data:boolean}>('/session');operatorIdentity=session.principal;canOperate=session.can_operate;canManageFactory=session.can_manage_factory;canCreate=session.can_create;globalData=session.global_data;el('session-identity').textContent=`${session.mode==='remote'?'Remote':'Local'} access · ${session.principal} · ${session.role}`;el('workspace-mode').textContent=session.mode==='remote'?'REMOTE WORKSPACE':'LOCAL WORKSPACE';applyAccess();}
 
 let selected:Case | undefined;
@@ -523,4 +523,17 @@ async function factoryCommand(action:Record<string,unknown>,reason:string) {
 }
 el<HTMLFormElement>('factory-control-form').onsubmit=e=>{e.preventDefault();const button=el<HTMLButtonElement>('factory-submit');button.disabled=true;
   void factoryCommand({type:'pause',scope:input('factory-scope'),target:input('factory-target')||null,effect:input('factory-effect'),cancel_running:el<HTMLInputElement>('factory-stop').checked},input('factory-reason')).catch(fail).finally(()=>{button.disabled=!canManageFactory;});
+};
+
+el<HTMLFormElement>('bundle-form').onsubmit=event=>{
+  event.preventDefault();if(!selected)return;
+  const id=selected.id,button=el('bundle-form').querySelector('button')!;button.disabled=true;
+  el('bundle-status').textContent='Preparing consistent internal records…';
+  const query=new URLSearchParams({include_evidence:String(el<HTMLInputElement>('bundle-evidence').checked),include_patches:String(el<HTMLInputElement>('bundle-patches').checked)});
+  void api<{header:{case_id:string;case_version:number};counts:{rows:number;evidence_redacted:number;evidence_missing:number;evidence_corrupt:number};digest:string}>(`/cases/${encodeURIComponent(id)}/bundle?${query}`).then(bundle=>{
+    const url=URL.createObjectURL(new Blob([JSON.stringify(bundle)],{type:'application/json'}));
+    const link=document.createElement('a');link.href=url;link.download='watchhouse-case.json';link.click();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    if(selected?.id===id)el('bundle-status').textContent=`Prepared version ${bundle.header.case_version} · ${bundle.counts.rows} records · ${bundle.counts.evidence_redacted} removed, ${bundle.counts.evidence_missing} missing, ${bundle.counts.evidence_corrupt} corrupt evidence · ${bundle.digest}. Client receipt is not independently verified.`;
+  }).catch(error=>{el('bundle-status').textContent='Export failed; no completion is claimed.';fail(error);}).finally(()=>{button.disabled=false;});
 };
