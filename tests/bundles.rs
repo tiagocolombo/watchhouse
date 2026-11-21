@@ -354,3 +354,60 @@ fn restored_location_and_audit_failure_cannot_authorize_or_claim_completion() {
     );
     assert!(!next.exists());
 }
+
+#[test]
+fn actual_restore_fences_old_export_paths_and_allows_new_case_export() {
+    let (d, a, id) = setup();
+    let directory = d.path().join("original-export");
+    let original = a
+        .export_case(
+            &id,
+            &directory,
+            Options::default(),
+            "operator",
+            "Export before isolated restore",
+        )
+        .unwrap();
+    let backup = d.path().join("backup");
+    let snapshot = a
+        .create_backup(&backup, "operator", "Snapshot export registry")
+        .unwrap();
+    let output = d.path().join("restored");
+    watchhouse::restore::restore(
+        &backup,
+        &output,
+        &snapshot.manifest_digest,
+        "operator",
+        "Restore copied paths without inherited authority",
+    )
+    .unwrap();
+    let restored = Application::new(
+        Store::open(output.join("watchhouse.db")).unwrap(),
+        Arc::new(ManualClock::new(
+            Utc.with_ymd_and_hms(2026, 11, 21, 13, 0, 0).unwrap(),
+        )),
+    );
+    assert!(
+        restored
+            .reconcile_case_export(
+                &original.id,
+                &directory,
+                original.manifest_digest.as_deref().unwrap(),
+                "operator",
+                "Original destination must remain fenced",
+            )
+            .is_err()
+    );
+    assert!(bundles::inspect(&directory, original.manifest_digest.as_deref()).is_ok());
+    let fresh = d.path().join("fresh-export");
+    let record = restored
+        .export_case(
+            &id,
+            &fresh,
+            Options::default(),
+            "operator",
+            "Fresh internal case export after restore",
+        )
+        .unwrap();
+    assert!(bundles::inspect(&fresh, record.manifest_digest.as_deref()).is_ok());
+}
