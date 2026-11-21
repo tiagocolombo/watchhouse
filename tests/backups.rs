@@ -577,7 +577,11 @@ fn repeated_restore_materializes_frozen_files_without_rewriting_immutable_record
         Arc::new(ManualClock::new(Utc::now())),
     );
     let source = restored.repair_source_status().unwrap().unwrap();
-    assert!(source.snapshot_path.starts_with(&output));
+    assert!(
+        source
+            .snapshot_path
+            .starts_with(fs::canonicalize(&output).unwrap())
+    );
     assert_eq!(
         fs::read_to_string(source.snapshot_path.join("code.txt")).unwrap(),
         "base\n"
@@ -625,7 +629,7 @@ fn repeated_restore_materializes_frozen_files_without_rewriting_immutable_record
             .unwrap()
             .unwrap()
             .snapshot_path
-            .starts_with(&second)
+            .starts_with(fs::canonicalize(&second).unwrap())
     );
     assert_eq!(
         fs::read_to_string(second.join("artifacts/candidate-fixture/code.txt")).unwrap(),
