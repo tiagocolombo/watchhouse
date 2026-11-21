@@ -140,3 +140,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 - [ADR 0031 — Independent Datadog monitors](adrs/0031-independent-datadog-monitors.md): separately mapped read-only monitor polling, fair fenced reconciliation, common source validity/timers and explicit capability/coverage limits. Fixtures do not establish live account/history acceptance. Remaining M7/M8 development stays open.
 
 - [ADR 0032 — Independent Claude text client](adrs/0032-independent-claude-text-client.md): fixed pinned tool-free CLI adapter, independent model-profile currency/admission, common role schemas and exact cross-harness lineage. Bare API-key authority is explicit; subscription access and live model behavior are not inferred.
+
+- [ADR 0033 — Local worker routing](adrs/0033-local-worker-routing.md): immutable OS routes select exact execution profiles, bind resources before effects, preserve original cleanup ownership, and expose unsupported native platforms without inheriting qualification. Remote trust and native macOS/Windows worker boundaries remain development work.

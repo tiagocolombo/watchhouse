@@ -1,17 +1,14 @@
 # Current status
 
-Last updated: 2026-11-16.
+Last updated: 2026-11-20.
 
 ## Latest continuation
 
-PRs #12–#23 remain open in dependency order; no PR was merged. PR #21 (`396f9dc`) and publisher PR #22 (`b2c5f68`) passed every final-head push/PR check (eight each), including Linux native Docker/model-client fixture drills and macOS/Windows checks. PRs #12–#20 retain their preceding exact-head green audit. The coding assistant's publication of these repository PRs is not live Watchhouse publisher verification.
+The open stack through PR #28 was recovered from GitHub after the execution environment restarted from an older checkpoint. PR #28 final head `a0905830d53b62dbbc413570ed7b98d6290ee826` passed all eight push/PR jobs, including independent actual-Claude/Codex native cgroup fixtures, Docker regression/cleanup, all eleven browser scenarios and Linux/macOS/Windows coordinator packages. PRs #12–#27 retain successful current-head push/PR workflows. No PR was merged. The original `watchhouse` worktree's uncommitted M4 files remain untouched.
 
-The current assessment slice adds all remaining disposition categories, independent exact hypothesis acceptance, structured reported impact/denominators with offline collection supervision, and trusted dependency-scoped cross-service related-link review. Local validation: 192 Rust tests, all ten Chromium scenarios, strict Clippy/fmt, TypeScript/native builds and diff checks passed. Missing actual service history/live credentials do not block this code work. See ADR 0027 and the assessment contract.
+The next scoped slice implements local immutable worker routing and original-worker cleanup ownership (ADR 0033), with Linux native fixture routing enabled for final-head CI. This does not complete native macOS/Windows workers or remote worker trust. Remaining development includes those platform boundaries, the optional Hallmark repair spike and M8 operating controls/hardening. Actual accounts, source history/mappings, human notification participants, dedicated publication/merge authority and production gateway/telemetry remain separate activation blockers. Local acceptance handoff remains deferred.
 
-Independent project registration, signed routes, fair bounded discovery/known-issue recovery and active-configuration fences are implemented with remote CI fixtures (ADR 0028). Next: complete the M5 authorized runbook/deployment/telemetry boundaries and problem/known-error linkage, followed by M6–M8 under COMPLETION.md. Live model/account, notification destinations, authorized publisher test repository and Sentry/history activation still lack evidence/inputs. Local acceptance handoff remains deferred.
-
-The sections below retain earlier milestone observations; this continuation and the completion ledger supersede historical next-step/validation-pending statements.
-
+Historical sections below preserve earlier observations; this continuation and COMPLETION.md supersede earlier next-task/pending-validation statements.
 
 ## Completion direction and current native worker slice
 
@@ -214,3 +211,11 @@ CI now runs the actual Claude binary in a separately delegated cgroup with its o
 PR #28 head `ba02f36` passed 224 Rust tests, strict Clippy/fmt, builds and native packaging on macOS/Windows, plus Linux native container, independent actual-Claude cgroup and existing Codex cgroup drills. Its Linux browser stage passed ten ordinary scenarios but failed the team scenario: a snapshot refresh replaced an opened evidence panel during its asynchronous fetch. Evidence inspections now retain case-scoped promises across snapshot replacement, render only inert text and clear when switching cases. The team browser fixture deliberately holds the evidence response, triggers an independent durable message/snapshot refresh and checks the opened evidence survives that refresh and the next command.
 
 The execution environment failed startup with an ERS readiness timeout. This follow-up was prepared through GitHub from the inspected exact head; no local checks could run after that failure. The new final-head CI must validate the fix. The original dirty worktree was not touched. M7 capability routing/platform work, the optional Hallmark repair spike and M8 remain development work; credentials/history/authority remain separate live activation blockers. No PR was merged.
+
+## Local worker routing continuation (2026-11-20)
+
+Migration 029 adds immutable OS worker routes and first-dispatch bindings. Model/container selection filters exact kind/profile/platform/architecture before limiting the queue. Named routes cannot claim another worker's uncertain resource. Pause/removal prevent new create/start; already-running model observation and retained-owner cleanup remain available. Cleanup does not depend on current routing policy integrity. Original budgets/deadlines, native qualification and context gates remain unchanged. CLI, authenticated API and web inspection expose policy provenance, host compatibility and original dispatch ownership. See ADR 0033 and the worker-routing contract.
+
+Validation: full `cargo test --locked` passed 232 tests; seven new routing/controller scenarios plus the running-observation scenario cover profile isolation, a 150-job foreign queue prefix, platform rejection, transactional rollback, immutable bindings, pause/removal/restart, corrupted policy and original-worker deadline cleanup without duplicate create/start. Strict Clippy/fmt, native/TypeScript builds and diff checks passed. All eleven Chromium scenarios passed again after the final scheduling refinement, including authenticated worker-route status and inert web visibility; final-head remote CI remains required. The actual native Linux model/container drills now use named routes; this host has no delegated cgroup/Docker proof and cannot substitute injected fixtures for physical verification.
+
+This slice is local scheduling, not remote worker authentication or native macOS/Windows sandbox implementation. Those remain required development, alongside M8 and the optional Hallmark repair spike. Missing live account/history/mappings/credentials and dedicated external authority remain separate operator-owned activation blockers. No PR was merged and the original dirty worktree was not modified.

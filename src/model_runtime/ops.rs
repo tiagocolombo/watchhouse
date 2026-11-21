@@ -896,14 +896,29 @@ impl Application {
     }
     /// Advance one durable operation. Creating/starting are reservations, never replay states.
     pub async fn run_model_once<B: Backend>(&self, backend: &B) -> Result<bool> {
+        self.run_model_on(backend, None).await
+    }
+    pub async fn run_model_on<B: Backend>(
+        &self,
+        backend: &B,
+        worker: Option<&str>,
+    ) -> Result<bool> {
         self.supervise_models()?;
-        if self.cleanup_model_once(backend).await? {
+        if self.cleanup_model_once(backend, worker).await? {
             return Ok(true);
         }
         let pair = {
             let mut db = self.store.connect()?;
             let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-            let id: Option<String> = tx.query_row("SELECT id FROM model_jobs WHERE state IN ('queued','created','running') ORDER BY CASE state WHEN 'running' THEN 1 ELSE 0 END,rowid LIMIT 1", [], |r| r.get(0)).optional()?;
+            let id = crate::routing::select(
+                &tx,
+                crate::routing::Kind::Model,
+                worker,
+                "j.state IN ('queued','created','running')",
+                "CASE j.state WHEN 'running' THEN 1 ELSE 0 END,j.rowid",
+                &self.now(),
+                false,
+            )?;
             let Some(id) = id else {
                 return Ok(false);
             };
@@ -926,6 +941,7 @@ impl Application {
                 tx.commit()?;
                 return Ok(true);
             }
+            crate::routing::bind(&tx, crate::routing::Kind::Model, &id, worker, &self.now())?;
             // Polling has no model effect. Reserve it too, so two workers cannot accept a result twice.
             j.state = match j.state.as_str() {
                 "queued" => "creating",
@@ -1092,11 +1108,23 @@ impl Application {
         tx.commit()?;
         Ok(())
     }
-    async fn cleanup_model_once<B: Backend>(&self, backend: &B) -> Result<bool> {
+    async fn cleanup_model_once<B: Backend>(
+        &self,
+        backend: &B,
+        worker: Option<&str>,
+    ) -> Result<bool> {
         let pair = {
             let mut db = self.store.connect()?;
             let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-            let id:Option<String>=tx.query_row("SELECT j.id FROM model_jobs j JOIN model_policies p ON p.revision=j.policy_revision WHERE (j.state='finishing' OR (j.state='unknown' AND json_extract(j.record,'$.cancel_requested')=1)) AND json_extract(j.record,'$.cleanup_attempts')<json_extract(p.record,'$.cleanup_attempts') AND json_extract(j.record,'$.cleanup_next_at')<=?1 ORDER BY j.rowid LIMIT 1",[self.now()],|r|r.get(0)).optional()?;
+            let id = crate::routing::select(
+                &tx,
+                crate::routing::Kind::Model,
+                worker,
+                "(j.state='finishing' OR (j.state='unknown' AND json_extract(j.record,'$.cancel_requested')=1)) AND json_extract(j.record,'$.cleanup_attempts')<(SELECT json_extract(p.record,'$.cleanup_attempts') FROM model_policies p WHERE p.revision=j.policy_revision) AND json_extract(j.record,'$.cleanup_next_at')<=:now",
+                "j.rowid",
+                &self.now(),
+                true,
+            )?;
             let Some(id) = id else {
                 return Ok(false);
             };

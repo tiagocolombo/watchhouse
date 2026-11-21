@@ -207,3 +207,7 @@ The [synthetic adapter lifecycle](contracts/v1/adapter-trials/README.md) exercis
 ## Independent text harness profiles
 
 [Claude Code text roles](contracts/v1/claude-runtime/README.md) add a second fixed adapter with its own profile, credential reference and native admission. Profiles are active independently by adapter/name; a Codex-authored candidate can receive fresh independent review through another configured harness without transferring its private transcript. Actual local CLI compatibility was tested against a synthetic endpoint. Live account/model access and native worker platform gates remain separate.
+
+## Route local native workers
+
+[Worker routing v1](contracts/v1/worker-routing/README.md) binds queued model/container effects to explicit OS-installed worker identities and exact execution profiles. CLI/API/web expose routing provenance and original cleanup ownership. Routing does not grant native admission; unsupported macOS/Windows worker boundaries remain development work.

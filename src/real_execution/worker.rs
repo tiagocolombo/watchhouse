@@ -543,14 +543,29 @@ impl Application {
         Ok(j)
     }
     pub async fn run_container_once<B: Backend>(&self, backend: &B) -> Result<bool> {
+        self.run_container_on(backend, None).await
+    }
+    pub async fn run_container_on<B: Backend>(
+        &self,
+        backend: &B,
+        worker: Option<&str>,
+    ) -> Result<bool> {
         let now = self.now();
-        if self.cleanup_container_once(backend).await? {
+        if self.cleanup_container_once(backend, worker).await? {
             return Ok(true);
         }
         let (mut j, p) = {
             let mut db = self.store.connect()?;
             let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-            let id:Option<String>=tx.query_row("SELECT id FROM container_jobs WHERE state IN ('queued','created') ORDER BY rowid LIMIT 1",[],|r|r.get(0)).optional()?;
+            let id = crate::routing::select(
+                &tx,
+                crate::routing::Kind::Container,
+                worker,
+                "j.state IN ('queued','created')",
+                "j.rowid",
+                &now,
+                false,
+            )?;
             let Some(id) = id else {
                 return Ok(false);
             };
@@ -592,6 +607,7 @@ impl Application {
                     }
                 }
             }
+            crate::routing::bind(&tx, crate::routing::Kind::Container, &id, worker, &now)?;
             if j.state == "queued" {
                 j.state = "creating".into();
                 j.create_dispatched = true;
@@ -660,12 +676,24 @@ impl Application {
         }
         Ok(true)
     }
-    async fn cleanup_container_once<B: Backend>(&self, backend: &B) -> Result<bool> {
+    async fn cleanup_container_once<B: Backend>(
+        &self,
+        backend: &B,
+        worker: Option<&str>,
+    ) -> Result<bool> {
         let now = self.now();
         let pair = {
             let mut db = self.store.connect()?;
             let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-            let id:Option<String>=tx.query_row("SELECT j.id FROM container_jobs j JOIN container_policies p ON p.revision=j.policy_revision WHERE j.state='unknown' AND json_extract(j.record,'$.cancel_requested')=1 AND json_extract(j.record,'$.quarantined')=1 AND json_extract(j.record,'$.cleanup_attempts')<json_extract(p.record,'$.cleanup_attempts') AND json_extract(j.record,'$.cleanup_next_at')<=?1 ORDER BY j.deadline,j.rowid LIMIT 1",[&now],|r|r.get(0)).optional()?;
+            let id = crate::routing::select(
+                &tx,
+                crate::routing::Kind::Container,
+                worker,
+                "j.state='unknown' AND json_extract(j.record,'$.cancel_requested')=1 AND json_extract(j.record,'$.quarantined')=1 AND json_extract(j.record,'$.cleanup_attempts')<(SELECT json_extract(p.record,'$.cleanup_attempts') FROM container_policies p WHERE p.revision=j.policy_revision) AND json_extract(j.record,'$.cleanup_next_at')<=:now",
+                "j.deadline,j.rowid",
+                &now,
+                true,
+            )?;
             if let Some(id) = id {
                 let mut j = get(&tx, &id)?;
                 let p = policy(&tx, j.policy_revision)?;

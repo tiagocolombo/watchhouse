@@ -8,6 +8,9 @@ test('Datadog coverage reports missing credentials without inventing healthy cas
   await page.goto('/');await page.getByLabel('Operator token').fill('browser-test-operator-token-32-bytes');await page.getByRole('button',{name:'Connect',exact:true}).click();await page.getByRole('button',{name:/Datadog coverage fixture/}).click();
   await page.getByText('Datadog monitor coverage and capabilities',{exact:true}).click();await expect(page.locator('#datadog-health')).toContainText('no error-event equivalence');await expect(page.locator('#datadog-health')).toContainText('"api_credentials_present": false');
   await expect.poll(async()=>{const s=await context.request.get('/api/v1/sources/datadog',{headers:auth});return (await s.json())[0].reads.some((v:{state:string})=>v.state==='unavailable');}).toBe(true);
+  await page.getByText('Worker routing and dispatch ownership',{exact:true}).click();await expect(page.locator('#worker-routes')).toContainText('Route labels never grant execution capability');
+  const routes=await context.request.get('/api/v1/worker-routes',{headers:auth});expect((await routes.json()).policy).toBeNull();
+  expect((await context.request.get('/api/v1/worker-routes')).status()).toBe(401);
   const noAuth=await context.request.get('/api/v1/sources/datadog');expect(noAuth.status()).toBe(401);
   const cases=await(await context.request.get('/api/v1/cases',{headers:auth})).json();expect(cases.some((v:{title:string})=>/^Datadog monitor /.test(v.title))).toBe(false);
   await page.reload();await expect(page.locator('#datadog-health')).toContainText('current-state read unavailable');

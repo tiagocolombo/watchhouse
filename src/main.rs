@@ -141,6 +141,8 @@ enum Command {
     ContainerWorker {
         #[arg(long)]
         once: bool,
+        #[arg(long)]
+        worker_id: Option<String>,
     },
     /// Install an immutable model-client profile through the local OS operator plane.
     ModelPolicy {
@@ -153,6 +155,15 @@ enum Command {
     ModelWorker {
         #[arg(long)]
         once: bool,
+        #[arg(long)]
+        worker_id: Option<String>,
+    },
+    WorkerRoutes,
+    WorkerRouting {
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long)]
+        operator: String,
     },
     ModelProfiles,
     WorkerPolicyStatus,
@@ -614,6 +625,15 @@ async fn run() -> anyhow::Result<()> {
     }
     let app = Application::new(Store::open(cli.db)?, Arc::new(SystemClock));
     match cli.command {
+        Command::WorkerRoutes => print(&app.worker_routes()?)?,
+        Command::WorkerRouting { file, operator } => {
+            let source = std::fs::canonicalize(&file)?;
+            print(&app.install_worker_routes(
+                read_command(file)?,
+                &operator,
+                &source.to_string_lossy(),
+            )?)?;
+        }
         Command::ModelProfiles => print(&app.model_profiles()?)?,
         Command::ModelPolicy { file, operator } => {
             let source = std::fs::canonicalize(&file)?;
@@ -626,11 +646,14 @@ async fn run() -> anyhow::Result<()> {
                 )?)?
             );
         }
-        Command::ModelWorker { once } => loop {
+        Command::ModelWorker { once, worker_id } => loop {
             let a = app.clone();
             tokio::task::spawn_blocking(move || a.supervise_team()).await??;
             let ran = app
-                .run_model_once(&watchhouse::model_runtime::ops::Native)
+                .run_model_on(
+                    &watchhouse::model_runtime::ops::Native,
+                    worker_id.as_deref(),
+                )
                 .await?;
             if once {
                 break;
@@ -767,11 +790,14 @@ async fn run() -> anyhow::Result<()> {
                 &app.install_container_policy(read_command(file)?, &operator)?
             )?
         ),
-        Command::ContainerWorker { once } => loop {
+        Command::ContainerWorker { once, worker_id } => loop {
             let a = app.clone();
             tokio::task::spawn_blocking(move || a.supervise_team()).await??;
             let ran = app
-                .run_container_once(&watchhouse::real_execution::worker::Native)
+                .run_container_on(
+                    &watchhouse::real_execution::worker::Native,
+                    worker_id.as_deref(),
+                )
                 .await?;
             if once {
                 break;

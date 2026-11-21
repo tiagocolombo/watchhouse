@@ -47,6 +47,7 @@ async function queue() {
   el('source-health').textContent=JSON.stringify(await api('/sources/sentry'),null,2);
   el('datadog-health').textContent=JSON.stringify(await api('/sources/datadog'),null,2);
   el('model-profiles').textContent=JSON.stringify(await api('/model-profiles'),null,2);
+  el('worker-routes').textContent=JSON.stringify(await api('/worker-routes'),null,2);
   el('cases').replaceChildren();
   for (const item of cases) {
     const button = document.createElement('button'); button.textContent = `${item.title} · ${item.status.replaceAll('_',' ')}`;
