@@ -1,0 +1,76 @@
+[
+  {
+    "args": [
+      "--version"
+    ],
+    "exit": 0,
+    "stdout_bytes": 22,
+    "stderr_bytes": 0,
+    "version": "hall 0.3.18 (15ee84d)"
+  },
+  {
+    "args": [
+      "help",
+      "--json"
+    ],
+    "exit": 0,
+    "stdout_bytes": 36790,
+    "stderr_bytes": 0,
+    "json_type": "dict",
+    "keys": [
+      "about",
+      "commands",
+      "contract",
+      "error_codes",
+      "exit_codes",
+      "name",
+      "next",
+      "version"
+    ]
+  },
+  {
+    "args": [
+      "schema",
+      "error"
+    ],
+    "exit": 0,
+    "stdout_bytes": 2682,
+    "stderr_bytes": 0,
+    "json_type": "dict",
+    "keys": [
+      "name",
+      "next",
+      "schema"
+    ]
+  },
+  {
+    "args": [
+      "schema",
+      "event"
+    ],
+    "exit": 0,
+    "stdout_bytes": 29751,
+    "stderr_bytes": 0,
+    "json_type": "dict",
+    "keys": [
+      "name",
+      "next",
+      "schema"
+    ]
+  },
+  {
+    "args": [
+      "schema",
+      "config"
+    ],
+    "exit": 0,
+    "stdout_bytes": 20043,
+    "stderr_bytes": 0,
+    "json_type": "dict",
+    "keys": [
+      "name",
+      "next",
+      "schema"
+    ]
+  }
+]
