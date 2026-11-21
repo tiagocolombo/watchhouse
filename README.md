@@ -231,3 +231,5 @@ The OS-only [backup contract](contracts/v1/backups/README.md) exports a consiste
 [Evidence-store removal v1](contracts/v1/retention/README.md) removes a named blob through an OS command while retaining a tombstone, invalidating prior proof and creating owned reassessment. It does not erase derived case/receipt/job/journal/export copies; full retention remains development.
 
 [Scheduled body expiry](contracts/v1/retention/policy.md) applies explicit OS class ages through the same invalidation/stop transaction. Core scheduling works without a browser or executor; copied policy stays held after restore. Body-free status and pinned corruption reconciliation are available. Derived/formal/job/journal/receipt/export/backup copies remain separate development.
+
+Internal case records can be downloaded in the workspace or streamed to a new private directory with the OS CLI. Retained versions, receipts and explicit evidence states are preserved; raw evidence/patches are optional. See the [case bundle contract](contracts/v1/case-bundles.md). Exports verify record integrity, not live recovery.

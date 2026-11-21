@@ -1,0 +1,23 @@
+import {test,expect} from '@playwright/test';
+const token='browser-test-operator-token-32-bytes';
+test('internal bundle downloads consistent retained records with explicit evidence choices',async({page})=>{
+  await page.goto('/');
+  await page.getByLabel('Operator token').fill(token);await page.getByRole('button',{name:'Connect',exact:true}).click();
+  await page.getByLabel('Title',{exact:true}).first().fill('Internal bundle fixture');
+  await page.getByLabel('Description').fill('Invented export, no live incident');
+  await page.getByRole('button',{name:'Create case',exact:true}).click();
+  await expect(page.locator('#case-status')).toHaveText('awaiting review');
+  await page.getByText('Export internal case records',{exact:true}).click();
+  await expect(page.getByLabel('Include retained evidence bytes')).not.toBeChecked();
+  await page.getByLabel('Include retained evidence bytes').check();
+  const response=page.waitForResponse(r=>r.url().includes('/bundle?')&&r.status()===200);
+  const downloaded=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Download internal case bundle',exact:true}).click();
+  const frame=await(await response).json();
+  expect(frame.header.options.include_evidence).toBe(true);
+  expect(frame.header.options.include_patches).toBe(false);
+  expect(frame.counts.sections.events).toBeGreaterThanOrEqual(4);
+  expect(frame.sections.commands.length).toBeGreaterThan(0);
+  expect((await downloaded).suggestedFilename()).toBe('watchhouse-case.json');
+  await expect(page.locator('#bundle-status')).toContainText('Client receipt is not independently verified');
+});

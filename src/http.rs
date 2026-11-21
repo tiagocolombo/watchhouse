@@ -34,6 +34,7 @@ struct Remote {
 
 #[derive(Clone)]
 struct HttpState {
+    bundles: Arc<tokio::sync::Semaphore>,
     app: Application,
     token: String,
     authority: String,
@@ -112,6 +113,7 @@ fn build_router(
     authentication: Authentication,
 ) -> Router {
     let state = HttpState {
+        bundles: Arc::new(tokio::sync::Semaphore::new(2)),
         app,
         token,
         authority,
@@ -121,6 +123,8 @@ fn build_router(
         .route("/session", get(session_information))
         .route("/cases", get(list).post(create))
         .route("/cases/{id}", get(snapshot))
+        .route("/cases/{id}/bundle", get(case_bundle))
+        .route("/cases/{id}/exports", get(case_exports))
         .route("/cases/{id}/rename", post(rename))
         .route("/cases/{id}/restore-reminder", post(restore_reminder))
         .route("/cases/{id}/challenges", post(challenge))
@@ -1130,4 +1134,46 @@ async fn factory_control(
     Json(cmd): Json<crate::factory::Command>,
 ) -> Result<Json<crate::factory::Receipt>, ApiError> {
     Ok(Json(blocking(move || s.app.control_factory(cmd)).await?))
+}
+
+async fn case_bundle(
+    State(s): State<HttpState>,
+    Path(id): Path<String>,
+    Query(options): Query<crate::bundles::Options>,
+    Extension(session): Extension<crate::access::Session>,
+) -> Result<Response, ApiError> {
+    let permit = s.bundles.clone().try_acquire_owned().map_err(|_| {
+        ApiError(Error::Backpressure(
+            "Two case exports are already active; close or finish one before retrying".into(),
+        ))
+    })?;
+    let bytes = blocking(move || {
+        let frame = s.app.scoped_case_bundle(&id, options, &session)?;
+        serde_json::to_vec(&frame).map_err(Error::from)
+    })
+    .await?;
+    let output = async_stream::stream! {
+        let _permit=permit;
+        for chunk in bytes.chunks(32768) {
+            yield Ok::<_,Infallible>(axum::body::Bytes::copy_from_slice(chunk));
+        }
+    };
+    Ok((
+        [
+            (header::CONTENT_TYPE, "application/json"),
+            (
+                header::CONTENT_DISPOSITION,
+                "attachment; filename=\"watchhouse-case.json\"",
+            ),
+            (header::CACHE_CONTROL, "no-store"),
+        ],
+        axum::body::Body::from_stream(output),
+    )
+        .into_response())
+}
+async fn case_exports(
+    State(s): State<HttpState>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(blocking(move || s.app.case_exports(&id)).await?))
 }

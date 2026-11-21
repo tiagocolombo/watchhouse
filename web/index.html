@@ -36,6 +36,10 @@
 <div id="team-messages"></div><h3>Investigation result</h3><div id="results"></div><h3>Qualification &amp; next obligation</h3>
 <div id="qualification-state"></div><div id="obligations"></div>
 <section aria-label="Impact assessment"><h3>Impact assessment</h3><div id="impact-state"></div><details><summary>Record reported impact</summary><p>Counts are attributed reports. Unknown denominators, zero traffic and absent telemetry do not prove recovery. Select supporting operator evidence below.</p><form id="impact-form"><div id="impact-fields"></div><label><input id="impact-window-enabled" type="checkbox">Include a measured time window (reported)</label><fieldset id="impact-window" hidden><legend>Reported observation window</legend></fieldset><button>Record impact &amp; collection duty</button></form></details></section>
+<details><summary>Export internal case records</summary>
+<p>Download the retained case history, document versions, receipts and evidence manifest. This internal export can contain sensitive incident prose. Raw evidence and patches are optional. Removed, missing or corrupt evidence stays labeled; an export does not establish live recovery. Large cases require the OS streaming directory exporter.</p>
+<form id="bundle-form"><label><input id="bundle-evidence" type="checkbox">Include retained evidence bytes</label><label><input id="bundle-patches" type="checkbox">Include code changes</label><button>Download internal case bundle</button></form><p id="bundle-status" role="status"></p>
+</details>
 <details><summary>Add operator evidence</summary>
 <p class="muted">An attributed report, separate from independent verification. Unknown occurrence time may be left blank.</p>
 <form id="evidence-form">

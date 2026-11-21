@@ -160,3 +160,15 @@ These resolve implementation proposals within the owner's authorized scope. They
 - [ADR 0041 — Evidence removal and proof epochs](adrs/0041-evidence-removal-and-proof-epochs.md): named blob absence, retained identity, immutable epoch-bound proof, atomic effect fences/duties and backup/restore preservation; other content scopes and scheduled retention remain open.
 
 - [ADR 0042 — Scheduled evidence-store retention](adrs/0042-scheduled-evidence-store-retention.md): explicit class ages, indexed eligible bodies, persisted cadence/deferral, unknown-age ownership, core availability and restore-held deletion policy; metadata-only pinned corruption reconciliation.
+
+## ADR 0043 — Internal case record bundles with explicit transformed views
+
+Status: implemented in the current slice; final-head CI required.
+
+User requirement: complete incident artifacts, durable evidence lineage, actionable web visibility and provider-independent export without confusing fixture verification with live recovery.
+
+Decision: export the retained SQL case ownership closure directly under a single read transaction. Keep all document revisions and case-linked receipts; do not compose capped workspace projections. Distinguish original column-map digests from sanitized structured-view digests, and present/redacted/missing/corrupt evidence. Raw bytes and code changes require explicit options. Grant checks run inside capture; automatic cross-scope correlations are excluded. Internal prose is not advertised as publicly redacted.
+
+Bound browser frames and simultaneous response lifetimes; stream large OS exports into new private directories with a manifest last, hash/size/row-pinned parts and owned interruption metadata. Inspection is read-only and never activates copied authority. Pinned completion reconciliation cannot use restored filesystem registrations. The directory is not a coordinator backup or recovery verdict.
+
+The executor was unavailable for this slice. Validation will be reported from the exact hosted head, not invented local runs. Native hardware/runtime/live-provider activation is independent. See [bundle contract](../contracts/v1/case-bundles.md).

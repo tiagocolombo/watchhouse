@@ -183,6 +183,8 @@ fn isolate(
             )?;
         }
     }
+    // Restored path registrations are forensic metadata, never filesystem authority.
+    tx.execute("INSERT INTO restore_fences SELECT ?1,'case_export',id,?2 FROM case_exports",params![record.id,json!({"at":now,"reason":"copied export path requires a new export in this coordinator"}).to_string()])?;
     for (kind, table, terminals) in [
         (
             "model_resource",
@@ -498,7 +500,7 @@ mod tests {
             db.query_row("SELECT MAX(version) FROM schema_migrations", [], |r| r
                 .get::<_, i64>(0))
                 .unwrap(),
-            35
+            36
         );
         assert!(latest(&db).unwrap().is_some());
         assert_eq!(

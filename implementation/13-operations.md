@@ -77,3 +77,5 @@ The [backup contract](../contracts/v1/backups/README.md) implements bounded OS-o
 ## Implemented scheduled evidence-body retention
 
 [Scheduled retention v1](../contracts/v1/retention/policy.md) and ADR 0042 add OS-only immutable class ages, indexed eligible bodies, persisted pacing, per-item deferral, explicit unknown-age ownership, metadata status and core-loop operation without a model/browser. Restores hold copied deletion policy. Corrupt bodies require a current digest inspection/pin; the scheduler never guesses original content. Other copied/derived/formal/journal/export/backup scopes remain unfinished.
+
+For retained internal incident exports, use the implemented [case bundle CLI and inspection contract](../contracts/v1/case-bundles.md). OS output must be a new private directory. Preserve interrupted destinations for owned inspection or retry into a new directory. A complete pinned manifest permits reconciliation only for its original registration; restored registrations grant no filesystem authority. Optional evidence bytes/changes may contain sensitive internal material. Export integrity does not verify production facts or recovery.
