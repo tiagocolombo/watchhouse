@@ -4,6 +4,8 @@ Last updated: 2026-11-20.
 
 ## Latest continuation
 
+2026-11-21: PR #32 final head `1fcbd4e` passed Linux (including browser/native fixture drills), macOS and Codex protocol CI, but Windows failed the child-coordinator storage-backpressure liveness test. The test now retains its synthetic child's stderr on failure; no assertion or platform check is removed. Cause and final-head validation remain pending. The restarted worktree was clean; the separate original uncommitted M4 worktree remains untouched.
+
 The open stack through PR #28 was recovered from GitHub after the execution environment restarted from an older checkpoint. PR #28 final head `a0905830d53b62dbbc413570ed7b98d6290ee826` passed all eight push/PR jobs, including independent actual-Claude/Codex native cgroup fixtures, Docker regression/cleanup, all eleven browser scenarios and Linux/macOS/Windows coordinator packages. PRs #12–#27 retain successful current-head push/PR workflows. No PR was merged. The original `watchhouse` worktree's uncommitted M4 files remain untouched.
 
 Local immutable worker routing and original-worker cleanup ownership are implemented (ADR 0033). PR #29 final head `c1e089f6e34684263fff4e29eeaa7d332a051ed4` passed push/PR CI 44842852280/44842862952, including actual native named-route Docker/Claude/Codex drills. The optional Hallmark repair investigation is complete under ADR 0034; PR #30 final head `60f04415f7da86781e274f81ce654d2f7ebc151a` passed push/PR CI 44843011465/44843022314. Knowledge exchange remains selected; the full repair daemon is unselected.

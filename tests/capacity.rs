@@ -258,6 +258,8 @@ fn coordinator_remains_available_after_fake_completion_hits_storage_backpressure
     let probe = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
     let port = probe.local_addr().unwrap().port();
     drop(probe);
+    let diagnostics = d.path().join("coordinator-stderr.log");
+    let stderr = std::fs::File::create(&diagnostics).unwrap();
     let mut child = Child(
         Command::new(env!("CARGO_BIN_EXE_watchhouse"))
             .args([
@@ -273,7 +275,7 @@ fn coordinator_remains_available_after_fake_completion_hits_storage_backpressure
                 "storage-capacity-fixture-token-32-bytes",
             )
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            .stderr(Stdio::from(stderr))
             .spawn()
             .unwrap(),
     );
@@ -287,7 +289,8 @@ fn coordinator_remains_available_after_fake_completion_hits_storage_backpressure
     loop {
         assert!(
             child.0.try_wait().unwrap().is_none(),
-            "coordinator exited on expected backpressure"
+            "coordinator exited on expected backpressure: {}",
+            std::fs::read_to_string(&diagnostics).unwrap_or_default()
         );
         if let Ok(r) = client
             .get(&url)
