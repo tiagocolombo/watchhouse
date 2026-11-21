@@ -96,4 +96,8 @@ All endpoints retain loopback bearer/Host/Origin boundaries. These local operato
 
 ## Implemented configured human access
 
-[Access v1](../contracts/v1/access/README.md) implements global observer/operator/admin identities, `/api/v1/session`, OS-only configuration, strict proxy transport assertions, actor binding, revocation, bounded audit and role-aware controls. It does not authenticate the legacy fake-worker simulator remotely. Scoped service-owner data visibility and independent remote worker access remain required subsequent development. The self-signed localhost TLS browser fixture is not production TLS/account activation.
+[Access v1](../contracts/v1/access/README.md) implements global observer/operator/admin identities, `/api/v1/session`, OS-only configuration, strict proxy transport assertions, actor binding, revocation, bounded audit and role-aware controls. It does not authenticate the legacy fake-worker simulator remotely. Scoped service-owner data visibility is implemented below; independent remote worker access remains required subsequent development. The self-signed localhost TLS browser fixture is not production TLS/account activation.
+
+## Implemented scoped service-owner workspace
+
+ADR 0040 extends [Access v1](../contracts/v1/access/README.md) with exact OS service/environment and case grants, a filtered queue, case/evidence/target authorization, scope-aware SSE and shared filtered snapshot/qualification exports. Service owners retain granted case commands but do not request global configuration/health or create unclassified manual intake. Authorized case content includes its retained references/prose; references do not authorize unrelated incident reads. Independent remote workers remain separate development.

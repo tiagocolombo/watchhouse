@@ -577,3 +577,274 @@ fn policy_revisions_and_restored_credentials_require_fresh_os_authority() {
         .unwrap();
     assert!(watchhouse::http::remote_router(restored, "127.0.0.1:8787".into(), keys).is_ok());
 }
+
+#[tokio::test]
+async fn exact_case_grants_filter_before_limits_and_protect_evidence_and_commands() {
+    let (d, a, _keys, r) = setup();
+    let own = a
+        .create_case(serde_json::from_value(create("alice", "scope-own")).unwrap())
+        .unwrap();
+    let foreign = a
+        .create_case(serde_json::from_value(create("admin", "scope-other")).unwrap())
+        .unwrap();
+    let report = |id: &str, key: &str| {
+        a.record_evidence(id,serde_json::from_value(json!({"schema_version":1,"idempotency_key":key,"actor":"alice","reason":"Fixture scoped evidence","expected_version":a.snapshot(id).unwrap().case.version,"scope":"Synthetic case only","statement":format!("Private fixture report {key}"),"collection_method":"Synthetic fixture","observed_at":null,"uncertainty":"No real incident"})).unwrap()).unwrap()
+    };
+    a.install_service_topology(serde_json::from_value(json!({"schema_version":1,"revision":1,"paused":false,"max_gap_seconds":60,"dependencies":[{"caller":{"service":"checkout","environment":"test","repository":"fixture/checkout"},"dependency":{"service":"private-neighbor","environment":"production","repository":"fixture/private"},"rationale":"Private global topology fixture"}]})).unwrap(),"operator","Synthetic OS topology").unwrap();
+    let db = Store::open(d.path().join("state.db"))
+        .unwrap()
+        .connect()
+        .unwrap();
+    let relation = json!({"schema_version":1,"source_case":own.id,"target_case":foreign.id,"revision":1,"kind":"related","active":false,"context_current":false,"source_digest":"sha256:0000000000000000000000000000000000000000000000000000000000000000","target_digest":"sha256:0000000000000000000000000000000000000000000000000000000000000000","source_evidence":[],"target_evidence":[],"actor":"admin","reason":"Historical synthetic cross-scope relation","uncertainty":"No actual correlation","recorded_at":"2026-11-21T12:00:00.000Z"});
+    let (left, right) = if own.id < foreign.id {
+        (&own.id, &foreign.id)
+    } else {
+        (&foreign.id, &own.id)
+    };
+    db.execute(
+        "INSERT INTO case_correlations VALUES (?1,?2,1,?3)",
+        rusqlite::params![left, right, relation.to_string()],
+    )
+    .unwrap();
+    assert_eq!(a.snapshot(&own.id).unwrap().correlations.relations.len(), 1);
+    assert!(a.snapshot(&own.id).unwrap().correlations.topology.is_some());
+    let own_proof = report(&own.id, "own-proof").evidence.digest;
+    let foreign_proof = report(&foreign.id, "foreign-proof").evidence.digest;
+    // A globally capped prefix must not hide the old authorized case.
+    for i in 0..201 {
+        a.create_case(
+            serde_json::from_value(create("admin", &format!("scope-prefix-{i}"))).unwrap(),
+        )
+        .unwrap();
+    }
+    let mut p = policy();
+    p.revision = 2;
+    p.principals[0].role = watchhouse::access::Role::ServiceOwner;
+    p.principals[0].case_ids = vec![own.id.clone()];
+    a.install_access_policy(p, "operator", "One explicit OS case grant")
+        .unwrap();
+    let session = value(
+        r.clone()
+            .oneshot(request("GET", "/session", ALICE, Value::Null))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(session["role"], "service_owner");
+    assert_eq!(session["global_data"], false);
+    assert_eq!(session["can_create"], false);
+    let list = value(
+        r.clone()
+            .oneshot(request("GET", "/cases", ALICE, Value::Null))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(list.as_array().unwrap().len(), 1);
+    assert_eq!(list[0]["id"], own.id);
+    for path in [
+        format!("/cases/{}", foreign.id),
+        format!("/cases/{}/events", foreign.id),
+        format!("/cases/{}/qualification/markdown", foreign.id),
+        format!("/evidence/{foreign_proof}"),
+        "/factory".into(),
+        "/sources/sentry".into(),
+        "/sources/datadog".into(),
+        "/model-profiles".into(),
+        "/worker-routes".into(),
+        "/team/escalations".into(),
+    ] {
+        assert_eq!(
+            r.clone()
+                .oneshot(request("GET", &path, ALICE, Value::Null))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::FORBIDDEN,
+            "{path}"
+        );
+    }
+    for path in [
+        format!("/cases/{}", own.id),
+        format!("/cases/{}/qualification/markdown", own.id),
+        format!("/evidence/{own_proof}"),
+    ] {
+        assert_eq!(
+            r.clone()
+                .oneshot(request("GET", &path, ALICE, Value::Null))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::OK,
+            "{path}"
+        );
+    }
+    let snapshot = value(
+        r.clone()
+            .oneshot(request(
+                "GET",
+                &format!("/cases/{}", own.id),
+                ALICE,
+                Value::Null,
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert!(snapshot["correlations"]["topology"].is_null());
+    assert_eq!(snapshot["correlations"]["relations"], json!([]));
+    let report = r
+        .clone()
+        .oneshot(request(
+            "GET",
+            &format!("/cases/{}/qualification/markdown", own.id),
+            ALICE,
+            Value::Null,
+        ))
+        .await
+        .unwrap()
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes();
+    let report = String::from_utf8(report.to_vec()).unwrap();
+    assert!(!report.contains("private-neighbor"));
+    assert!(!report.contains(&foreign.id));
+    let rename = json!({"schema_version":1,"idempotency_key":"scope-rename","actor":"alice","reason":"Edit granted case","expected_version":snapshot["case"]["version"],"title":"Scoped owner rename"});
+    assert_eq!(
+        r.clone()
+            .oneshot(request(
+                "POST",
+                &format!("/cases/{}/rename", own.id),
+                ALICE,
+                rename.clone()
+            ))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK
+    );
+    assert_eq!(
+        r.clone()
+            .oneshot(request(
+                "POST",
+                &format!("/cases/{}/rename", foreign.id),
+                ALICE,
+                rename
+            ))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::FORBIDDEN
+    );
+    for path in ["correlations", "dispositions"] {
+        let body =
+            json!({"actor":"alice","target_case":foreign.id,"plan":{"target_case":foreign.id}});
+        assert_eq!(
+            r.clone()
+                .oneshot(request(
+                    "POST",
+                    &format!("/cases/{}/{path}", own.id),
+                    ALICE,
+                    body
+                ))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::FORBIDDEN
+        );
+    }
+    assert_eq!(
+        r.oneshot(request(
+            "POST",
+            "/cases",
+            ALICE,
+            create("alice", "scope-no-unclassified-intake")
+        ))
+        .await
+        .unwrap()
+        .status(),
+        StatusCode::FORBIDDEN
+    );
+}
+
+#[tokio::test]
+async fn normalized_service_mapping_controls_scope_and_revokes_an_open_stream_on_drift() {
+    let (d, a, _keys, r) = setup();
+    let case = a
+        .create_case(serde_json::from_value(create("alice", "mapped-scope")).unwrap())
+        .unwrap();
+    // This represents the controller's normalized source row, whose service and
+    // environment come from installed source configuration, never event tags.
+    let db = Store::open(d.path().join("state.db"))
+        .unwrap()
+        .connect()
+        .unwrap();
+    let source = json!({"source_key":"sentry:fixture/1001","signal":{"issue_id":"1001","project_id":"fixture","title":"Synthetic mapped observation","status":"unresolved","last_seen":"2026-11-21T12:00:00.000Z","count":null},"authoritative":false,"observed_at":"2026-11-21T12:00:00.000Z","configuration_revision":1,"service":"checkout","environment":"test","repository":"fixture","release":null,"deployed_revision":null,"exceptions":[],"uncertainty":"Mapping fixture; no live source"});
+    let put = |v: &Value| {
+        let raw = v.to_string();
+        let sum = watchhouse::store::digest(&raw);
+        db.execute("INSERT OR IGNORE INTO evidence VALUES (?1,'application/json',?2,'synthetic-source','2026-11-21T12:00:00.000Z')",rusqlite::params![sum,raw]).unwrap();
+        db.execute("INSERT INTO source_cases VALUES ('sentry:fixture/1001',?1,?2,?3) ON CONFLICT(source_key) DO UPDATE SET record=excluded.record,digest=excluded.digest",rusqlite::params![case.id,raw,sum]).unwrap();
+    };
+    put(&source);
+    let mut p = policy();
+    p.revision = 2;
+    p.principals[0].role = watchhouse::access::Role::ServiceOwner;
+    p.principals[0].services = vec![watchhouse::access::ServiceScope {
+        service: "checkout".into(),
+        environment: "test".into(),
+    }];
+    a.install_access_policy(p, "operator", "Exact source service and environment grant")
+        .unwrap();
+    let path = format!("/cases/{}", case.id);
+    assert_eq!(
+        r.clone()
+            .oneshot(request("GET", &path, ALICE, Value::Null))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK
+    );
+    let response = r
+        .clone()
+        .oneshot(request(
+            "GET",
+            &format!("{path}/events"),
+            ALICE,
+            Value::Null,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let mut body = response.into_body();
+    body.frame().await.unwrap().unwrap();
+    let mut changed = source.clone();
+    changed["environment"] = json!("production");
+    put(&changed);
+    assert_eq!(
+        r.clone()
+            .oneshot(request("GET", &path, ALICE, Value::Null))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::FORBIDDEN
+    );
+    let remaining = tokio::time::timeout(std::time::Duration::from_secs(2), body.collect())
+        .await
+        .unwrap()
+        .unwrap()
+        .to_bytes();
+    assert!(String::from_utf8_lossy(&remaining).contains("access_revoked"));
+    // Matching untrusted/corrupt projection bytes cannot grant scope.
+    put(&source);
+    db.execute("UPDATE source_cases SET record=json_set(record,'$.uncertainty','corrupt fixture') WHERE case_id=?1",[&case.id]).unwrap();
+    assert_eq!(
+        r.oneshot(request("GET", &path, ALICE, Value::Null))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::FORBIDDEN
+    );
+}
