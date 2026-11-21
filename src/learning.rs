@@ -166,6 +166,10 @@ fn raw_document(db: &Connection, id: &str, revision: u32) -> Result<(Document, S
 }
 fn accepted(db: &Connection, id: &str, revision: u32, now: &str) -> Result<bool> {
     let (doc, digest) = raw_document(db, id, revision)?;
+    if !crate::retention::proof_current(db, &doc.case_id, "learning", &format!("{id}@{revision}"))?
+    {
+        return Ok(false);
+    }
     let raw: Option<String> = db
         .query_row(
             "SELECT record FROM learning_acceptances WHERE id=?1 AND revision=?2",
@@ -583,6 +587,16 @@ impl Application {
                 revision,
                 evidence_refs,
             } => {
+                if !crate::retention::proof_current(
+                    &tx,
+                    case,
+                    "learning",
+                    &format!("{id}@{revision}"),
+                )? {
+                    return Err(Error::Conflict(
+                        "document predates evidence invalidation; revise before acceptance".into(),
+                    ));
+                }
                 crate::challenges::ensure_clear(&tx, case)?;
                 let (doc, digest) = raw_document(&tx, id, *revision)?;
                 let latest: Option<u32> = tx.query_row(
@@ -831,6 +845,9 @@ fn refs_intact(db: &Connection, case: &str, refs: &[String]) -> Result<bool> {
         return Ok(false);
     }
     for digest in refs {
+        if !crate::retention::usable(db, digest)? {
+            return Ok(false);
+        }
         let raw:Option<String>=db.query_row("SELECT e.content FROM evidence e JOIN case_evidence c ON c.digest=e.digest WHERE c.case_id=?1 AND c.digest=?2",params![case,digest],|r|r.get(0)).optional()?;
         if raw.is_none_or(|s| store::digest(&s) != *digest) {
             return Ok(false);

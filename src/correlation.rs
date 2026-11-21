@@ -115,6 +115,12 @@ fn signature(o: &SourceObservation) -> Option<String> {
 }
 fn current(db: &Connection, r: &Relation) -> Result<bool> {
     Ok(r.active
+        && crate::sentry_projects::context_current(db, &r.source_case)?
+        && crate::sentry_projects::context_current(db, &r.target_case)?
+        && crate::qualification::evidence_refs(db, &r.source_case, &r.source_evidence, false)
+            .is_ok()
+        && crate::qualification::evidence_refs(db, &r.target_case, &r.target_evidence, false)
+            .is_ok()
         && digest(db, &r.source_case)? == r.source_digest
         && digest(db, &r.target_case)? == r.target_digest
         && match r.topology_revision {

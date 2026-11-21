@@ -295,7 +295,12 @@ pub(crate) fn snapshot(db: &Connection, case: &str) -> Result<Snapshot> {
             let (raw, escalated) = r?;
             let mut p: Problem = serde_json::from_str(&raw)?;
             p.escalated = escalated;
-            p.context_current = crate::recovery::source_digest(db, case)? == p.source_digest
+            p.context_current = crate::retention::proof_current(
+                db,
+                case,
+                "problem",
+                &format!("{}@{}", p.id, p.revision),
+            )? && crate::recovery::source_digest(db, case)? == p.source_digest
                 && crate::sentry_projects::context_current(db, case)?
                 && crate::qualification::evidence_refs(db, case, &p.evidence_refs, true).is_ok();
             if p.cause_status == "independently_supported" {
@@ -321,7 +326,8 @@ pub(crate) fn snapshot(db: &Connection, case: &str) -> Result<Snapshot> {
 fn current(db: &Connection, j: &Job, now: &str) -> Result<Policy> {
     let p = policy(db, None)?;
     crate::restore::require_fresh(db, "operation", p.revision)?;
-    if p.revision != j.policy_revision
+    if !crate::retention::proof_current(db, &j.case_id, "operation", &j.id)?
+        || p.revision != j.policy_revision
         || p.paused
         || store::digest(&serde_json::to_string(&p)?) != j.policy_digest
         || now >= j.deadline.as_str()
@@ -466,6 +472,7 @@ impl Application {
                     fence: store::id("op-fence"),
                     result: None,
                 };
+                crate::retention::bind(&tx, case, "operation", &j.id)?;
                 current(&tx, &j, &now)?;
                 save(&tx, &j, &now)?;
             }

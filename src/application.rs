@@ -219,6 +219,7 @@ impl Application {
             .map(|row| Ok(serde_json::from_str(&row?)?))
             .collect::<Result<Vec<_>>>()?;
         Ok(Snapshot {
+            evidence_redactions: crate::retention::for_case(&tx, id)?,
             schema_version: V1,
             case,
             assignment,
@@ -266,6 +267,9 @@ impl Application {
         store::events(&db, id, after, 200)
     }
     pub fn evidence(&self, digest: &str) -> Result<String> {
+        if let Some(t) = crate::retention::tombstone(&self.store.connect()?, digest)? {
+            return Ok(serde_json::json!({"redacted":true,"tombstone":t}).to_string());
+        }
         self.store
             .connect()?
             .query_row(

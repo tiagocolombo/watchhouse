@@ -497,7 +497,7 @@ mod tests {
             db.query_row("SELECT MAX(version) FROM schema_migrations", [], |r| r
                 .get::<_, i64>(0))
                 .unwrap(),
-            33
+            34
         );
         assert!(latest(&db).unwrap().is_some());
         assert_eq!(

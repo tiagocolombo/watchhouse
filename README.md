@@ -227,3 +227,5 @@ The OS-only [backup contract](contracts/v1/backups/README.md) exports a consiste
 [Configured access v1](contracts/v1/access/README.md) adds optional OS-configured observer/operator/admin identities through a separately authenticated HTTPS proxy, role-aware controls, revocation and bounded access audit. The coordinator remains loopback-only by default. Global and scoped human access are fixture-verified; independent remote worker trust remains development work.
 
 [Service-owner grants](contracts/v1/access/README.md#scoped-service-owners) scope queues, case commands, evidence and exports to explicit OS service/environment or case grants. Independent remote worker access and the remaining M8 hardening are still development work.
+
+[Evidence-store removal v1](contracts/v1/retention/README.md) removes a named blob through an OS command while retaining a tombstone, invalidating prior proof and creating owned reassessment. It does not erase derived case/receipt/job/journal/export copies; full retention remains development.

@@ -129,6 +129,11 @@ fn source_digest(db: &Connection, case: &str) -> Result<Option<String>> {
         .optional()?)
 }
 pub(crate) fn current(db: &Connection, c: &Candidate, now: &str) -> Result<()> {
+    if !crate::retention::proof_current(db, &c.case_id, "candidate", &c.id)? {
+        return Err(Error::Conflict(
+            "candidate predates evidence invalidation; new validation required".into(),
+        ));
+    }
     crate::restore::require_fresh(db, "repair_source", c.source_revision)?;
     if !crate::sentry_projects::context_current(db, &c.case_id)? {
         return Err(Error::Conflict("source project configuration changed; revalidation required before candidate authority".into()));
