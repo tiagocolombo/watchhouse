@@ -4,7 +4,7 @@ Last updated: 2026-11-20.
 
 ## Latest continuation
 
-2026-11-21: PR #32 final head `1fcbd4e` passed Linux (including browser/native fixture drills), macOS and Codex protocol CI, but Windows failed the child-coordinator storage-backpressure liveness test. The test now retains its synthetic child's stderr on failure; no assertion or platform check is removed. Cause and final-head validation remain pending. The restarted worktree was clean; the separate original uncommitted M4 worktree remains untouched.
+2026-11-21: PR #32's Windows child-coordinator failure was diagnosed from retained stderr: socket initialization failed with OS error 10106 after the fixture cleared the child environment. The fixture now retains only `SystemRoot`/`WINDIR` for OS services; caller integration/model credentials remain excluded. No liveness or backpressure assertion is removed. The diagnostic head `5469280` passed macOS and native Linux drills; its Windows failure is not reported as a pass. The corrected final head requires CI. The original uncommitted M4 worktree remains untouched.
 
 The open stack through PR #28 was recovered from GitHub after the execution environment restarted from an older checkpoint. PR #28 final head `a0905830d53b62dbbc413570ed7b98d6290ee826` passed all eight push/PR jobs, including independent actual-Claude/Codex native cgroup fixtures, Docker regression/cleanup, all eleven browser scenarios and Linux/macOS/Windows coordinator packages. PRs #12–#27 retain successful current-head push/PR workflows. No PR was merged. The original `watchhouse` worktree's uncommitted M4 files remain untouched.
 

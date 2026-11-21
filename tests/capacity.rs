@@ -260,8 +260,17 @@ fn coordinator_remains_available_after_fake_completion_hits_storage_backpressure
     drop(probe);
     let diagnostics = d.path().join("coordinator-stderr.log");
     let stderr = std::fs::File::create(&diagnostics).unwrap();
+    let mut command = Command::new(env!("CARGO_BIN_EXE_watchhouse"));
+    command.env_clear();
+    // Windows socket providers resolve OS DLLs through SystemRoot. Keep only OS
+    // locations; no caller credentials, model configuration or source keys survive.
+    for name in ["SystemRoot", "WINDIR"] {
+        if let Some(value) = std::env::var_os(name) {
+            command.env(name, value);
+        }
+    }
     let mut child = Child(
-        Command::new(env!("CARGO_BIN_EXE_watchhouse"))
+        command
             .args([
                 "--db",
                 d.path().join("db").to_str().unwrap(),
@@ -269,7 +278,6 @@ fn coordinator_remains_available_after_fake_completion_hits_storage_backpressure
                 "--port",
                 &port.to_string(),
             ])
-            .env_clear()
             .env(
                 "WATCHHOUSE_TOKEN",
                 "storage-capacity-fixture-token-32-bytes",
