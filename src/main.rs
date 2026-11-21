@@ -11,6 +11,19 @@ struct Cli {
 }
 #[derive(Subcommand)]
 enum Command {
+    /// Logically remove an evidence-store body and invalidate dependent proof.
+    EvidenceRedact {
+        #[arg(long)]
+        digest: String,
+        #[arg(long)]
+        operator: String,
+        #[arg(long)]
+        reason: String,
+    },
+    EvidenceRedactions {
+        #[arg(long)]
+        case: String,
+    },
     AccessPolicy {
         #[arg(long)]
         file: PathBuf,
@@ -721,6 +734,12 @@ async fn run() -> anyhow::Result<()> {
     }
     let app = Application::new(Store::open(cli.db)?, Arc::new(SystemClock));
     match cli.command {
+        Command::EvidenceRedact {
+            digest,
+            operator,
+            reason,
+        } => print(&app.redact_evidence(&digest, &operator, &reason)?)?,
+        Command::EvidenceRedactions { case } => print(&app.evidence_redactions(&case)?)?,
         Command::AccessPolicy { file, operator } => {
             let source = std::fs::canonicalize(&file)?;
             print(&app.install_access_policy(

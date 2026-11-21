@@ -48,6 +48,12 @@ pub struct Actor {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload", deny_unknown_fields)]
 pub enum EventData {
+    #[serde(rename = "evidence.redacted")]
+    EvidenceRedacted {
+        digest: String,
+        epoch: i64,
+        reason: String,
+    },
     #[serde(rename = "merge.changed")]
     MergeChanged {
         job_id: String,
@@ -362,6 +368,8 @@ pub struct ExecutionResult {
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Snapshot {
+    #[serde(default)]
+    pub evidence_redactions: Vec<crate::retention::Tombstone>,
     pub schema_version: V1,
     pub case: Case,
     pub assignment: Assignment,

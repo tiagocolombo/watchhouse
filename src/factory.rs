@@ -191,28 +191,7 @@ impl Application {
                             .collect::<std::result::Result<_, _>>()?
                     };
                     for case in cases {
-                        if matches!(effect, Effect::All | Effect::Fake) {
-                            affected+=tx.execute("UPDATE jobs SET lease_until=?1 WHERE state='running' AND assignment_id IN (SELECT id FROM assignments WHERE case_id=?2)",params![now,case])?;
-                            tx.execute("UPDATE run_control SET progress_deadline=?1 WHERE run_id IN (SELECT r.id FROM runs r JOIN assignments a ON a.id=r.assignment_id WHERE a.case_id=?2 AND r.state='running')",params![now,case])?;
-                        }
-                        if matches!(effect, Effect::All | Effect::Model) {
-                            affected +=
-                                crate::model_runtime::ops::factory_stop(&tx, &case, &id, &now)?;
-                        }
-                        if matches!(effect, Effect::All | Effect::Container) {
-                            affected +=
-                                crate::real_execution::worker::factory_stop(&tx, &case, &id, &now)?;
-                        }
-                        if matches!(effect, Effect::All | Effect::Publication) {
-                            affected +=
-                                crate::delivery::lifecycle::factory_stop(&tx, &case, &id, &now)?;
-                        }
-                        if matches!(effect, Effect::All | Effect::Merge) {
-                            affected += crate::merging::factory_stop(&tx, &case, &id, &now)?;
-                        }
-                        if matches!(effect, Effect::All | Effect::Operation) {
-                            affected += crate::operations::factory_stop(&tx, &case, &id, &now)?;
-                        }
+                        affected += stop_case(&tx, &case, &id, &now, *effect)?;
                     }
                 }
                 id
@@ -312,4 +291,34 @@ impl Application {
         };
         Ok(Status{remote_access,restoration:self.restore_status()?,capacity,version,state:state.into(),now,last_tick,clock_high_at:high,scheduler_lag_seconds:lag,clock_behind,pauses,queues,uncertain_resources:uncertain,open_escalations:escalations,source_reads_unavailable:unavailable,audit,active_while_paused:vec!["source observation".into(),"timers and escalation".into(),"notification delivery".into(),"read-only reconciliation".into(),"original-worker cleanup (restored old handles remain held)".into()],limitation:"Factory health is separate from service recovery. Pause removes admission, not an already dispatched effect. Stop fences active results and requests scoped cleanup; unknown outcomes require reconciliation. External gateway stop/rollback and credential revocation require their own configured authority. Resume does not reset attempts, deadlines, uncertainty, credentials or native qualification. Status lists at most 200 active pauses and 100 audit entries; admission checks all pauses.".into()})
     }
+}
+
+pub(crate) fn stop_case(
+    tx: &Transaction<'_>,
+    case: &str,
+    pause: &str,
+    now: &str,
+    effect: Effect,
+) -> Result<usize> {
+    let mut affected = 0;
+    if matches!(effect, Effect::All | Effect::Fake) {
+        affected +=tx.execute("UPDATE jobs SET lease_until=?1 WHERE state='running' AND assignment_id IN (SELECT id FROM assignments WHERE case_id=?2)",params![now,case])?;
+        tx.execute("UPDATE run_control SET progress_deadline=?1 WHERE run_id IN (SELECT r.id FROM runs r JOIN assignments a ON a.id=r.assignment_id WHERE a.case_id=?2 AND r.state='running')",params![now,case])?;
+    }
+    if matches!(effect, Effect::All | Effect::Model) {
+        affected += crate::model_runtime::ops::factory_stop(tx, case, pause, now)?;
+    }
+    if matches!(effect, Effect::All | Effect::Container) {
+        affected += crate::real_execution::worker::factory_stop(tx, case, pause, now)?;
+    }
+    if matches!(effect, Effect::All | Effect::Publication) {
+        affected += crate::delivery::lifecycle::factory_stop(tx, case, pause, now)?;
+    }
+    if matches!(effect, Effect::All | Effect::Merge) {
+        affected += crate::merging::factory_stop(tx, case, pause, now)?;
+    }
+    if matches!(effect, Effect::All | Effect::Operation) {
+        affected += crate::operations::factory_stop(tx, case, pause, now)?;
+    }
+    Ok(affected)
 }

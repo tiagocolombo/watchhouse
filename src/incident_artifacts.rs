@@ -169,7 +169,12 @@ fn record(db: &Connection, case: &str, id: &str) -> Result<Artifact> {
     if let Some(raw) = approval {
         let p: Approval = serde_json::from_str(&raw)?;
         let ops = incident_ops::snapshot(db, case)?.ok_or(Error::NotFound)?;
-        a.approval_current = ops.revision == p.incident_revision
+        a.approval_current = crate::retention::proof_current(
+            db,
+            case,
+            "artifact",
+            &format!("{}@{}", a.id, a.revision),
+        )? && ops.revision == p.incident_revision
             && source_digest(db, case)? == p.source_digest
             && (hypothesis || store::case(db, case)?.version == p.reviewed_case_version + 1);
         if hypothesis {
@@ -369,7 +374,12 @@ impl Application {
                             .into(),
                     ));
                 }
-                if h.approval.is_some()
+                if !crate::retention::proof_current(
+                    &tx,
+                    case,
+                    "artifact",
+                    &format!("{}@{}", h.id, h.revision),
+                )? || h.approval.is_some()
                     || h.incident_revision != ops.revision
                     || h.source_digest != digest
                 {
@@ -637,7 +647,14 @@ impl Application {
                         "draft author cannot approve their own message".into(),
                     ));
                 }
-                if draft.incident_revision != ops.revision || draft.source_digest != digest {
+                if !crate::retention::proof_current(
+                    &tx,
+                    case,
+                    "artifact",
+                    &format!("{}@{}", draft.id, draft.revision),
+                )? || draft.incident_revision != ops.revision
+                    || draft.source_digest != digest
+                {
                     return Err(Error::Conflict(
                         "incident/source context changed; revise the draft before approval".into(),
                     ));

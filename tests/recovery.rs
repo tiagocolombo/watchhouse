@@ -102,6 +102,58 @@ fn met(a: &Application, id: &str, t: &watchhouse::domain::ManualClock) -> Observ
 }
 use watchhouse::domain::Clock;
 #[test]
+fn evidence_removal_invalidates_the_plan_and_requires_a_new_prospective_plan() {
+    let (_d, a, t, id) = fixture();
+    let observation = met(&a, &id, &t);
+    let old_plan = a.snapshot(&id).unwrap().recovery.recovery.plan.unwrap();
+    a.redact_evidence(
+        &observation.window.evidence_refs[0],
+        "operator",
+        "Remove the synthetic recovery measurement body",
+    )
+    .unwrap();
+    let current = a.snapshot(&id).unwrap().recovery.recovery;
+    assert!(!current.context_current);
+    assert!(!current.response_resolved);
+    assert!(current.review.is_none());
+    let proof = report(&a, &id, "post-redaction-review", "reviewer");
+    assert!(
+        apply(
+            &a,
+            &id,
+            "cannot-review-old-plan",
+            "reviewer",
+            RecoveryAction::Review {
+                observation_id: observation.id,
+                evidence_refs: vec![proof]
+            }
+        )
+        .is_err()
+    );
+    let new = apply(
+        &a,
+        &id,
+        "fresh-prospective-plan",
+        "operator",
+        RecoveryAction::Plan {
+            criteria: criteria(),
+            review_seconds: 300,
+        },
+    )
+    .unwrap()
+    .recovery;
+    assert!(new.context_current);
+    assert_ne!(new.plan.unwrap().id, old_plan.id);
+    assert!(new.observation.is_none());
+    assert!(
+        a.factory_status()
+            .unwrap()
+            .pauses
+            .iter()
+            .any(|p| p["target"] == id)
+    );
+}
+#[test]
 fn reported_recovery_requires_planned_window_independent_review_and_keeps_followups() {
     let (_d, a, t, id) = fixture();
     let o = met(&a, &id, &t);

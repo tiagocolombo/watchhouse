@@ -39,6 +39,10 @@ pub(crate) fn revision_active(db: &Connection, revision: i64) -> Result<bool> {
     )?)
 }
 pub(crate) fn context_current(db: &Connection, case: &str) -> Result<bool> {
+    let removed:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM source_cases s JOIN evidence_redactions r ON r.digest=s.digest WHERE s.case_id=?1)",[case],|r|r.get(0))?;
+    if removed {
+        return Ok(false);
+    }
     Ok(db
         .query_row(
             "SELECT current FROM source_context_validity WHERE case_id=?1",

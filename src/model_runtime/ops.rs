@@ -334,7 +334,9 @@ pub(crate) fn admission(db: &Connection, p: &ModelPolicy, now: &str) -> Result<A
             |r| r.get(0),
         )
         .optional()?;
-    if !a.client_protocol_qualified
+    if !crate::retention::proof_current(db, &j.case_id, "model", &j.id)?
+        || !crate::retention::usable(db, &a.evidence_digest)?
+        || !a.client_protocol_qualified
         || a.profile_digest != p.digest()?
         || a.expires_at.as_str() <= now
         || latest.as_deref() != Some(&j.id)
@@ -396,6 +398,11 @@ pub(crate) fn current(db: &Connection, j: &Job, p: &ModelPolicy, now: &str) -> R
     context_current(db, j, p, now)
 }
 pub(crate) fn context_current(db: &Connection, j: &Job, p: &ModelPolicy, now: &str) -> Result<()> {
+    if !crate::retention::proof_current(db, &j.case_id, "model", &j.id)? {
+        return Err(Error::Conflict(
+            "model context predates evidence invalidation".into(),
+        ));
+    }
     if !crate::sentry_projects::context_current(db, &j.case_id)? {
         return Err(Error::Conflict(
             "source project configuration changed; model authority withdrawn".into(),
@@ -813,6 +820,7 @@ impl Application {
                 "another client reservation won admission; reconcile it first".into(),
             ));
         }
+        crate::retention::bind(&tx, case, "model", &job.id)?;
         current(&tx, &job, &p, &self.now())?;
         if let Some(repair_id) = &job.plan.context.repair_id {
             let budget: Option<String> = tx

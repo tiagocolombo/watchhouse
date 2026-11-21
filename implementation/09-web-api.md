@@ -101,3 +101,7 @@ All endpoints retain loopback bearer/Host/Origin boundaries. These local operato
 ## Implemented scoped service-owner workspace
 
 ADR 0040 extends [Access v1](../contracts/v1/access/README.md) with exact OS service/environment and case grants, a filtered queue, case/evidence/target authorization, scope-aware SSE and shared filtered snapshot/qualification exports. Service owners retain granted case commands but do not request global configuration/health or create unclassified manual intake. Authorized case content includes its retained references/prose; references do not authorize unrelated incident reads. Independent remote workers remain separate development.
+
+## Implemented missing-evidence visibility
+
+Case snapshots expose `evidence_redactions`; evidence reads return an explicit tombstone instead of an apparently valid body. The browser shows inert removal reasons, retained-history scope, owned reassessment and the resulting case pause. Removal itself is OS-only. See [Retention v1](../contracts/v1/retention/README.md); other copied/derived content is a separate unfinished scope.

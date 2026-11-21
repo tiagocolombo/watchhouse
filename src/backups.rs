@@ -186,12 +186,17 @@ fn database(path: &Path) -> Result<Connection> {
     {
         return Err(invalid("database integrity/foreign keys"));
     }
-    migrations(&db)?;
+    let history = migrations(&db)?;
+    let has_redactions = history.last().is_some_and(|(version, _)| *version >= 34);
     let mut s = db.prepare("SELECT digest,content FROM evidence")?;
     let mut rows = s.query([])?;
     while let Some(r) = rows.next()? {
         let (digest, content): (String, String) = (r.get(0)?, r.get(1)?);
-        if store::digest(&content) != digest {
+        if has_redactions && crate::retention::tombstone(&db, &digest)?.is_some() {
+            if !content.is_empty() {
+                return Err(invalid("redacted evidence body rehydrated"));
+            }
+        } else if store::digest(&content) != digest {
             return Err(invalid("evidence content changed"));
         }
     }

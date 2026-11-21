@@ -156,3 +156,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 - [ADR 0039 — Configured proxy access](adrs/0039-configured-proxy-access.md): distinct OS credentials, global human roles, bound actor attribution, audit/rate/stream bounds, revocation and restored-access fences. Scoped service owners and remote workers remain required development.
 
 - [ADR 0040 — Scoped service-owner access](adrs/0040-scoped-service-owner-access.md): exact OS grants, normalized source scope integrity, pre-limit queue/evidence filtering, cross-case target checks, scope-aware streams and shared filtered snapshot/export projections.
+
+- [ADR 0041 — Evidence removal and proof epochs](adrs/0041-evidence-removal-and-proof-epochs.md): named blob absence, retained identity, immutable epoch-bound proof, atomic effect fences/duties and backup/restore preservation; other content scopes and scheduled retention remain open.

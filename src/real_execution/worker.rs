@@ -227,7 +227,9 @@ pub(crate) fn admission(db: &Connection, p: &ContainerPolicy, now: &str) -> Resu
             |r| Ok((r.get(0)?, r.get(1)?)),
         )
         .optional()?;
-    if latest != q.id
+    if !crate::retention::proof_current(db, &q.case_id, "container", &q.id)?
+        || !crate::retention::usable(db, &a.evidence_digest)?
+        || latest != q.id
         || q.state != "passed"
         || !q.native
         || q.kind != "qualification"

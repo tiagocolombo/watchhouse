@@ -70,14 +70,15 @@ pub(crate) fn snapshot(db: &Connection, case: &str) -> Result<Vec<Assessment>> {
         let (raw, due) = r?;
         let mut a: Assessment = serde_json::from_str(&raw)?;
         a.due = due;
-        a.context_current =
-            a.source_digest == digest && crate::sentry_projects::context_current(db, case)?;
+        a.context_current = crate::retention::proof_current(db, case, "impact", &a.id)?
+            && a.source_digest == digest
+            && crate::sentry_projects::context_current(db, case)?;
         Ok(a)
     })
     .collect()
 }
 pub(crate) fn supervise(tx: &Transaction<'_>, now: &str) -> Result<usize> {
-    let mut q=tx.prepare("SELECT record FROM impact_assessments a WHERE a.due=0 AND a.revision=(SELECT MAX(b.revision) FROM impact_assessments b WHERE b.case_id=a.case_id) AND (EXISTS(SELECT 1 FROM source_context_validity v WHERE v.case_id=a.case_id AND v.current=0) OR a.review_at<=?1 OR COALESCE(json_extract(a.record,'$.source_digest'),'')!=COALESCE((SELECT digest FROM source_cases WHERE case_id=a.case_id),'') OR EXISTS(SELECT 1 FROM source_cases c JOIN source_configs h ON h.revision=json_extract(c.record,'$.configuration_revision') JOIN source_projects p ON p.organization=json_extract(h.record,'$.organization') AND p.project_id=json_extract(h.record,'$.project_id') WHERE c.case_id=a.case_id AND c.source_key LIKE 'sentry:%' AND p.revision!=h.revision)) ORDER BY a.review_at LIMIT 100")?;
+    let mut q=tx.prepare("SELECT record FROM impact_assessments a WHERE a.due=0 AND a.revision=(SELECT MAX(b.revision) FROM impact_assessments b WHERE b.case_id=a.case_id) AND (EXISTS(SELECT 1 FROM source_context_validity v WHERE v.case_id=a.case_id AND v.current=0) OR NOT EXISTS(SELECT 1 FROM retention_proofs p WHERE p.kind='impact' AND p.identity=a.id AND p.case_id=a.case_id AND p.epoch=(SELECT COALESCE(MAX(sequence),0) FROM retention_invalidations WHERE case_id=a.case_id)) OR a.review_at<=?1 OR COALESCE(json_extract(a.record,'$.source_digest'),'')!=COALESCE((SELECT digest FROM source_cases WHERE case_id=a.case_id),'') OR EXISTS(SELECT 1 FROM source_cases c JOIN source_configs h ON h.revision=json_extract(c.record,'$.configuration_revision') JOIN source_projects p ON p.organization=json_extract(h.record,'$.organization') AND p.project_id=json_extract(h.record,'$.project_id') WHERE c.case_id=a.case_id AND c.source_key LIKE 'sentry:%' AND p.revision!=h.revision)) ORDER BY a.review_at LIMIT 100")?;
     let rows = q
         .query_map([now], |r| r.get::<_, String>(0))?
         .collect::<std::result::Result<Vec<_>, _>>()?;

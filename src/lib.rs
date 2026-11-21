@@ -48,3 +48,5 @@ pub mod access;
 pub mod backups;
 pub mod capacity;
 pub mod restore;
+
+pub mod retention;

@@ -39,6 +39,11 @@ pub(crate) fn evidence_refs(
     }
     let mut has_reported = false;
     for digest in refs {
+        if !crate::retention::usable(tx, digest)? {
+            return Err(Error::Conflict(
+                "evidence was redacted; collect new proof".into(),
+            ));
+        }
         let row:Option<(String,String)>=tx.query_row("SELECT e.provenance,e.content FROM evidence e JOIN case_evidence c ON c.digest=e.digest WHERE c.case_id=?1 AND c.digest=?2",params![case_id,digest],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
         let Some((provenance, content)) = row else {
             return Err(Error::Invalid("evidence must belong to this case".into()));
@@ -102,7 +107,7 @@ pub(crate) fn snapshot(db: &Connection, case_id: &str) -> Result<QualificationSn
             })
         })
         .collect::<Result<_>>()?;
-    let mut stmt=db.prepare("SELECT e.digest,e.provenance,e.recorded_at,e.content FROM evidence e JOIN case_evidence c ON c.digest=e.digest WHERE c.case_id=?1 ORDER BY e.recorded_at,e.digest")?;
+    let mut stmt=db.prepare("SELECT e.digest,e.provenance,e.recorded_at,CASE WHEN EXISTS(SELECT 1 FROM evidence_redactions r WHERE r.digest=e.digest) THEN json_object('statement','Evidence redacted; original proof unavailable') ELSE e.content END FROM evidence e JOIN case_evidence c ON c.digest=e.digest WHERE c.case_id=?1 ORDER BY e.recorded_at,e.digest")?;
     let evidence = stmt
         .query_map([case_id], |r| {
             Ok(EvidenceReference {
