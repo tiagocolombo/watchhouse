@@ -10,6 +10,49 @@ use std::{
 };
 use uuid::Uuid;
 
+pub(crate) const MIGRATIONS: &[(i64, &str)] = &[
+    (1, include_str!("../migrations/001_initial.sql")),
+    (2, include_str!("../migrations/002_qualification.sql")),
+    (3, include_str!("../migrations/003_team.sql")),
+    (4, include_str!("../migrations/004_challenges.sql")),
+    (5, include_str!("../migrations/005_policy.sql")),
+    (6, include_str!("../migrations/006_notifications.sql")),
+    (7, include_str!("../migrations/007_sentry_incidents.sql")),
+    (8, include_str!("../migrations/008_incident_operations.sql")),
+    (9, include_str!("../migrations/009_incident_artifacts.sql")),
+    (
+        10,
+        include_str!("../migrations/010_source_read_reliability.sql"),
+    ),
+    (11, include_str!("../migrations/011_case_correlations.sql")),
+    (12, include_str!("../migrations/012_repair_preflight.sql")),
+    (
+        13,
+        include_str!("../migrations/013_worker_qualification.sql"),
+    ),
+    (14, include_str!("../migrations/014_adapter_trials.sql")),
+    (15, include_str!("../migrations/015_incident_recovery.sql")),
+    (16, include_str!("../migrations/016_learning.sql")),
+    (17, include_str!("../migrations/017_native_execution.sql")),
+    (18, include_str!("../migrations/018_knowledge_imports.sql")),
+    (19, include_str!("../migrations/019_model_runtime.sql")),
+    (20, include_str!("../migrations/020_publisher_policy.sql")),
+    (21, include_str!("../migrations/021_publications.sql")),
+    (22, include_str!("../migrations/022_impact_assessments.sql")),
+    (23, include_str!("../migrations/023_service_topology.sql")),
+    (
+        24,
+        include_str!("../migrations/024_hypothesis_acceptance.sql"),
+    ),
+    (25, include_str!("../migrations/025_sentry_projects.sql")),
+    (26, include_str!("../migrations/026_operations.sql")),
+    (27, include_str!("../migrations/027_merging.sql")),
+    (28, include_str!("../migrations/028_datadog.sql")),
+    (29, include_str!("../migrations/029_worker_routing.sql")),
+    (30, include_str!("../migrations/030_factory_controls.sql")),
+    (31, include_str!("../migrations/031_factory_capacity.sql")),
+];
+
 #[derive(Clone)]
 pub struct Store {
     path: PathBuf,
@@ -23,48 +66,7 @@ impl Store {
         db.pragma_update(None, "journal_mode", "WAL")?;
         let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         tx.execute_batch("CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, digest TEXT NOT NULL);")?;
-        let migrations = [
-            (1, include_str!("../migrations/001_initial.sql")),
-            (2, include_str!("../migrations/002_qualification.sql")),
-            (3, include_str!("../migrations/003_team.sql")),
-            (4, include_str!("../migrations/004_challenges.sql")),
-            (5, include_str!("../migrations/005_policy.sql")),
-            (6, include_str!("../migrations/006_notifications.sql")),
-            (7, include_str!("../migrations/007_sentry_incidents.sql")),
-            (8, include_str!("../migrations/008_incident_operations.sql")),
-            (9, include_str!("../migrations/009_incident_artifacts.sql")),
-            (
-                10,
-                include_str!("../migrations/010_source_read_reliability.sql"),
-            ),
-            (11, include_str!("../migrations/011_case_correlations.sql")),
-            (12, include_str!("../migrations/012_repair_preflight.sql")),
-            (
-                13,
-                include_str!("../migrations/013_worker_qualification.sql"),
-            ),
-            (14, include_str!("../migrations/014_adapter_trials.sql")),
-            (15, include_str!("../migrations/015_incident_recovery.sql")),
-            (16, include_str!("../migrations/016_learning.sql")),
-            (17, include_str!("../migrations/017_native_execution.sql")),
-            (18, include_str!("../migrations/018_knowledge_imports.sql")),
-            (19, include_str!("../migrations/019_model_runtime.sql")),
-            (20, include_str!("../migrations/020_publisher_policy.sql")),
-            (21, include_str!("../migrations/021_publications.sql")),
-            (22, include_str!("../migrations/022_impact_assessments.sql")),
-            (23, include_str!("../migrations/023_service_topology.sql")),
-            (
-                24,
-                include_str!("../migrations/024_hypothesis_acceptance.sql"),
-            ),
-            (25, include_str!("../migrations/025_sentry_projects.sql")),
-            (26, include_str!("../migrations/026_operations.sql")),
-            (27, include_str!("../migrations/027_merging.sql")),
-            (28, include_str!("../migrations/028_datadog.sql")),
-            (29, include_str!("../migrations/029_worker_routing.sql")),
-            (30, include_str!("../migrations/030_factory_controls.sql")),
-            (31, include_str!("../migrations/031_factory_capacity.sql")),
-        ];
+        let migrations = MIGRATIONS;
         let applied: Vec<(i64, String)> = {
             let mut stmt =
                 tx.prepare("SELECT version,digest FROM schema_migrations ORDER BY version")?;
@@ -112,7 +114,7 @@ impl Store {
 }
 // Git may check out CRLF on Windows. New checksums use LF; exact legacy CRLF
 // checksums are accepted without rewriting applied history.
-fn migration_digest(sql: &str) -> String {
+pub(crate) fn migration_digest(sql: &str) -> String {
     digest(&sql.replace("\r\n", "\n"))
 }
 pub fn digest(content: &str) -> String {

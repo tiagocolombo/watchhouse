@@ -48,7 +48,7 @@ Before enabling automatic merges, run the relevant verification scenarios in a d
 
 Practice commander loss, worker loss, notification-channel failure, source outage, injected evidence, and restore. Use postmortems on factory failures too; accepted lessons cannot weaken factory authority.
 
-## Current local development operations
+## Historical local baseline (M1)
 
 Build/run/test commands are in the root README. Startup applies/checks migrations 1–3 before CLI or HTTP work. `serve` binds only to 127.0.0.1 and also polls fake work; `worker --once` can process a bounded batch of due qualification obligations and finish one queued or expired fake job without a browser/server. `tick` processes up to 100 due qualification obligations without an executor. A generated token changes on restart unless WATCHHOUSE_TOKEN is supplied. A claimed fake run waits at most its remaining 30-second lease before recovery; fake results have no external effects to reconcile.
 
@@ -65,3 +65,7 @@ Lost/progress-expired attempts become owned blocks rather than automatic silent 
 ## Worker qualification operations
 
 The [controlled qualification CLI](../contracts/v1/worker-qualification/README.md) reserves attempts before I/O. The existing supervisor expires interrupted attempts without models; same-key retries inspect their status instead of launching processes. Quarantined resources require operator inspection and case-bound reported evidence before a fresh attempt. No arbitrary-PID termination or automatic path deletion is exposed. Native policy installation/invocation are CLI-only; status/evidence/Markdown/reconciliation are visible through the authenticated case API/web interface. Current scope is probe-only and never authorizes real model or repository execution.
+
+## Consistent backup operation
+
+The [backup contract](../contracts/v1/backups/README.md) implements bounded OS-owned SQLite WAL snapshots, complete declared frozen artifacts, manifest/evidence/migration/inventory verification and visible metadata audit. Use `backup` and `backup-inspect`; inspection opens no coordinator database. Failed/incomplete destinations are retained and never overwritten. Store exports in an OS-protected parent directory and retain the manifest digest independently. Authority-safe restore remains unavailable; running a copied snapshot as another coordinator is not a supported restore. Later factory controls/capacity and STATUS.md supersede the historical M1 operating limitations above.

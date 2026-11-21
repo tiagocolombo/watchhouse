@@ -11,6 +11,22 @@ struct Cli {
 }
 #[derive(Subcommand)]
 enum Command {
+    /// Consistent private database/artifact snapshot; OS operator plane only.
+    Backup {
+        #[arg(long)]
+        output: PathBuf,
+        #[arg(long)]
+        operator: String,
+        #[arg(long)]
+        reason: String,
+    },
+    /// Verify an existing backup without activating its database or credentials.
+    BackupInspect {
+        #[arg(long)]
+        directory: PathBuf,
+        #[arg(long)]
+        manifest_digest: Option<String>,
+    },
     FactoryStatus,
     FactoryCapacity,
     FactoryLimits {
@@ -642,11 +658,28 @@ fn main() -> anyhow::Result<()> {
 #[tokio::main]
 async fn run() -> anyhow::Result<()> {
     let cli = Cli::parse();
+    if let Command::BackupInspect {
+        directory,
+        manifest_digest,
+    } = &cli.command
+    {
+        print(&watchhouse::backups::inspect(
+            directory,
+            manifest_digest.as_deref(),
+        )?)?;
+        return Ok(());
+    }
     if let Some(parent) = cli.db.parent().filter(|p| !p.as_os_str().is_empty()) {
         std::fs::create_dir_all(parent)?;
     }
     let app = Application::new(Store::open(cli.db)?, Arc::new(SystemClock));
     match cli.command {
+        Command::Backup {
+            output,
+            operator,
+            reason,
+        } => print(&app.create_backup(&output, &operator, &reason)?)?,
+        Command::BackupInspect { .. } => unreachable!("handled without opening coordinator state"),
         Command::FactoryCapacity => print(&app.capacity_status()?)?,
         Command::FactoryLimits { file, operator } => {
             let source = std::fs::canonicalize(&file)?;
