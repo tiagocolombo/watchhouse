@@ -429,8 +429,11 @@ pub(crate) mod controller {
         }
     }
     async fn dispatch(f: &Fixture, b: &impl Backend) {
+        dispatch_on(f, b, None).await;
+    }
+    async fn dispatch_on(f: &Fixture, b: &impl Backend, worker: Option<&str>) {
         for stage in ["create", "start"] {
-            let worked = f.app.run_container_once(b).await.unwrap();
+            let worked = f.app.run_container_on(b, worker).await.unwrap();
             if !worked {
                 let db = f.app.store.connect().unwrap();
                 let mut q = db.prepare("SELECT id,state,json_extract(record,'$.reason') FROM container_jobs ORDER BY rowid").unwrap();
@@ -581,6 +584,83 @@ pub(crate) mod controller {
         assert!(!f.app.run_container_once(&b).await.unwrap());
         assert_eq!(b.state.lock().unwrap().created, 1);
         assert_eq!(b.state.lock().unwrap().started, 1);
+    }
+    #[tokio::test]
+    #[cfg(target_os = "linux")]
+    async fn routed_container_cleanup_remains_on_original_worker_after_route_removal() {
+        use crate::routing::{Kind, Policy as Routes, Target, Worker};
+        let f = fixture();
+        let q = qualify(&f, "routed-qualification");
+        let b = FixtureBackend::default();
+        let routes = Routes {
+            schema_version: V1,
+            revision: 1,
+            workers: vec![Worker {
+                id: "container-a".into(),
+                platform: "linux".into(),
+                architecture: std::env::consts::ARCH.into(),
+                paused: false,
+                targets: vec![Target {
+                    kind: Kind::Container,
+                    policy_revision: 1,
+                }],
+            }],
+        };
+        f.app
+            .install_worker_routes(routes, "operator", "container routing fixture")
+            .unwrap();
+        assert!(!f.app.run_container_once(&b).await.unwrap());
+        assert!(
+            !f.app
+                .run_container_on(&b, Some("container-b"))
+                .await
+                .unwrap()
+        );
+        assert!(
+            f.app
+                .run_container_on(&b, Some("container-a"))
+                .await
+                .unwrap()
+        );
+        f.app
+            .install_worker_routes(
+                Routes {
+                    schema_version: V1,
+                    revision: 2,
+                    workers: vec![],
+                },
+                "operator",
+                "removed route",
+            )
+            .unwrap();
+        assert!(
+            !f.app
+                .run_container_on(&b, Some("container-a"))
+                .await
+                .unwrap()
+        );
+        f.clock.advance(Duration::seconds(101));
+        f.app.supervise_team().unwrap();
+        assert!(
+            !f.app
+                .run_container_on(&b, Some("container-b"))
+                .await
+                .unwrap()
+        );
+        assert!(
+            f.app
+                .run_container_on(&b, Some("container-a"))
+                .await
+                .unwrap()
+        );
+        let state = b.state.lock().unwrap();
+        assert_eq!(state.created, 1);
+        assert_eq!(state.started, 0);
+        assert_eq!(state.cancelled, 1);
+        assert_eq!(
+            f.app.container_job(&f.case, &q.id).unwrap().state,
+            "cancelled"
+        );
     }
     #[tokio::test]
     async fn lost_create_reconciles_existing_handle_without_duplicate_create() {
@@ -886,6 +966,26 @@ pub(crate) mod controller {
             .install_container_policy(p.clone(), "operator")
             .unwrap();
         f.policy = p;
+        f.app
+            .install_worker_routes(
+                crate::routing::Policy {
+                    schema_version: V1,
+                    revision: 1,
+                    workers: vec![crate::routing::Worker {
+                        id: "native-container".into(),
+                        platform: "linux".into(),
+                        architecture: std::env::consts::ARCH.into(),
+                        paused: false,
+                        targets: vec![crate::routing::Target {
+                            kind: crate::routing::Kind::Container,
+                            policy_revision: 2,
+                        }],
+                    }],
+                },
+                "operator",
+                "native routed regression",
+            )
+            .unwrap();
         let q = f
             .app
             .qualify_container(
@@ -896,7 +996,7 @@ pub(crate) mod controller {
                 },
             )
             .unwrap();
-        dispatch(&f, &Native).await;
+        dispatch_on(&f, &Native, Some("native-container")).await;
         let q = f.app.container_job(&f.case, &q.id).unwrap();
         if q.state != "passed" {
             // This explicitly configured synthetic drill contains no account/candidate credentials.
@@ -971,7 +1071,7 @@ pub(crate) mod controller {
                     },
                 )
                 .unwrap();
-            dispatch(&f, &Native).await;
+            dispatch_on(&f, &Native, Some("native-container")).await;
             let got = f.app.container_job(&f.case, &job.id).unwrap();
             assert_eq!(
                 got.state,

@@ -504,6 +504,26 @@ async fn native_text_client_drill(adapter: super::policy::Adapter, runtime_env: 
     f.app
         .install_model_policy(f.p.clone(), "operator", "native no-account protocol drill")
         .unwrap();
+    f.app
+        .install_worker_routes(
+            crate::routing::Policy {
+                schema_version: V1,
+                revision: 1,
+                workers: vec![crate::routing::Worker {
+                    id: "native-model".into(),
+                    platform: "linux".into(),
+                    architecture: std::env::consts::ARCH.into(),
+                    paused: false,
+                    targets: vec![crate::routing::Target {
+                        kind: crate::routing::Kind::Model,
+                        policy_revision: 2,
+                    }],
+                }],
+            },
+            "operator",
+            "native routed qualification",
+        )
+        .unwrap();
     f.p.native_preflight().unwrap();
     f.clock
         .advance(Utc::now() - crate::domain::Clock::now(&f.clock));
@@ -521,7 +541,10 @@ async fn native_text_client_drill(adapter: super::policy::Adapter, runtime_env: 
         .unwrap();
     let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(40);
     loop {
-        f.app.run_model_once(&Native).await.unwrap();
+        f.app
+            .run_model_on(&Native, Some("native-model"))
+            .await
+            .unwrap();
         let current = f.app.model_job(&f.case, &j.id).unwrap();
         eprintln!(
             "native fixture stage={} elapsed={:?} started={} result={} cancelled={}",
@@ -777,4 +800,76 @@ fn independent_profiles_preserve_legacy_digest_shape_and_do_not_inherit_admissio
         path: f.p.jobs_root.clone(),
     };
     assert!(second.validate().is_err());
+}
+
+#[tokio::test]
+#[cfg(target_os = "linux")]
+async fn routed_model_work_retains_cleanup_owner_across_pause_and_restart() {
+    use crate::routing::{Kind, Policy as Routes, Target, Worker};
+    let f = fixture();
+    let job = queue(&f, "route-job");
+    let b = Fake::default();
+    let mut routes = Routes {
+        schema_version: V1,
+        revision: 1,
+        workers: vec![Worker {
+            id: "model-a".into(),
+            platform: "linux".into(),
+            architecture: std::env::consts::ARCH.into(),
+            paused: false,
+            targets: vec![Target {
+                kind: Kind::Model,
+                policy_revision: 1,
+            }],
+        }],
+    };
+    let digest = f
+        .app
+        .install_worker_routes(routes.clone(), "operator", "controller fixture")
+        .unwrap();
+    assert_eq!(
+        f.app
+            .install_worker_routes(routes.clone(), "operator", "controller fixture retry")
+            .unwrap(),
+        digest
+    );
+    assert!(
+        f.app
+            .install_worker_routes(routes.clone(), "fake-agent", "controller fixture")
+            .is_err()
+    );
+    assert!(!f.app.run_model_once(&b).await.unwrap());
+    assert!(!f.app.run_model_on(&b, Some("wrong-worker")).await.unwrap());
+    assert!(f.app.run_model_on(&b, Some("model-a")).await.unwrap());
+    assert_eq!(b.state.lock().unwrap().creates, 1);
+    routes.revision = 2;
+    routes.workers[0].paused = true;
+    f.app
+        .install_worker_routes(routes, "operator", "paused fixture")
+        .unwrap();
+    let restarted = Application::new(
+        Store::open(f.root.path().join("db")).unwrap(),
+        Arc::new(f.clock.clone()),
+    );
+    assert!(!restarted.run_model_on(&b, Some("model-a")).await.unwrap());
+    assert_eq!(b.state.lock().unwrap().starts, 0);
+    f.clock.advance(chrono::Duration::seconds(21));
+    restarted.supervise_models().unwrap();
+    assert!(
+        !restarted
+            .run_model_on(&b, Some("wrong-worker"))
+            .await
+            .unwrap()
+    );
+    assert!(restarted.run_model_on(&b, Some("model-a")).await.unwrap());
+    assert_eq!(b.state.lock().unwrap().cancels, 1);
+    assert_eq!(b.state.lock().unwrap().creates, 1);
+    assert_eq!(
+        restarted.model_job(&f.case, &job.id).unwrap().state,
+        "cancelled"
+    );
+    assert_eq!(
+        restarted.worker_routes().unwrap().bindings[0]["worker_id"],
+        "model-a"
+    );
 }
