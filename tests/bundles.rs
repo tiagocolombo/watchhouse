@@ -273,7 +273,11 @@ fn browser_limit_rejects_instead_of_truncating_while_directory_streams_all_rows(
     for revision in 1..=24 {
         db.execute(
             "INSERT INTO incident_artifacts VALUES ('large-fixture',?1,?2,?3)",
-            params![revision, id, json!({"revision":revision,"body":body}).to_string()],
+            params![
+                revision,
+                id,
+                json!({"revision":revision,"body":body}).to_string()
+            ],
         )
         .unwrap();
     }
@@ -313,35 +317,40 @@ fn restored_location_and_audit_failure_cannot_authorize_or_claim_completion() {
         .unwrap()
         .connect()
         .unwrap();
-    db.execute("INSERT INTO restore_runs VALUES ('fixture-restore','{}')", [])
-        .unwrap();
+    db.execute(
+        "INSERT INTO restore_runs VALUES ('fixture-restore','{}')",
+        [],
+    )
+    .unwrap();
     db.execute(
         "INSERT INTO restore_fences VALUES ('fixture-restore','case_export',?1,'{}')",
         [&exported.id],
     )
     .unwrap();
-    assert!(a
-        .reconcile_case_export(
+    assert!(
+        a.reconcile_case_export(
             &exported.id,
             &output,
             exported.manifest_digest.as_deref().unwrap(),
             "operator",
             "A copied path grants no authority",
         )
-        .is_err());
+        .is_err()
+    );
     db.execute_batch("CREATE TRIGGER deny_export_audit BEFORE INSERT ON factory_events BEGIN SELECT RAISE(ABORT,'invented audit failure'); END;")
         .unwrap();
     assert!(a.case_bundle(&id, Options::default(), "operator").is_err());
     assert_eq!(a.case_exports(&id).unwrap().len(), 1);
     let next = d.path().join("audit-failed");
-    assert!(a
-        .export_case(
+    assert!(
+        a.export_case(
             &id,
             &next,
             Options::default(),
             "operator",
             "Audit reservation failure must prevent filesystem creation",
         )
-        .is_err());
+        .is_err()
+    );
     assert!(!next.exists());
 }
