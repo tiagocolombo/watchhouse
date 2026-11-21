@@ -25,6 +25,10 @@ interface Snapshot { merges:{id:string;state:string;owner:string;reason:string;d
 const el = <T extends HTMLElement = HTMLElement>(id:string) => document.getElementById(id) as T;
 const input = (id:string) => el<HTMLInputElement>(id).value;
 let token = sessionStorage.getItem('watchhouse-token') ?? '';
+let operatorIdentity='operator';let canOperate=true;let canManageFactory=true;
+function applyAccess(){for(const form of el('workspace').querySelectorAll('form')){const allowed=form.id==='factory-control-form'?canManageFactory:canOperate;for(const item of form.querySelectorAll<HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement|HTMLButtonElement>('input,select,textarea,button'))item.disabled=!allowed;}}
+async function refreshIdentity(){const session=await api<{principal:string;role:string;mode:string;can_operate:boolean;can_manage_factory:boolean}>('/session');operatorIdentity=session.principal;canOperate=session.can_operate;canManageFactory=session.can_manage_factory;el('session-identity').textContent=`${session.mode==='remote'?'Remote':'Local'} access · ${session.principal} · ${session.role}`;el('workspace-mode').textContent=session.mode==='remote'?'REMOTE WORKSPACE':'LOCAL WORKSPACE';applyAccess();}
+
 let selected:Case | undefined;
 let selectedSourceKey="";
 let healthPolling=false;
@@ -43,6 +47,7 @@ async function api<T>(path:string,body?:unknown):Promise<T> {
   return response.json() as Promise<T>;
 }
 async function queue() {
+  await refreshIdentity();
   const cases = await api<Case[]>('/cases');
   await refreshFactory();
   el('source-health').textContent=JSON.stringify(await api('/sources/sentry'),null,2);
@@ -118,6 +123,7 @@ function renderState(snapshot:Snapshot) {
   renderQualification(snapshot);
   renderImpact(snapshot.impact ?? []);
   renderTeam(snapshot);
+  applyAccess();
   el('challenge-records').textContent=JSON.stringify({correlations:snapshot.correlations,incident_artifacts:snapshot.incident_artifacts,incident_operations:snapshot.incident_operations,incident_role_offers:snapshot.incident_role_offers,source:snapshot.source,source_freshness:snapshot.source_freshness,incident:snapshot.incident,notifications:snapshot.notifications,policy:snapshot.policy,challenges:snapshot.challenges,gate:snapshot.gate,gateCurrent:snapshot.gate?.closed_version===snapshot.case.version},null,2);
 }
 async function follow(id:string,cursor:number,current:number,signal:AbortSignal) {
@@ -137,6 +143,7 @@ async function follow(id:string,cursor:number,current:number,signal:AbortSignal)
           let end:number;
           while((end=buffer.indexOf('\n\n'))>=0) {
             const frame=buffer.slice(0,end); buffer=buffer.slice(end+2);
+            if(frame.includes('event: access_revoked')) {canOperate=false;canManageFactory=false;applyAccess();throw new Error('Access changed; reconnect with a current credential');}
             if(frame.includes('event: unavailable')) throw new Error('Timeline requires reconnect');
             const data=frame.split('\n').find(line=>line.startsWith('data: ')); if(!data) continue;
             if(current!==generation) return;
@@ -167,13 +174,13 @@ async function connect() {
 el('login-form').onsubmit=e=>{e.preventDefault();token=input('token');void connect().catch(fail);};
 el('create-form').onsubmit=e=>{e.preventDefault();void(async()=>{
   el<HTMLButtonElement>('create').disabled=true;el('error').textContent='';
-  const payload={schema_version:1,actor:'operator',reason:input('reason'),title:input('title'),description:input('description')};
+  const payload={schema_version:1,actor:operatorIdentity,reason:input('reason'),title:input('title'),description:input('description')};
   // Retain a key after an uncertain response. Changed content is a new command.
   if(createPayload!==JSON.stringify(payload)){createKey=crypto.randomUUID();createPayload=JSON.stringify(payload);}
   try { const item=await api<Case>('/cases',{...payload,idempotency_key:createKey});createKey=crypto.randomUUID();createPayload='';el<HTMLFormElement>('create-form').reset();await openCase(item.id); }
-  finally {el<HTMLButtonElement>('create').disabled=false;}
+  finally {el<HTMLButtonElement>('create').disabled=!canOperate;}
 })().catch(fail);};
-el('rename-form').onsubmit=e=>{e.preventDefault();if(!selected) return; const item=selected;void api<Case>(`/cases/${item.id}/rename`,{schema_version:1,idempotency_key:crypto.randomUUID(),actor:'operator',reason:input('rename-reason'),title:input('rename-title'),expected_version:item.version}).then(()=>openCase(item.id)).catch(fail);};
+el('rename-form').onsubmit=e=>{e.preventDefault();if(!selected) return; const item=selected;void api<Case>(`/cases/${item.id}/rename`,{schema_version:1,idempotency_key:crypto.randomUUID(),actor:operatorIdentity,reason:input('rename-reason'),title:input('rename-title'),expected_version:item.version}).then(()=>openCase(item.id)).catch(fail);};
 
 
 class HttpError extends Error {
@@ -183,14 +190,14 @@ const pendingCommands = new Map<string,{signature:string;body:Record<string,unkn
 async function command<T>(id:string,action:string,fields:Record<string,unknown>,expectedVersion:number):Promise<T> {
   if(!selected || selected.id!==id) throw new Error('Select the case again before submitting');
   const key=`${id}/${action}`;
-  const signature=JSON.stringify(fields);
+  const signature=JSON.stringify({actor:operatorIdentity,fields});
   let pending=pendingCommands.get(key);
   if(!pending || pending.signature!==signature) {
     const idempotency_key=crypto.randomUUID();
     const body=(action.startsWith('team/')||action==='impact') ? (()=>{
       const {reason,...data}=fields;
-      return {command:{meta:{schema_version:1,idempotency_key,actor:'operator',reason},expected_version:expectedVersion},...data};
-    })() : {schema_version:1,idempotency_key,actor:'operator',expected_version:expectedVersion,...fields};
+      return {command:{meta:{schema_version:1,idempotency_key,actor:operatorIdentity,reason},expected_version:expectedVersion},...data};
+    })() : {schema_version:1,idempotency_key,actor:operatorIdentity,expected_version:expectedVersion,...fields};
     pending={signature,body};
     pendingCommands.set(key,pending);
   }
@@ -391,7 +398,7 @@ function renderTeam(snapshot:Snapshot) {
   for(const e of team.escalations) {
     const box=document.createElement('div');box.className='obligation-due';
     paragraph(box,`Local escalation ${e.state} · Owner: ${e.owner}`);paragraph(box,e.reason);paragraph(box,e.next_action);
-    if(e.state==='open' && e.owner==='operator') {
+    if(canOperate && e.state==='open' && e.owner===operatorIdentity) {
       const button=document.createElement('button');button.textContent='Acknowledge local escalation';
       button.onclick=()=>{if(!selected) return;const id=selected.id;void command(id,'team/escalation-ack',{escalation_id:e.id,reason:'Operator acknowledged the local escalation; resolution remains outstanding'},selected.version).then(()=>openCase(id)).catch(fail);};box.append(button);
     } escalations.append(box);
@@ -403,7 +410,7 @@ function renderTeam(snapshot:Snapshot) {
     paragraph(box,`${m.kind} · ${m.sender.id} → ${m.recipients.join(', ')}`);paragraph(box,m.body);
     paragraph(box,`Recorded ${new Date(m.recorded_at).toLocaleString()} · ${m.id}`);
     if(m.acknowledge_by) paragraph(box,`Acknowledge by ${new Date(m.acknowledge_by).toLocaleString()} · Acknowledged: ${m.acknowledged_by.join(', ')||'none'}`);
-    if(m.recipients.includes('operator')&&!m.acknowledged_by.includes('operator')) {
+    if(canOperate && m.recipients.includes(operatorIdentity)&&!m.acknowledged_by.includes(operatorIdentity)) {
       const button=document.createElement('button');button.textContent='Acknowledge message';button.onclick=()=>{if(!selected)return;const id=selected.id;void command(id,'team/message-ack',{message_id:m.id,reason:'Local operator read the directed message'},selected.version).then(()=>openCase(id)).catch(fail);};box.append(button);
     }
     messages.append(box);
@@ -497,16 +504,16 @@ async function refreshFactory() {
   const panel=el('factory-pauses');panel.replaceChildren();
   for(const pause of value.pauses) {
     const card=document.createElement('article');card.className='team-card';paragraph(card,`${pause.scope} ${pause.target??''} · ${pause.effect} · Owner: ${pause.owner}`);paragraph(card,pause.reason);paragraph(card,pause.cancel_running?'Stop requested; dispatched outcomes require cleanup/reconciliation':'New create/start admission paused');
-    const resume=document.createElement('button');resume.type='button';resume.textContent='Resume this pause';resume.onclick=()=>{resume.disabled=true;void factoryCommand({type:'resume',pause_id:pause.id},'Operator reviewed this pause; resume admission subject to all existing authority gates').catch(fail).finally(()=>{resume.disabled=false;});};card.append(resume);panel.append(card);
+    const resume=document.createElement('button');resume.type='button';resume.textContent='Resume this pause';resume.disabled=!canManageFactory;resume.onclick=()=>{resume.disabled=true;void factoryCommand({type:'resume',pause_id:pause.id},'Operator reviewed this pause; resume admission subject to all existing authority gates').catch(fail).finally(()=>{resume.disabled=!canManageFactory;});};card.append(resume);panel.append(card);
   }
 }
 async function factoryCommand(action:Record<string,unknown>,reason:string) {
   if(!factory)throw new Error('Reload factory status before changing controls');
-  const key=action.type==='resume'?String(action.pause_id):'pause';const signature=JSON.stringify({action,reason});let pending=pendingFactory.get(key);
-  if(!pending||pending.signature!==signature){pending={signature,body:{meta:{schema_version:1,idempotency_key:crypto.randomUUID(),actor:'operator',reason},expected_version:factory.version,action}};pendingFactory.set(key,pending);}
+  const key=action.type==='resume'?String(action.pause_id):'pause';const signature=JSON.stringify({actor:operatorIdentity,action,reason});let pending=pendingFactory.get(key);
+  if(!pending||pending.signature!==signature){pending={signature,body:{meta:{schema_version:1,idempotency_key:crypto.randomUUID(),actor:operatorIdentity,reason},expected_version:factory.version,action}};pendingFactory.set(key,pending);}
   try{await api('/factory',pending.body);pendingFactory.delete(key);}catch(error){if(error instanceof HttpError)pendingFactory.delete(key);throw error;}
   await refreshFactory();
 }
 el<HTMLFormElement>('factory-control-form').onsubmit=e=>{e.preventDefault();const button=el<HTMLButtonElement>('factory-submit');button.disabled=true;
-  void factoryCommand({type:'pause',scope:input('factory-scope'),target:input('factory-target')||null,effect:input('factory-effect'),cancel_running:el<HTMLInputElement>('factory-stop').checked},input('factory-reason')).catch(fail).finally(()=>{button.disabled=false;});
+  void factoryCommand({type:'pause',scope:input('factory-scope'),target:input('factory-target')||null,effect:input('factory-effect'),cancel_running:el<HTMLInputElement>('factory-stop').checked},input('factory-reason')).catch(fail).finally(()=>{button.disabled=!canManageFactory;});
 };

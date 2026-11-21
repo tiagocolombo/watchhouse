@@ -1,7 +1,10 @@
 use crate::{application::Application, contracts::*, error::Error};
 use axum::{
     Json, Router,
-    extract::{DefaultBodyLimit, Path, Query, Request, State, rejection::JsonRejection},
+    extract::{
+        DefaultBodyLimit, Extension, MatchedPath, Path, Query, Request, State,
+        rejection::JsonRejection,
+    },
     http::{HeaderMap, StatusCode, header},
     middleware::{self, Next},
     response::{
@@ -11,13 +14,30 @@ use axum::{
     routing::{get, post},
 };
 use serde::Deserialize;
-use std::{convert::Infallible, time::Duration};
+use std::{
+    convert::Infallible,
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
+};
+
+#[derive(Clone)]
+enum Authentication {
+    Local,
+    Remote(Arc<Remote>),
+}
+struct Remote {
+    secrets: Arc<dyn crate::access::Secrets>,
+    requests: Arc<tokio::sync::Semaphore>,
+    streams: Arc<tokio::sync::Semaphore>,
+    rate: Mutex<(Instant, u32)>,
+}
 
 #[derive(Clone)]
 struct HttpState {
     app: Application,
     token: String,
     authority: String,
+    authentication: Authentication,
 }
 struct ApiError(Error);
 impl IntoResponse for ApiError {
@@ -64,12 +84,41 @@ async fn blocking<T: Send + 'static>(
         .map_err(ApiError)
 }
 pub fn router(app: Application, token: String, authority: String) -> Router {
+    build_router(app, token, authority, Authentication::Local)
+}
+pub fn remote_router(
+    app: Application,
+    authority: String,
+    secrets: Arc<dyn crate::access::Secrets>,
+) -> crate::error::Result<Router> {
+    let p = crate::access::active(&app)?;
+    crate::access::keys(&p, secrets.as_ref())?;
+    Ok(build_router(
+        app,
+        String::new(),
+        authority,
+        Authentication::Remote(Arc::new(Remote {
+            secrets,
+            requests: Arc::new(tokio::sync::Semaphore::new(64)),
+            streams: Arc::new(tokio::sync::Semaphore::new(16)),
+            rate: Mutex::new((Instant::now(), 0)),
+        })),
+    ))
+}
+fn build_router(
+    app: Application,
+    token: String,
+    authority: String,
+    authentication: Authentication,
+) -> Router {
     let state = HttpState {
         app,
         token,
         authority,
+        authentication,
     };
     let api = Router::new()
+        .route("/session", get(session_information))
         .route("/cases", get(list).post(create))
         .route("/cases/{id}", get(snapshot))
         .route("/cases/{id}/rename", post(rename))
@@ -225,41 +274,316 @@ pub fn router(app: Application, token: String, authority: String) -> Router {
         ))
         .with_state(state)
 }
-async fn local_boundary(State(s): State<HttpState>, req: Request, next: Next) -> Response {
-    let host_ok = req
-        .headers()
-        .get(header::HOST)
-        .and_then(|v| v.to_str().ok())
-        == Some(&s.authority);
-    let origin_ok = req
-        .headers()
-        .get(header::ORIGIN)
-        .is_none_or(|v| v.to_str().ok() == Some(&format!("http://{}", s.authority)));
-    if !host_ok || !origin_ok {
-        return (
-            StatusCode::FORBIDDEN,
-            Json(serde_json::json!({"code":"unsafe_origin","message":"Untrusted host or origin"})),
-        )
-            .into_response();
+fn failure(status: StatusCode, code: &str, message: &str) -> Response {
+    (
+        status,
+        Json(serde_json::json!({"code":code,"message":message})),
+    )
+        .into_response()
+}
+fn one<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
+    let mut values = headers.get_all(name).iter();
+    let value = values.next()?.to_str().ok()?;
+    if values.next().is_some() {
+        None
+    } else {
+        Some(value)
     }
-    let mut res = next.run(req).await;
-    let headers = res.headers_mut();
+}
+fn transport(
+    headers: &HeaderMap,
+    authority: &str,
+    p: &crate::access::Policy,
+    keys: &crate::access::Keys,
+) -> bool {
+    one(headers, "host") == Some(authority)
+        && one(headers, "x-forwarded-proto") == Some("https")
+        && one(headers, "x-forwarded-host") == p.public_origin.strip_prefix("https://")
+        && one(headers, "x-watchhouse-proxy-token").is_some_and(|v| {
+            v.len() <= 512 && crate::access::equal(&crate::access::digest(v), &keys.proxy)
+        })
+        && (!headers.contains_key(header::ORIGIN)
+            || one(headers, "origin") == Some(p.public_origin.as_str()))
+}
+async fn local_boundary(State(s): State<HttpState>, req: Request, next: Next) -> Response {
+    let mut slot = None;
+    let safe = match &s.authentication {
+        Authentication::Local => {
+            one(req.headers(), "host") == Some(s.authority.as_str())
+                && (!req.headers().contains_key(header::ORIGIN)
+                    || one(req.headers(), "origin")
+                        == Some(format!("http://{}", s.authority).as_str()))
+        }
+        Authentication::Remote(runtime) => {
+            slot = match runtime.requests.clone().try_acquire_owned() {
+                Ok(p) => Some(p),
+                Err(_) => {
+                    return failure(
+                        StatusCode::TOO_MANY_REQUESTS,
+                        "remote_busy",
+                        "Remote request capacity reached; retry shortly",
+                    );
+                }
+            };
+            {
+                let Ok(mut rate) = runtime.rate.lock() else {
+                    return failure(
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        "access_unavailable",
+                        "Remote admission unavailable",
+                    );
+                };
+                if rate.0.elapsed() >= Duration::from_secs(1) {
+                    *rate = (Instant::now(), 0);
+                }
+                if rate.1 >= 64 {
+                    return failure(
+                        StatusCode::TOO_MANY_REQUESTS,
+                        "remote_busy",
+                        "Remote request rate reached; retry shortly",
+                    );
+                }
+                rate.1 += 1;
+            }
+            let app = s.app.clone();
+            let secrets = runtime.secrets.clone();
+            let headers = req.headers().clone();
+            let authority = s.authority.clone();
+            match blocking(move || {
+                let p = crate::access::active(&app)?;
+                let keys = crate::access::keys(&p, secrets.as_ref())?;
+                Ok(transport(&headers, &authority, &p, &keys))
+            })
+            .await
+            {
+                Ok(v) => v,
+                Err(_) => {
+                    return failure(
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        "access_unavailable",
+                        "Remote access configuration or credential references unavailable",
+                    );
+                }
+            }
+        }
+    };
+    if !safe {
+        return failure(
+            StatusCode::FORBIDDEN,
+            "unsafe_origin",
+            "Untrusted host, proxy transport or origin",
+        );
+    }
+    let mut response = next.run(req).await;
+    drop(slot);
+    let headers = response.headers_mut();
     headers.insert(header::CONTENT_SECURITY_POLICY,"default-src 'self'; img-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'".parse().unwrap());
     headers.insert(header::X_CONTENT_TYPE_OPTIONS, "nosniff".parse().unwrap());
     headers.insert(header::CACHE_CONTROL, "no-store".parse().unwrap());
-    res
-}
-async fn authenticate(State(s): State<HttpState>, req: Request, next: Next) -> Response {
-    // Bearer credentials are explicit headers; there is no ambient cookie authority.
-    let supplied = req
-        .headers()
-        .get(header::AUTHORIZATION)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.strip_prefix("Bearer "));
-    if supplied != Some(s.token.as_str()) {
-        return (StatusCode::UNAUTHORIZED,Json(serde_json::json!({"code":"unauthorized","message":"Enter the local operator token printed by serve"}))).into_response();
+    headers.insert(header::REFERRER_POLICY, "no-referrer".parse().unwrap());
+    if matches!(s.authentication, Authentication::Remote(_)) {
+        headers.insert(
+            header::STRICT_TRANSPORT_SECURITY,
+            "max-age=31536000".parse().unwrap(),
+        );
     }
-    next.run(req).await
+    response
+}
+async fn authenticate(State(s): State<HttpState>, mut req: Request, next: Next) -> Response {
+    let supplied = one(req.headers(), "authorization")
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .map(str::to_owned);
+    let Some(supplied) = supplied else {
+        return failure(
+            StatusCode::UNAUTHORIZED,
+            "unauthorized",
+            "An explicit access credential is required",
+        );
+    };
+    let Authentication::Remote(runtime) = &s.authentication else {
+        if !crate::access::equal(
+            &crate::access::digest(&supplied),
+            &crate::access::digest(&s.token),
+        ) {
+            return failure(
+                StatusCode::UNAUTHORIZED,
+                "unauthorized",
+                "Enter the local operator token printed by serve",
+            );
+        }
+        req.extensions_mut().insert(crate::access::Session::local());
+        return next.run(req).await;
+    };
+    let app = s.app.clone();
+    let secrets = runtime.secrets.clone();
+    let headers = req.headers().clone();
+    let authority = s.authority.clone();
+    let authenticated = blocking(move || {
+        let p = crate::access::active(&app)?;
+        let keys = crate::access::keys(&p, secrets.as_ref())?;
+        if !transport(&headers, &authority, &p, &keys) {
+            return Ok(None);
+        }
+        Ok(crate::access::identify(&p, &keys, &supplied).map(|session| (p, session)))
+    })
+    .await;
+    let (policy, session) = match authenticated {
+        Ok(Some(v)) => v,
+        Ok(None) => {
+            return failure(
+                StatusCode::UNAUTHORIZED,
+                "unauthorized",
+                "Use your configured remote access credential",
+            );
+        }
+        Err(_) => {
+            return failure(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "access_unavailable",
+                "Remote authentication unavailable",
+            );
+        }
+    };
+    let method = req.method().as_str().to_owned();
+    let original = req.uri().path().to_owned();
+    let path = original
+        .strip_prefix("/api/v1")
+        .unwrap_or(&original)
+        .to_owned();
+    let route = req
+        .extensions()
+        .get::<MatchedPath>()
+        .map(|v| v.as_str().to_owned())
+        .unwrap_or_else(|| "unmatched".into());
+    let mut decision = if crate::access::permitted(session.role, &method, &path) {
+        "allowed"
+    } else {
+        "role_denied"
+    };
+    let mut denial = None;
+    let mut body_digest = None;
+    if decision != "allowed" {
+        denial = Some(failure(
+            StatusCode::FORBIDDEN,
+            "forbidden",
+            "This credential does not grant the requested capability",
+        ));
+    }
+    if denial.is_none() && method == "POST" {
+        let (parts, body) = req.into_parts();
+        let bytes = match tokio::time::timeout(
+            Duration::from_secs(10),
+            axum::body::to_bytes(body, 32 * 1024),
+        )
+        .await
+        {
+            Ok(Ok(bytes)) => bytes,
+            Ok(Err(_)) => {
+                return failure(
+                    StatusCode::PAYLOAD_TOO_LARGE,
+                    "body_limit",
+                    "Command exceeds 32 KiB",
+                );
+            }
+            Err(_) => {
+                return failure(
+                    StatusCode::REQUEST_TIMEOUT,
+                    "body_timeout",
+                    "Command body timed out",
+                );
+            }
+        };
+        body_digest = Some(format!(
+            "sha256:{:x}",
+            <sha2::Sha256 as sha2::Digest>::digest(&bytes)
+        ));
+        if !path.ends_with("/hallmark-export") {
+            match serde_json::from_slice::<serde_json::Value>(&bytes) {
+                Ok(value) if crate::access::binds_actor(&value, &session.id) => {}
+                Ok(_) => {
+                    decision = "identity_denied";
+                    denial = Some(failure(
+                        StatusCode::FORBIDDEN,
+                        "identity_mismatch",
+                        "Command actor must match the authenticated principal",
+                    ));
+                }
+                Err(_) => {
+                    decision = "invalid_json";
+                    denial = Some(failure(
+                        StatusCode::BAD_REQUEST,
+                        "invalid_command",
+                        "Command must contain valid JSON",
+                    ));
+                }
+            }
+        }
+        req = Request::from_parts(parts, axum::body::Body::from(bytes));
+    }
+    // Body reads can wait; configuration/key revocation is checked again before dispatch.
+    let app = s.app.clone();
+    let secrets = runtime.secrets.clone();
+    let current = session.clone();
+    if !blocking(move || current.current(&app, secrets.as_ref()))
+        .await
+        .unwrap_or(false)
+    {
+        return failure(
+            StatusCode::UNAUTHORIZED,
+            "access_revoked",
+            "Access changed while preparing the request; reconnect",
+        );
+    }
+    req.extensions_mut().insert(session.clone());
+    if method == "GET" && path == "/session" {
+        return next.run(req).await;
+    }
+    let app = s.app.clone();
+    let audit_method = method.clone();
+    let audit_path = path.clone();
+    let audit_session = session.clone();
+    let id = match blocking(move || {
+        app.reserve_access(
+            &policy,
+            &audit_session,
+            crate::access::AuditInput {
+                method: &audit_method,
+                route: &route,
+                path: &audit_path,
+                body_digest,
+                decision,
+            },
+        )
+    })
+    .await
+    {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    let mut response = match denial {
+        Some(response) => response,
+        None => next.run(req).await,
+    };
+    let status = response.status().as_u16();
+    let app = s.app.clone();
+    let request_id = id.clone();
+    if blocking(move || app.finish_access(&request_id, status))
+        .await
+        .is_err()
+    {
+        eprintln!(
+            "Remote access audit completion is unresolved; retained intent must be reconciled"
+        );
+    }
+    response
+        .headers_mut()
+        .insert("x-watchhouse-request-id", id.parse().unwrap());
+    response
+}
+async fn session_information(
+    Extension(session): Extension<crate::access::Session>,
+) -> Json<serde_json::Value> {
+    Json(session.information())
 }
 macro_rules! case_command {
     ($handler:ident,$command:ty,$method:ident) => {
@@ -544,8 +868,19 @@ async fn stream(
     State(s): State<HttpState>,
     Path(id): Path<String>,
     Query(query): Query<Cursor>,
+    Extension(session): Extension<crate::access::Session>,
     headers: HeaderMap,
 ) -> Result<impl IntoResponse, ApiError> {
+    let permit = match &s.authentication {
+        Authentication::Local => None,
+        Authentication::Remote(runtime) => {
+            Some(runtime.streams.clone().try_acquire_owned().map_err(|_| {
+                ApiError(Error::Backpressure(
+                    "Remote event stream capacity reached; close an unused view".into(),
+                ))
+            })?)
+        }
+    };
     let mut cursor = match headers.get("last-event-id") {
         Some(v) => v
             .to_str()
@@ -558,7 +893,12 @@ async fn stream(
     let case_id = id.clone();
     blocking(move || app.timeline(&case_id, cursor)).await?;
     let stream = async_stream::stream! {
+        let _permit=permit;
         loop {
+            if let Authentication::Remote(runtime)=&s.authentication {
+                let app=s.app.clone();let secrets=runtime.secrets.clone();let current=session.clone();
+                if !blocking(move||current.current(&app,secrets.as_ref())).await.unwrap_or(false){yield Ok::<_,Infallible>(SseEvent::default().event("access_revoked").data("Access changed; reconnect with a current credential"));break;}
+            }
             let app = s.app.clone(); let id = id.clone();
             match blocking(move||app.timeline(&id,cursor)).await {
                 Ok(events) => for event in events {

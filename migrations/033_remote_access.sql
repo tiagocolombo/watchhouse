@@ -1,0 +1,10 @@
+CREATE TABLE api_access_policies (revision INTEGER PRIMARY KEY,digest TEXT NOT NULL,record TEXT NOT NULL CHECK(json_valid(record)),operator TEXT NOT NULL,source TEXT NOT NULL,installed_at TEXT NOT NULL);
+CREATE TRIGGER api_access_policy_no_update BEFORE UPDATE ON api_access_policies BEGIN SELECT RAISE(ABORT,'access policy revisions immutable'); END;
+CREATE TRIGGER api_access_policy_no_delete BEFORE DELETE ON api_access_policies BEGIN SELECT RAISE(ABORT,'access policy revisions retained'); END;
+CREATE TABLE api_access_requests (id TEXT PRIMARY KEY,record TEXT NOT NULL CHECK(json_valid(record)),started_at TEXT NOT NULL);
+CREATE TABLE api_access_results (id TEXT PRIMARY KEY REFERENCES api_access_requests(id),status INTEGER NOT NULL,completed_at TEXT NOT NULL);
+CREATE TRIGGER api_access_request_no_update BEFORE UPDATE ON api_access_requests BEGIN SELECT RAISE(ABORT,'access intent immutable'); END;
+CREATE TRIGGER api_access_request_no_delete BEFORE DELETE ON api_access_requests BEGIN SELECT RAISE(ABORT,'access intent retained'); END;
+CREATE TRIGGER api_access_result_no_update BEFORE UPDATE ON api_access_results BEGIN SELECT RAISE(ABORT,'access outcome immutable'); END;
+CREATE TRIGGER api_access_result_no_delete BEFORE DELETE ON api_access_results BEGIN SELECT RAISE(ABORT,'access outcome retained'); END;
+CREATE INDEX api_access_pending ON api_access_requests(started_at);

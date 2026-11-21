@@ -82,3 +82,7 @@ The OS operator can now install immutable repair-source snapshots and bounded ru
 ## Worker proof policy
 
 Worker qualification policies are installed only by the OS operator and retain immutable revision/digest/installer/time. New attempts require the active policy and a fresh nonce. Proofs are scope- and time-bound observations; fixtures, expired/late outcomes and CLI flags do not authorize execution. Failed/uncertain resources block new attempts until evidence-backed operator reconciliation, which neither grants capabilities nor resolves the underlying escalation. General real execution remains denied. See ADR 0016 and the worker qualification contract.
+
+## Implemented configured global access
+
+ADR 0039 and [Access v1](../contracts/v1/access/README.md) add separately authenticated HTTPS-proxy transport, OS-configured human identities, exact actor binding, observer/operator/admin roles, bounded durable audit and future-admission/stream revocation. These roles retain all domain gates and cannot impersonate fake/remote workers. Copied policy stays fenced on restore. Service-owner scopes and independent remote workers remain development; public TLS/identity provisioning requires actual operator configuration.

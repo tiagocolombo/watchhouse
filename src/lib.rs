@@ -44,6 +44,7 @@ pub mod routing;
 
 pub mod factory;
 
+pub mod access;
 pub mod backups;
 pub mod capacity;
 pub mod restore;

@@ -11,6 +11,14 @@ struct Cli {
 }
 #[derive(Subcommand)]
 enum Command {
+    AccessPolicy {
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long)]
+        operator: String,
+    },
+    AccessStatus,
+    AccessAudit,
     /// Reconstruct an isolated coordinator; copied external authority stays fenced.
     Restore {
         #[arg(long)]
@@ -59,6 +67,9 @@ enum Command {
         port: u16,
         #[arg(long, env = "WATCHHOUSE_TOKEN", hide_env_values = true)]
         token: Option<String>,
+        /// Require a configured HTTPS proxy and identity-bound role credentials.
+        #[arg(long)]
+        remote: bool,
         /// Keep the deterministic scheduler active but let separate fake workers claim work.
         #[arg(long)]
         manual_workers: bool,
@@ -710,6 +721,16 @@ async fn run() -> anyhow::Result<()> {
     }
     let app = Application::new(Store::open(cli.db)?, Arc::new(SystemClock));
     match cli.command {
+        Command::AccessPolicy { file, operator } => {
+            let source = std::fs::canonicalize(&file)?;
+            print(&app.install_access_policy(
+                read_command(file)?,
+                &operator,
+                &source.to_string_lossy(),
+            )?)?;
+        }
+        Command::AccessStatus => print(&app.access_status()?)?,
+        Command::AccessAudit => print(&app.access_audit()?)?,
         Command::Restore { .. } => unreachable!("handled without opening original state"),
         Command::RestoreStatus => print(&app.restore_status()?)?,
         Command::Backup {
@@ -1287,19 +1308,32 @@ async fn run() -> anyhow::Result<()> {
             port,
             token,
             manual_workers,
+            remote,
         } => {
             let token = token.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
             anyhow::ensure!(
-                token.len() >= 32,
+                remote || token.len() >= 32,
                 "WATCHHOUSE_TOKEN must be at least 32 bytes"
             );
             let listener =
                 tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port)).await?;
             let authority = listener.local_addr()?.to_string();
-            eprintln!(
-                "Watchhouse: http://{authority}\nLocal operator token: {token}\nBuilt-in assignments are synthetic; native container checks and model roles require separately configured container-worker/model-worker processes."
-            );
-            let router = watchhouse::http::router(app.clone(), token, authority);
+            let router = if remote {
+                let router = watchhouse::http::remote_router(
+                    app.clone(),
+                    authority.clone(),
+                    Arc::new(watchhouse::access::Environment),
+                )?;
+                eprintln!(
+                    "Watchhouse: http://{authority}\nRemote access requires the configured HTTPS proxy and issued principal credentials; the backend remains loopback-only. No local token fallback is accepted."
+                );
+                router
+            } else {
+                eprintln!(
+                    "Watchhouse: http://{authority}\nLocal operator token: {token}\nBuilt-in assignments are synthetic; native workers require separate OS configuration."
+                );
+                watchhouse::http::router(app.clone(), token, authority)
+            };
             tokio::select! {
                 result = axum::serve(listener,router).with_graceful_shutdown(async { let _ = tokio::signal::ctrl_c().await; }) => result?,
                 result = work(app.clone(),false,manual_workers,"fake-investigator".into(),false,false) => result?,

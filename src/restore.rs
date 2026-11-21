@@ -164,6 +164,7 @@ fn isolate(
         ("operation", "operation_policies"),
         ("repair_source", "repair_sources"),
         ("worker", "worker_policies"),
+        ("api_access", "api_access_policies"),
     ] {
         let mut query = tx.prepare(&format!("SELECT revision FROM {table} ORDER BY revision"))?;
         let ids = query.query_map([], |r| r.get::<_, i64>(0))?;
@@ -496,7 +497,7 @@ mod tests {
             db.query_row("SELECT MAX(version) FROM schema_migrations", [], |r| r
                 .get::<_, i64>(0))
                 .unwrap(),
-            32
+            33
         );
         assert!(latest(&db).unwrap().is_some());
         assert_eq!(

@@ -152,3 +152,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 - [ADR 0037 — Consistent private backups](adrs/0037-consistent-private-backups.md): bounded SQLite WAL snapshot, complete declared frozen files, read-only hash/migration/evidence inspection and OS-owned private destinations. Restore remains explicitly unavailable until old authority and uncertain effects can be isolated.
 
 - [ADR 0038 — Isolated restore](adrs/0038-isolated-restore-and-authority-fences.md): forward migration, immutable artifact relocation, expired fake proofs, permanent old revision/handle fences, no-replay effect reconciliation, explicit restored reminders and durable send pacing. Fresh OS authority and live/physical acceptance remain separate.
+
+- [ADR 0039 — Configured proxy access](adrs/0039-configured-proxy-access.md): distinct OS credentials, global human roles, bound actor attribution, audit/rate/stream bounds, revocation and restored-access fences. Scoped service owners and remote workers remain required development.
