@@ -338,15 +338,26 @@ impl Application {
                 e.state = "complete".into();
                 e.updated_at = self.now();
                 e.detail="Internal directory bytes and manifest prepared; not a live recovery or delivery assertion".into();
-                save_export(&db, &e)?;
-                std::fs::remove_file(root.join("export-incomplete.json")).map_err(io_error)?;
+                if std::fs::remove_file(root.join("export-incomplete.json")).is_err() {
+                    e.state = "interrupted".into();
+                    e.detail = "Complete manifest retained with an incomplete marker; owner must inspect and reconcile its pinned identity".into();
+                    let audit = db.unchecked_transaction()?;
+                    save_export(&audit, &e)?;
+                    audit.commit()?;
+                    return Err(invalid("complete bytes retained; incomplete marker requires OS reconciliation"));
+                }
+                let audit = db.unchecked_transaction()?;
+                save_export(&audit, &e)?;
+                audit.commit()?;
                 Ok(e)
             }
             Err(error) => {
                 e.state = "failed".into();
                 e.updated_at = self.now();
                 e.detail="Export interrupted; any incomplete private destination is retained without overwrite. Operator must inspect or retry in a new directory".into();
-                save_export(&db, &e)?;
+                let audit = db.unchecked_transaction()?;
+                save_export(&audit, &e)?;
+                audit.commit()?;
                 Err(error)
             }
         }

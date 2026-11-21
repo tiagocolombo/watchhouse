@@ -411,3 +411,39 @@ fn actual_restore_fences_old_export_paths_and_allows_new_case_export() {
         .unwrap();
     assert!(bundles::inspect(&fresh, record.manifest_digest.as_deref()).is_ok());
 }
+
+#[test]
+fn interrupted_final_audit_keeps_owned_preparing_state_for_pinned_reconciliation() {
+    let (d, a, id) = setup();
+    let db = Store::open(d.path().join("state.db"))
+        .unwrap()
+        .connect()
+        .unwrap();
+    db.execute_batch("CREATE TRIGGER deny_complete_export BEFORE INSERT ON factory_events WHEN json_extract(NEW.record,'$.type')='case_export_state' AND json_extract(NEW.record,'$.state')='complete' BEGIN SELECT RAISE(ABORT,'invented final audit failure'); END;")
+        .unwrap();
+    let output = d.path().join("audit-interrupted");
+    assert!(
+        a.export_case(
+            &id,
+            &output,
+            Options::default(),
+            "operator",
+            "Final audit interruption fixture",
+        )
+        .is_err()
+    );
+    let pending = a.case_exports(&id).unwrap().remove(0);
+    assert_eq!(pending.state, "preparing");
+    let checked = bundles::inspect(&output, None).unwrap();
+    db.execute_batch("DROP TRIGGER deny_complete_export;").unwrap();
+    let completed = a
+        .reconcile_case_export(
+            &pending.id,
+            &output,
+            &checked.manifest_digest,
+            "operator",
+            "Resolve the independently inspected complete bytes after audit repair",
+        )
+        .unwrap();
+    assert_eq!(completed.state, "complete");
+}
