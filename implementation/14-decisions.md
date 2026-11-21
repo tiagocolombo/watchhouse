@@ -142,3 +142,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 - [ADR 0032 — Independent Claude text client](adrs/0032-independent-claude-text-client.md): fixed pinned tool-free CLI adapter, independent model-profile currency/admission, common role schemas and exact cross-harness lineage. Bare API-key authority is explicit; subscription access and live model behavior are not inferred.
 
 - [ADR 0033 — Local worker routing](adrs/0033-local-worker-routing.md): immutable OS routes select exact execution profiles, bind resources before effects, preserve original cleanup ownership, and expose unsupported native platforms without inheriting qualification. Remote trust and native macOS/Windows worker boundaries remain development work.
+
+- [ADR 0034 — Optional Hallmark repair spike](adrs/0034-optional-hallmark-repair-spike.md): pinned actual CLI/source inspection succeeded. Keep bounded knowledge exchange; do not select the full repair daemon as a backend. The optional investigation is complete; required native platforms and M8 are not waived.

@@ -111,3 +111,5 @@ Completed: M0 plus manual case creation -> persisted event -> queued fake assign
 2026-11-20: A second fixed text harness adapter (Claude Code 2.1.329), independent named profile currency, common role schemas and cross-harness adoption/review fixtures implemented (ADR 0032). Actual local no-account CLI compatibility passed; independent native cgroup CI and live account/model acceptance remain distinct gates. Native worker capability routing/platform drills, Hallmark repair spike and M8 remain open.
 
 2026-11-20: Local native worker routing, immutable dispatch ownership, profile/platform filtering and original-worker cleanup implemented (ADR 0033). Linux physical CI drills use named routes; native macOS/Windows workers and remote transport remain unfinished and are not replaced by coordinator package checks.
+
+2026-11-20: Optional Hallmark repair spike completed at actual source/CLI 0.3.18/15ee84d (ADR 0034). Keep knowledge exchange; the full repair loop is not selected. No live/repair execution or native admission was inferred. Native platform workers and M8 remain required development.
