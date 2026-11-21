@@ -1413,3 +1413,35 @@ impl Application {
         .collect()
     }
 }
+
+pub(crate) fn factory_stop(
+    tx: &Transaction<'_>,
+    case: &str,
+    pause: &str,
+    now: &str,
+) -> Result<usize> {
+    let ids: Vec<String> = {
+        let mut q=tx.prepare("SELECT id FROM model_jobs WHERE case_id=?1 AND state IN ('queued','creating','created','starting','running','polling','finishing','recovering','unknown') AND json_extract(record,'$.cancel_requested')=0")?;
+        q.query_map([case], |r| r.get(0))?
+            .collect::<std::result::Result<_, _>>()?
+    };
+    for id in &ids {
+        let mut j = get(tx, id)?;
+        j.cancel_requested = true;
+        j.quarantined = j.create_dispatched;
+        j.state = if j.create_dispatched {
+            "unknown"
+        } else {
+            "cancelled"
+        }
+        .into();
+        j.reason = format!(
+            "Factory stop {pause}: no further client call; original worker must acknowledge scoped cleanup"
+        );
+        save(tx, &j, supervisor(), pause, now)?;
+        if j.quarantined {
+            escalate(tx, &j, now)?;
+        }
+    }
+    Ok(ids.len())
+}

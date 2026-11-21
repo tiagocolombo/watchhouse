@@ -197,6 +197,7 @@ fn start(
     mut manifest: Briefing,
     now: &str,
 ) -> Result<Claim> {
+    crate::factory::gate(tx, case_id, "fake", now)?;
     let (job_id,attempt,max):(String,i64,i64)=tx.query_row("SELECT j.id,j.attempt,c.max_attempts FROM jobs j JOIN assignment_control c ON c.assignment_id=j.assignment_id WHERE j.assignment_id=?1",[assignment_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?)))?;
     if attempt >= max || manifest.overall_deadline.as_str() <= now {
         return Err(Error::Conflict(
@@ -465,7 +466,7 @@ impl Application {
         {
             return Ok(response);
         }
-        let row:Option<(String,String,String)>=tx.query_row("SELECT a.id,a.case_id,a.objective FROM assignments a JOIN jobs j ON j.assignment_id=a.id JOIN assignment_control c ON c.assignment_id=a.id WHERE j.state='queued' AND c.state='queued' AND c.executor=?1 ORDER BY j.rowid LIMIT 1",[who],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional()?;
+        let row:Option<(String,String,String)>=tx.query_row("SELECT a.id,a.case_id,a.objective FROM assignments a JOIN jobs j ON j.assignment_id=a.id JOIN assignment_control c ON c.assignment_id=a.id WHERE j.state='queued' AND c.state='queued' AND c.executor=?1 AND NOT EXISTS(SELECT 1 FROM factory_holds h WHERE h.case_id=a.case_id AND h.effect IN ('all','fake')) AND NOT EXISTS(SELECT 1 FROM factory_state WHERE high_at>?2) ORDER BY j.rowid LIMIT 1",params![who,self.now()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional()?;
         let response = if let Some((assignment_id, case_id, objective)) = row {
             let now = self.now();
             let deadline = (self.clock.now()
@@ -994,6 +995,7 @@ impl Application {
         let mut db = self.store.connect()?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let now = self.now();
+        crate::factory::heartbeat(&tx, &now)?;
         let mut changed = crate::challenges::supervise(&tx, &now)?
             + crate::incidents::supervise(&tx, &now)?
             + crate::delivery::lifecycle::supervise(&tx, &now)?;

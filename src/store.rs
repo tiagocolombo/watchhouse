@@ -62,6 +62,7 @@ impl Store {
             (27, include_str!("../migrations/027_merging.sql")),
             (28, include_str!("../migrations/028_datadog.sql")),
             (29, include_str!("../migrations/029_worker_routing.sql")),
+            (30, include_str!("../migrations/030_factory_controls.sql")),
         ];
         let applied: Vec<(i64, String)> = {
             let mut stmt =

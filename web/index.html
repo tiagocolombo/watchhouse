@@ -8,7 +8,16 @@
 <p id="error" role="alert"></p>
 <section id="login"><h2>Open your workspace</h2><p>Enter the local operator token printed by the coordinator.</p><form id="login-form"><label>Operator token<input id="token" type="password" required autocomplete="off"></label><button>Connect</button></form></section>
 <div id="workspace" hidden>
-<div class="notice"><strong>Fake execution enabled.</strong> Results are synthetic. The operator owns review; no incident recovery is asserted.</div>
+<section aria-label="Factory controls"><h2>Factory operation</h2><p id="factory-status" role="status"></p><p>Observation, timers, escalation delivery and scoped cleanup continue while execution is paused. Resuming does not clear uncertain effects or reset budgets.</p><div id="factory-pauses"></div>
+<details><summary>Pause or stop execution</summary><form id="factory-control-form">
+<label>Pause scope<select id="factory-scope"><option value="global">Global</option><option value="service">Service</option><option value="repository">Repository</option><option value="incident">Incident</option><option value="case">Case</option></select></label>
+<label>Scope target (leave blank for global)<input id="factory-target" maxlength="256"></label>
+<label>Effect class<select id="factory-effect"><option value="all">All execution effects</option><option value="fake">Synthetic team workers</option><option value="model">Model workers</option><option value="container">Container checks</option><option value="publication">PR publication</option><option value="merge">PR merging</option><option value="operation">Runbook actions</option></select></label>
+<label><input id="factory-stop" type="checkbox">Stop active workers and fence in-flight mutation results</label>
+<label>Control reason<input id="factory-reason" maxlength="2000" required></label><button id="factory-submit">Apply execution pause</button></form></details>
+<details><summary>Factory health and control history</summary><pre id="factory-details"></pre></details></section>
+
+<div class="notice"><strong>Synthetic assignments.</strong> Results are synthetic. The operator owns review; no incident recovery is asserted.</div>
 <div class="columns"><aside><section><h2>Create a case</h2><form id="create-form"><label>Title<input id="title" maxlength="200" required placeholder="What needs investigation?"></label><label>Description<textarea id="description" maxlength="16000" rows="3"></textarea></label><label>Reason<input id="reason" value="Manual intake" required></label><button id="create">Create case</button></form></section><section><h2>Case queue</h2><nav id="cases" aria-label="Cases"></nav></section></aside>
 <section id="detail"><div id="empty"><img src="/icon.png" width="76" alt=""><h2>Your watch starts here.</h2><p>Create or select a case to see its assignment, result, and recorded timeline.</p></div><div id="case-view" hidden><p class="eyebrow" id="case-id"></p><h2 id="case-title"></h2><div class="metadata"><span id="case-status" class="badge"></span><span id="version"></span><span id="owner"></span></div><p id="case-description"></p><p id="next" class="notice"></p><details><summary>Update title</summary><form id="rename-form"><label>Title<input id="rename-title" required maxlength="200"></label><label>Reason<input id="rename-reason" required></label><button>Save with version check</button></form></details><h3>Team coordination</h3>
 <div id="team-state"></div><div id="team-blocks"></div><div id="team-handoffs"></div><div id="team-escalations"></div>

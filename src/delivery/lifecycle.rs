@@ -393,7 +393,7 @@ impl Application {
         let (mut j, was_reconcile) = {
             let mut db = self.store.connect()?;
             let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-            let id:Option<String>=tx.query_row("SELECT id FROM publication_jobs WHERE state IN ('ready','reconcile') AND json_extract(record,'$.retry_at')<=?1 ORDER BY rowid LIMIT 1",[self.now()],|r|r.get(0)).optional()?;
+            let id:Option<String>=tx.query_row("SELECT id FROM publication_jobs WHERE state IN ('ready','reconcile') AND json_extract(record,'$.retry_at')<=?1 AND (state='reconcile' OR (NOT EXISTS(SELECT 1 FROM factory_holds h WHERE h.case_id=publication_jobs.case_id AND h.effect IN ('all','publication')) AND NOT EXISTS(SELECT 1 FROM factory_state WHERE high_at>?1))) ORDER BY rowid LIMIT 1",[self.now()],|r|r.get(0)).optional()?;
             let Some(id) = id else { return Ok(false) };
             let mut j = get(&tx, &id)?;
             let reconcile = j.state == "reconcile";
@@ -449,6 +449,19 @@ impl Application {
             }
             Observation::Absent if was_reconcile => self.retry_publication(&mut j, &p, true)?,
             Observation::Absent => {
+                if !crate::factory::admitted(
+                    &self.store.connect()?,
+                    &j.case_id,
+                    "publication",
+                    &self.now(),
+                )? {
+                    self.finish_publication(
+                        &mut j,
+                        "ready",
+                        "Factory pause holds the next write; observation retained without mutation",
+                    )?;
+                    return Ok(true);
+                }
                 // Recheck currency after reads, before reserving the actual write.
                 if self.publication_current(&j).is_err() {
                     self.finish_publication(
@@ -717,4 +730,32 @@ fn confirms(j: &Job, p: &PublisherPolicy, v: &Value) -> bool {
         }
         _ => false,
     }
+}
+
+pub(crate) fn factory_stop(
+    tx: &Transaction<'_>,
+    case: &str,
+    pause: &str,
+    now: &str,
+) -> Result<usize> {
+    let ids: Vec<String> = {
+        let mut q=tx.prepare("SELECT id FROM publication_jobs WHERE case_id=?1 AND state IN ('ready','reading','writing','reconcile')")?;
+        q.query_map([case], |r| r.get(0))?
+            .collect::<std::result::Result<_, _>>()?
+    };
+    for id in &ids {
+        let mut j = get(tx, id)?;
+        j.state = if j.state == "ready" {
+            "blocked"
+        } else {
+            "unknown"
+        }
+        .into();
+        j.fence = store::id("factory-stop-fence");
+        j.reason = format!(
+            "Factory stop {pause}: mutation admission fenced; reconcile stable GitHub identity without replay"
+        );
+        save(tx, &j, now)?;
+    }
+    Ok(ids.len())
 }

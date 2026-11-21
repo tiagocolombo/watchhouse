@@ -44,6 +44,7 @@ async function api<T>(path:string,body?:unknown):Promise<T> {
 }
 async function queue() {
   const cases = await api<Case[]>('/cases');
+  await refreshFactory();
   el('source-health').textContent=JSON.stringify(await api('/sources/sentry'),null,2);
   el('datadog-health').textContent=JSON.stringify(await api('/sources/datadog'),null,2);
   el('model-profiles').textContent=JSON.stringify(await api('/model-profiles'),null,2);
@@ -428,6 +429,7 @@ function renderFreshness(value:SourceFreshness|null) {
   el('source-freshness-summary').textContent=value?`Source read: ${value.state.replaceAll('_',' ')} · ${value.age_seconds===null?'No successful API read tracked':`Last successful API read ${value.age_seconds}s ago`} · ${value.error??'Source status does not establish service recovery'}`:'';
 }
 setInterval(()=>{if(!token||healthPolling||!el('login').hidden)return;healthPolling=true;
+  void refreshFactory().catch(()=>{el('factory-status').textContent='Factory health unavailable; inspect before enabling execution.';});
   void api<{known_issue_freshness:SourceFreshness[]}>('/sources/sentry').then(health=>{el('source-health').textContent=JSON.stringify(health,null,2);const value=health.known_issue_freshness.find(v=>v.source_key===selectedSourceKey);if(value)renderFreshness(value);void api('/sources/datadog').then(data=>{el('datadog-health').textContent=JSON.stringify(data,null,2);}).catch(()=>{el('datadog-health').textContent='Datadog health unavailable';});}).catch(()=>{if(selectedSourceKey)el('source-freshness-summary').textContent='Source health unavailable; retained observations may be stale.';}).finally(()=>{healthPolling=false;});
 },5000);
 
@@ -484,3 +486,27 @@ function renderNativeRepair(jobs:ContainerJob[],progress:RepairProgress) {
   for(const c of progress.candidates) {const card=document.createElement('article');card.className='team-card';paragraph(card,`Frozen candidate ${c.id} · Author: ${c.author} · Producer: ${c.producer}`);if(c.model_job)paragraph(card,`Model author job: ${c.model_job}`);paragraph(card,`Base: ${c.base_commit} · Digest: ${c.digest} · Shared deadline: ${c.deadline}`);panel.append(card);}
   for(const r of progress.reviews) {const card=document.createElement('article');card.className='team-card';paragraph(card,`Review ${r.id} · ${r.author} · ${r.current?'approval current':r.approve?'approval stale':'changes required'}`);paragraph(card,r.findings);if(r.model_job)paragraph(card,`Independent reviewer job: ${r.model_job}`);if(r.current){const button=document.createElement('button');button.textContent='Inspect publication plan';button.onclick=async()=>{try{const plan=await api<unknown>(`/cases/${selected!.id}/publication-plan?candidate=${encodeURIComponent(r.candidate_id)}&review=${encodeURIComponent(r.id)}`);const pre=document.createElement('pre');pre.textContent=JSON.stringify(plan,null,2);card.append(pre);button.disabled=true;}catch(error){fail(error);}};card.append(button);}panel.append(card);}
 }
+
+interface Factory {version:number;state:string;scheduler_lag_seconds:number|null;clock_behind:boolean;uncertain_resources:number;pauses:{id:string;scope:string;target:string|null;effect:string;owner:string;reason:string;cancel_running:boolean}[]}
+let factory:Factory|undefined;
+const pendingFactory=new Map<string,{signature:string;body:unknown}>();
+async function refreshFactory() {
+  const value=await api<Factory>('/factory');factory=value;
+  el('factory-status').textContent=`Factory ${value.state} · Scheduler lag ${value.scheduler_lag_seconds===null?'unknown':value.scheduler_lag_seconds+'s'} · Uncertain resources ${value.uncertain_resources}${value.clock_behind?' · Clock behind retained time; new effects held':''}`;
+  el('factory-details').textContent=JSON.stringify(value,null,2);
+  const panel=el('factory-pauses');panel.replaceChildren();
+  for(const pause of value.pauses) {
+    const card=document.createElement('article');card.className='team-card';paragraph(card,`${pause.scope} ${pause.target??''} · ${pause.effect} · Owner: ${pause.owner}`);paragraph(card,pause.reason);paragraph(card,pause.cancel_running?'Stop requested; dispatched outcomes require cleanup/reconciliation':'New create/start admission paused');
+    const resume=document.createElement('button');resume.type='button';resume.textContent='Resume this pause';resume.onclick=()=>{resume.disabled=true;void factoryCommand({type:'resume',pause_id:pause.id},'Operator reviewed this pause; resume admission subject to all existing authority gates').catch(fail).finally(()=>{resume.disabled=false;});};card.append(resume);panel.append(card);
+  }
+}
+async function factoryCommand(action:Record<string,unknown>,reason:string) {
+  if(!factory)throw new Error('Reload factory status before changing controls');
+  const key=action.type==='resume'?String(action.pause_id):'pause';const signature=JSON.stringify({action,reason});let pending=pendingFactory.get(key);
+  if(!pending||pending.signature!==signature){pending={signature,body:{meta:{schema_version:1,idempotency_key:crypto.randomUUID(),actor:'operator',reason},expected_version:factory.version,action}};pendingFactory.set(key,pending);}
+  try{await api('/factory',pending.body);pendingFactory.delete(key);}catch(error){if(error instanceof HttpError)pendingFactory.delete(key);throw error;}
+  await refreshFactory();
+}
+el<HTMLFormElement>('factory-control-form').onsubmit=e=>{e.preventDefault();const button=el<HTMLButtonElement>('factory-submit');button.disabled=true;
+  void factoryCommand({type:'pause',scope:input('factory-scope'),target:input('factory-target')||null,effect:input('factory-effect'),cancel_running:el<HTMLInputElement>('factory-stop').checked},input('factory-reason')).catch(fail).finally(()=>{button.disabled=false;});
+};

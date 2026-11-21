@@ -41,3 +41,5 @@ pub mod merging;
 pub mod datadog;
 
 pub mod routing;
+
+pub mod factory;

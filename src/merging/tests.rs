@@ -310,3 +310,86 @@ async fn definitive_denial_has_bounded_retry_but_uncertainty_never_does() {
     assert!(a.retry_merge(&j.case_id, retry).is_err());
     assert_eq!(*b.writes.borrow(), 1);
 }
+
+#[tokio::test]
+async fn factory_pause_during_final_read_prevents_put_and_stop_fences_late_result() {
+    struct Hook<'a> {
+        app: &'a Application,
+        inner: &'a Mock,
+        on_read: bool,
+    }
+    impl Hook<'_> {
+        fn hold(&self, j: &Job, stop: bool) {
+            self.app
+                .control_factory(crate::factory::Command {
+                    meta: CommandMeta {
+                        schema_version: V1,
+                        idempotency_key: "merge-factory-hook".into(),
+                        actor: "operator".into(),
+                        reason: "Synthetic factory race".into(),
+                    },
+                    expected_version: 0,
+                    action: crate::factory::Action::Pause {
+                        scope: crate::factory::Scope::Case,
+                        target: Some(j.case_id.clone()),
+                        effect: crate::factory::Effect::Merge,
+                        cancel_running: stop,
+                    },
+                })
+                .unwrap();
+        }
+    }
+    impl Backend for Hook<'_> {
+        fn inspect(&self, p: &Policy, j: &Job) -> std::result::Result<Observation, Failure> {
+            let r = self.inner.inspect(p, j);
+            if self.on_read {
+                self.hold(j, false);
+            }
+            r
+        }
+        fn merge(&self, p: &Policy, j: &Job) -> std::result::Result<Merged, Failure> {
+            let r = self.inner.merge(p, j);
+            if !self.on_read {
+                self.hold(j, true);
+            }
+            r
+        }
+        fn reconcile(&self, p: &Policy, j: &Job) -> std::result::Result<Merged, Failure> {
+            self.inner.reconcile(p, j)
+        }
+    }
+    let (_d, a, _t, j) = fixture().await;
+    let b = Mock::new(&j);
+    assert!(
+        a.run_merge_once(&Hook {
+            app: &a,
+            inner: &b,
+            on_read: true
+        })
+        .unwrap()
+    );
+    assert_eq!(*b.writes.borrow(), 0);
+    assert_eq!(
+        get(&a.store.connect().unwrap(), &j.id).unwrap().state,
+        "ready"
+    );
+    assert!(!a.run_merge_once(&b).unwrap());
+    let (_d, a, _t, j) = fixture().await;
+    let b = Mock::new(&j);
+    assert!(
+        a.run_merge_once(&Hook {
+            app: &a,
+            inner: &b,
+            on_read: false
+        })
+        .is_err()
+    );
+    assert_eq!(*b.writes.borrow(), 1);
+    assert_eq!(
+        get(&a.store.connect().unwrap(), &j.id).unwrap().state,
+        "unknown"
+    );
+    a.reconcile_merge(&j.case_id, &j.id, &b).unwrap();
+    assert_eq!(*b.writes.borrow(), 1);
+    assert!(!a.run_merge_once(&b).unwrap());
+}

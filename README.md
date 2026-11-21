@@ -211,3 +211,7 @@ The [synthetic adapter lifecycle](contracts/v1/adapter-trials/README.md) exercis
 ## Route local native workers
 
 [Worker routing v1](contracts/v1/worker-routing/README.md) binds queued model/container effects to explicit OS-installed worker identities and exact execution profiles. CLI/API/web expose routing provenance and original cleanup ownership. Routing does not grant native admission; unsupported macOS/Windows worker boundaries remain development work.
+
+## Control factory operation
+
+[Factory controls v1](contracts/v1/factory/README.md) provides scoped pause/stop and individual resume through CLI/API/web. Factory health exposes scheduler lag, clock rollback, owned holds and uncertain effects without models. Monitoring, escalation and cleanup continue while admission is paused; resume does not replay uncertain work or reset authority.
