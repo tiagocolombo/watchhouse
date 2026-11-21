@@ -78,13 +78,14 @@ function renderEvent(event:TimelineEvent) {
   el('timeline').append(li);
 }
 function renderState(snapshot:Snapshot) {
+  const retainRename=selected?.id===snapshot.case.id&&formVersions.has('rename-form');
   selected=snapshot.case;
   selectedSourceKey=snapshot.source_freshness?.source_key??"";
   renderFreshness(snapshot.source_freshness);
   el('case-id').textContent=selected.id; el('case-title').textContent=selected.title;
   el('case-status').textContent=selected.status.replaceAll('_',' ');
   el('version').textContent=`Version ${selected.version}`; el('owner').textContent=`Owner: ${selected.owner}`;
-  el('case-description').textContent=selected.description; el<HTMLInputElement>('rename-title').value=selected.title;
+  el('case-description').textContent=selected.description; if(!retainRename)el<HTMLInputElement>('rename-title').value=selected.title;
   el('next').textContent=selected.status==='awaiting_review'?`Next: ${selected.owner} owns review of the synthetic result and the next investigation. Case remains open.`:selected.status==='running'?'Next: fake investigator returns a bounded result. Operator remains accountable.':'Next: coordinator claims the queued investigation. Operator remains accountable.';
   el('results').replaceChildren();
   for(const result of snapshot.results) { const p=document.createElement('p');p.textContent=result.summary; el('results').append(p); }
@@ -162,7 +163,7 @@ async function follow(id:string,cursor:number,current:number,signal:AbortSignal)
   }
 }
 async function openCase(id:string) {
-  if(selected?.id!==id)inspectedEvidence.clear();
+  if(selected?.id!==id){inspectedEvidence.clear();formVersions.clear();}
   active?.abort(); const current=++generation; active=new AbortController();
   const snapshot=await api<Snapshot>(`/cases/${id}`); if(current!==generation) return;
   el('empty').hidden=true;el('case-view').hidden=false;el('timeline').replaceChildren();seen.clear();
@@ -182,7 +183,7 @@ el('create-form').onsubmit=e=>{e.preventDefault();void(async()=>{
   try { const item=await api<Case>('/cases',{...payload,idempotency_key:createKey});createKey=crypto.randomUUID();createPayload='';el<HTMLFormElement>('create-form').reset();await openCase(item.id); }
   finally {el<HTMLButtonElement>('create').disabled=!canCreate;}
 })().catch(fail);};
-el('rename-form').onsubmit=e=>{e.preventDefault();if(!selected) return; const item=selected;void api<Case>(`/cases/${item.id}/rename`,{schema_version:1,idempotency_key:crypto.randomUUID(),actor:operatorIdentity,reason:input('rename-reason'),title:input('rename-title'),expected_version:item.version}).then(()=>openCase(item.id)).catch(fail);};
+
 
 
 class HttpError extends Error {
@@ -323,9 +324,10 @@ function handleForm(id:string,submit:(caseId:string,version:number)=>Promise<unk
   el<HTMLFormElement>(id).onsubmit=e=>{
     e.preventDefault();if(!selected) return;const caseId=selected.id;
     const button=el(id).querySelector<HTMLButtonElement>('button')!;button.disabled=true;el('error').textContent='';
-    void submit(caseId,formVersions.get(id)??selected.version).then(()=>{formVersions.delete(id);if(selected?.id===caseId) return openCase(caseId);}).catch(fail).finally(()=>{button.disabled=false;});
+    void submit(caseId,formVersions.get(id)??selected.version).then(()=>{formVersions.delete(id);if(selected?.id===caseId) return openCase(caseId);}).catch(fail).finally(()=>{button.disabled=!canOperate;});
   };
 }
+handleForm('rename-form',(id,version)=>command(id,'rename',{reason:input('rename-reason'),title:input('rename-title')},version));
 handleForm('evidence-form',(id,version)=>command(id,'evidence',{
   scope:input('evidence-scope'),statement:input('evidence-statement'),collection_method:input('evidence-method'),
   observed_at:input('evidence-time')||null,uncertainty:input('evidence-uncertainty'),reason:input('evidence-reason'),

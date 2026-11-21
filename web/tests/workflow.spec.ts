@@ -28,11 +28,11 @@ test('manual case executes and timeline survives offline reconnect and reload', 
   await page.getByText('Update title',{exact:true}).click();
   await page.locator('#rename-title').fill('Stale browser edit');
   await page.locator('#rename-reason').fill('Edit from an outdated view');
-  await page.route(`**/api/v1/cases/${id}/rename`,async route=>{
-    const sent=route.request().postDataJSON();
-    const winner=await context.request.post(`/api/v1/cases/${id}/rename`,{headers:{Authorization:`Bearer ${token}`},data:{...sent,idempotency_key:`competing-${id}`,title:'Concurrent operator update'}});
-    expect(winner.ok()).toBe(true);await route.continue();
-  });
+  const current=await (await context.request.get(`/api/v1/cases/${id}`,{headers:{Authorization:`Bearer ${token}`}})).json();
+  const winner=await context.request.post(`/api/v1/cases/${id}/rename`,{headers:{Authorization:`Bearer ${token}`},data:{schema_version:1,idempotency_key:`competing-${id}`,actor:'operator',reason:'Concurrent update arrives while the draft is being edited',expected_version:current.case.version,title:'Concurrent operator update'}});
+  expect(winner.ok()).toBe(true);
+  await expect(page.locator('#case-title')).toHaveText('Concurrent operator update');
+  await expect(page.locator('#rename-title')).toHaveValue('Stale browser edit');
   await page.getByRole('button',{name:'Save with version check'}).click();
   await expect(page.locator('#error')).toContainText('reload before retrying');
   await expect(page.locator('#case-title')).toHaveText('Concurrent operator update');
