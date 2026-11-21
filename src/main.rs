@@ -12,6 +12,13 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     FactoryStatus,
+    FactoryCapacity,
+    FactoryLimits {
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long)]
+        operator: String,
+    },
     FactoryControl {
         #[arg(long)]
         file: PathBuf,
@@ -573,6 +580,7 @@ async fn work(
                 eprintln!("Worker state changed: {message}");
                 (false, None)
             }
+            Err(watchhouse::error::Error::Backpressure(_)) => (false, None),
             Err(error) => return Err(error.into()),
         };
         held = next;
@@ -595,10 +603,19 @@ async fn work(
 async fn sources(app: Application) -> anyhow::Result<()> {
     loop {
         let a = app.clone();
-        tokio::task::spawn_blocking(move || a.sentry_tick(&watchhouse::sentry::LiveSentry))
-            .await??;
+        let sentry =
+            tokio::task::spawn_blocking(move || a.sentry_tick(&watchhouse::sentry::LiveSentry))
+                .await?;
+        if !matches!(sentry, Err(watchhouse::error::Error::Backpressure(_))) {
+            sentry?;
+        }
         let d = app.clone();
-        tokio::task::spawn_blocking(move || d.sync_datadog(&watchhouse::datadog::Native)).await??;
+        let datadog =
+            tokio::task::spawn_blocking(move || d.sync_datadog(&watchhouse::datadog::Native))
+                .await?;
+        if !matches!(datadog, Err(watchhouse::error::Error::Backpressure(_))) {
+            datadog?;
+        }
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
 }
@@ -630,6 +647,15 @@ async fn run() -> anyhow::Result<()> {
     }
     let app = Application::new(Store::open(cli.db)?, Arc::new(SystemClock));
     match cli.command {
+        Command::FactoryCapacity => print(&app.capacity_status()?)?,
+        Command::FactoryLimits { file, operator } => {
+            let source = std::fs::canonicalize(&file)?;
+            print(&app.install_factory_limits(
+                read_command(file)?,
+                &operator,
+                &source.to_string_lossy(),
+            )?)?;
+        }
         Command::FactoryStatus => print(&app.factory_status()?)?,
         Command::FactoryControl { file } => print(&app.control_factory(read_command(file)?)?)?,
         Command::WorkerRoutes => print(&app.worker_routes()?)?,

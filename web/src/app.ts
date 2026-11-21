@@ -487,12 +487,12 @@ function renderNativeRepair(jobs:ContainerJob[],progress:RepairProgress) {
   for(const r of progress.reviews) {const card=document.createElement('article');card.className='team-card';paragraph(card,`Review ${r.id} · ${r.author} · ${r.current?'approval current':r.approve?'approval stale':'changes required'}`);paragraph(card,r.findings);if(r.model_job)paragraph(card,`Independent reviewer job: ${r.model_job}`);if(r.current){const button=document.createElement('button');button.textContent='Inspect publication plan';button.onclick=async()=>{try{const plan=await api<unknown>(`/cases/${selected!.id}/publication-plan?candidate=${encodeURIComponent(r.candidate_id)}&review=${encodeURIComponent(r.id)}`);const pre=document.createElement('pre');pre.textContent=JSON.stringify(plan,null,2);card.append(pre);button.disabled=true;}catch(error){fail(error);}};card.append(button);}panel.append(card);}
 }
 
-interface Factory {version:number;state:string;scheduler_lag_seconds:number|null;clock_behind:boolean;uncertain_resources:number;pauses:{id:string;scope:string;target:string|null;effect:string;owner:string;reason:string;cancel_running:boolean}[]}
+interface Factory {capacity:{queued_cases:number;native_resources:number;ordinary_evidence_bytes:number;limits:{max_queued_cases:number;max_native_resources:number;max_evidence_bytes:number}};version:number;state:string;scheduler_lag_seconds:number|null;clock_behind:boolean;uncertain_resources:number;pauses:{id:string;scope:string;target:string|null;effect:string;owner:string;reason:string;cancel_running:boolean}[]}
 let factory:Factory|undefined;
 const pendingFactory=new Map<string,{signature:string;body:unknown}>();
 async function refreshFactory() {
   const value=await api<Factory>('/factory');factory=value;
-  el('factory-status').textContent=`Factory ${value.state} · Scheduler lag ${value.scheduler_lag_seconds===null?'unknown':value.scheduler_lag_seconds+'s'} · Uncertain resources ${value.uncertain_resources}${value.clock_behind?' · Clock behind retained time; new effects held':''}`;
+  el('factory-status').textContent=`Factory ${value.state} · Queue ${value.capacity.queued_cases}/${value.capacity.limits.max_queued_cases} · Resource reservations ${value.capacity.native_resources}/${value.capacity.limits.max_native_resources} · Evidence bytes ${value.capacity.ordinary_evidence_bytes}/${value.capacity.limits.max_evidence_bytes} · Scheduler lag ${value.scheduler_lag_seconds===null?'unknown':value.scheduler_lag_seconds+'s'} · Uncertain resources ${value.uncertain_resources}${value.clock_behind?' · Clock behind retained time; new effects held':''}`;
   el('factory-details').textContent=JSON.stringify(value,null,2);
   const panel=el('factory-pauses');panel.replaceChildren();
   for(const pause of value.pauses) {

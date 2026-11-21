@@ -63,6 +63,7 @@ impl Store {
             (28, include_str!("../migrations/028_datadog.sql")),
             (29, include_str!("../migrations/029_worker_routing.sql")),
             (30, include_str!("../migrations/030_factory_controls.sql")),
+            (31, include_str!("../migrations/031_factory_capacity.sql")),
         ];
         let applied: Vec<(i64, String)> = {
             let mut stmt =
@@ -93,9 +94,13 @@ impl Store {
                 params![version, migration_digest(sql)],
             )?;
         }
+        crate::capacity::bootstrap(&tx)?;
         crate::policy::bootstrap(&tx)?;
         tx.commit()?;
         Ok(store)
+    }
+    pub(crate) fn path(&self) -> &Path {
+        &self.path
     }
     pub fn connect(&self) -> Result<Connection> {
         let db = Connection::open(&self.path)?;
