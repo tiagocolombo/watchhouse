@@ -865,19 +865,76 @@ async fn normalized_service_mapping_controls_scope_and_revokes_an_open_stream_on
 
 #[tokio::test]
 async fn internal_bundles_bind_observer_identity_and_service_owner_case_grants() {
-    let (_d,a,keys,_r)=setup();
-    let one=a.create_case(serde_json::from_value(create("operator","bundle-one")).unwrap()).unwrap();
-    let two=a.create_case(serde_json::from_value(create("operator","bundle-two")).unwrap()).unwrap();
-    let mut p=serde_json::to_value(policy()).unwrap();p["revision"]=json!(2);
+    let (_d, a, keys, _r) = setup();
+    let one = a
+        .create_case(serde_json::from_value(create("operator", "bundle-one")).unwrap())
+        .unwrap();
+    let two = a
+        .create_case(serde_json::from_value(create("operator", "bundle-two")).unwrap())
+        .unwrap();
+    let mut p = serde_json::to_value(policy()).unwrap();
+    p["revision"] = json!(2);
     p["principals"].as_array_mut().unwrap().push(json!({"id":"scoped","role":"service_owner","token_env":"WATCHHOUSE_REMOTE_SCOPED","disabled":false,"case_ids":[one.id],"services":[]}));
-    keys.0.write().unwrap().insert("WATCHHOUSE_REMOTE_SCOPED".into(),"fixture-scoped-bundle-token-32-bytes".into());
-    a.install_access_policy(serde_json::from_value(p).unwrap(),"operator","Synthetic export grants").unwrap();
-    let r=watchhouse::http::remote_router(a.clone(),"127.0.0.1:8787".into(),keys).unwrap();
-    let response=r.clone().oneshot(request("GET",&format!("/cases/{}/bundle",one.id),BOB,Value::Null)).await.unwrap();
-    assert_eq!(response.status(),StatusCode::OK);
-    assert_eq!(value(response).await["header"]["actor"],"bob");
-    let key="fixture-scoped-bundle-token-32-bytes";
-    assert_eq!(r.clone().oneshot(request("GET",&format!("/cases/{}/bundle",one.id),key,Value::Null)).await.unwrap().status(),StatusCode::OK);
-    assert_eq!(r.clone().oneshot(request("GET",&format!("/cases/{}/bundle",two.id),key,Value::Null)).await.unwrap().status(),StatusCode::FORBIDDEN);
-    assert_eq!(r.oneshot(request("GET",&format!("/cases/{}/exports",two.id),key,Value::Null)).await.unwrap().status(),StatusCode::FORBIDDEN);
+    keys.0.write().unwrap().insert(
+        "WATCHHOUSE_REMOTE_SCOPED".into(),
+        "fixture-scoped-bundle-token-32-bytes".into(),
+    );
+    a.install_access_policy(
+        serde_json::from_value(p).unwrap(),
+        "operator",
+        "Synthetic export grants",
+    )
+    .unwrap();
+    let r = watchhouse::http::remote_router(a.clone(), "127.0.0.1:8787".into(), keys).unwrap();
+    let response = r
+        .clone()
+        .oneshot(request(
+            "GET",
+            &format!("/cases/{}/bundle", one.id),
+            BOB,
+            Value::Null,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(value(response).await["header"]["actor"], "bob");
+    let key = "fixture-scoped-bundle-token-32-bytes";
+    assert_eq!(
+        r.clone()
+            .oneshot(request(
+                "GET",
+                &format!("/cases/{}/bundle", one.id),
+                key,
+                Value::Null
+            ))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK
+    );
+    assert_eq!(
+        r.clone()
+            .oneshot(request(
+                "GET",
+                &format!("/cases/{}/bundle", two.id),
+                key,
+                Value::Null
+            ))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        r.oneshot(request(
+            "GET",
+            &format!("/cases/{}/exports", two.id),
+            key,
+            Value::Null
+        ))
+        .await
+        .unwrap()
+        .status(),
+        StatusCode::FORBIDDEN
+    );
 }

@@ -796,8 +796,15 @@ async fn run() -> anyhow::Result<()> {
         )?)?;
         return Ok(());
     }
-    if let Command::CaseExportInspect { directory, manifest_digest } = &cli.command {
-        print(&watchhouse::bundles::inspect(directory,manifest_digest.as_deref())?)?;
+    if let Command::CaseExportInspect {
+        directory,
+        manifest_digest,
+    } = &cli.command
+    {
+        print(&watchhouse::bundles::inspect(
+            directory,
+            manifest_digest.as_deref(),
+        )?)?;
         return Ok(());
     }
     if let Some(parent) = cli.db.parent().filter(|p| !p.as_os_str().is_empty()) {
@@ -805,12 +812,40 @@ async fn run() -> anyhow::Result<()> {
     }
     let app = Application::new(Store::open(cli.db)?, Arc::new(SystemClock));
     match cli.command {
-        Command::CaseExport { case,output,include_evidence,include_patches,operator,reason } => {
-            print(&app.export_case(&case,&output,watchhouse::bundles::Options {include_evidence,include_patches},&operator,&reason)?)?;
+        Command::CaseExport {
+            case,
+            output,
+            include_evidence,
+            include_patches,
+            operator,
+            reason,
+        } => {
+            print(&app.export_case(
+                &case,
+                &output,
+                watchhouse::bundles::Options {
+                    include_evidence,
+                    include_patches,
+                },
+                &operator,
+                &reason,
+            )?)?;
         }
         Command::CaseExportInspect { .. } => unreachable!("handled without coordinator state"),
-        Command::CaseExportReconcile { id,directory,manifest_digest,operator,reason } => {
-            print(&app.reconcile_case_export(&id,&directory,&manifest_digest,&operator,&reason)?)?;
+        Command::CaseExportReconcile {
+            id,
+            directory,
+            manifest_digest,
+            operator,
+            reason,
+        } => {
+            print(&app.reconcile_case_export(
+                &id,
+                &directory,
+                &manifest_digest,
+                &operator,
+                &reason,
+            )?)?;
         }
         Command::RetentionPolicy { file, operator } => {
             let source = std::fs::canonicalize(&file)?;

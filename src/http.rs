@@ -1142,22 +1142,38 @@ async fn case_bundle(
     Query(options): Query<crate::bundles::Options>,
     Extension(session): Extension<crate::access::Session>,
 ) -> Result<Response, ApiError> {
-    let permit=s.bundles.clone().try_acquire_owned().map_err(|_|ApiError(Error::Backpressure("Two case exports are already active; close or finish one before retrying".into())))?;
-    let bytes=blocking(move|| {
-        let frame=s.app.scoped_case_bundle(&id,options,&session)?;
+    let permit = s.bundles.clone().try_acquire_owned().map_err(|_| {
+        ApiError(Error::Backpressure(
+            "Two case exports are already active; close or finish one before retrying".into(),
+        ))
+    })?;
+    let bytes = blocking(move || {
+        let frame = s.app.scoped_case_bundle(&id, options, &session)?;
         serde_json::to_vec(&frame).map_err(Error::from)
-    }).await?;
-    let output=async_stream::stream!{
+    })
+    .await?;
+    let output = async_stream::stream! {
         let _permit=permit;
         for chunk in bytes.chunks(32768) {
             yield Ok::<_,Infallible>(axum::body::Bytes::copy_from_slice(chunk));
         }
     };
-    Ok(([(header::CONTENT_TYPE,"application/json"),(header::CONTENT_DISPOSITION,"attachment; filename=\"watchhouse-case.json\""),(header::CACHE_CONTROL,"no-store")],axum::body::Body::from_stream(output)).into_response())
+    Ok((
+        [
+            (header::CONTENT_TYPE, "application/json"),
+            (
+                header::CONTENT_DISPOSITION,
+                "attachment; filename=\"watchhouse-case.json\"",
+            ),
+            (header::CACHE_CONTROL, "no-store"),
+        ],
+        axum::body::Body::from_stream(output),
+    )
+        .into_response())
 }
 async fn case_exports(
     State(s): State<HttpState>,
     Path(id): Path<String>,
-) -> Result<impl IntoResponse,ApiError> {
-    Ok(Json(blocking(move||s.app.case_exports(&id)).await?))
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(blocking(move || s.app.case_exports(&id)).await?))
 }
