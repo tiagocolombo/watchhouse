@@ -1,6 +1,6 @@
 # Current status
 
-Last updated: 2026-11-20.
+Last updated: 2026-11-21.
 
 ## Latest continuation
 
@@ -251,3 +251,16 @@ Evidence exhaustion never promotes model/container output or native admission. I
 Validation: 254 Rust tests passed; strict Clippy/fmt, native/TypeScript builds and diff checks passed. All thirteen Chromium scenarios passed on the final local tree, including full intake -> 429 -> exact retry -> visible queue limit/coordinator availability, followed by fixture policy/pause cleanup. Fixtures cover signed delivery no-partial-receipt/dedup, UTF-8 byte boundaries/counters/shrink/delete/rollback, ordinary flood vs supervisor checkpoint reserve, global/scoped native isolation and remapping, queue-prefix liveness, preserved deadlines, effect receipts, storage-exhausted native output cleanup, corrupted policy and original-owner cleanup. A real child coordinator process remained responsive after fake completion hit evidence capacity. Native physical enforcement and all three OS behavior still require the new final-head CI; these added controller fixtures do not imply live source/model/production proof.
 
 These bounds do not cap all audit/receipt history, filesystem candidate artifacts or every disk allocation. Backup/restore, retention/redaction, remote RBAC, fuller workspace, replay evaluation and operating drills remain M8 development. Native macOS/Windows worker/remote transport development remains open. Actual credentials/history/mappings/destinations and separate publisher/merger/gateway authority remain operator-owned activation blockers. No PR was merged; the original dirty M4 worktree remains untouched.
+
+
+## M8 consistent private backup continuation (2026-11-21)
+
+PR #32's Windows child-process failure was diagnosed as OS socket-provider initialization error 10106 under a cleared environment. Final correction `6c501f4` preserves only SystemRoot/WINDIR; no integration/model credentials are inherited and liveness/backpressure assertions remain. Linux and macOS final-head CI passed; Windows final-head validation is still tracked separately. No PR was merged. The original dirty M4 worktree remains untouched.
+
+The OS-only `backup` command now exports one consistent SQLite VACUUM INTO snapshot, including committed WAL records, receipts, deadlines, events, evidence and immutable configuration references. It copies only complete declared frozen source/candidate files, preserving their manifest identities and executable flags as inert data. Runtime executables/images, auth homes/credential copies, private worker journals/transcripts and neighboring files are not copied. The manifest is written last; existing/incomplete destinations are never overwritten. Successful completion appends metadata to factory history through the existing CLI/authenticated API/web view. See ADR 0037 and the backup contract.
+
+Read-only `backup-inspect` optionally pins an independently retained manifest digest and checks bounded exact inventory, safe paths/case aliases/links, file hashes/sizes, SQLite integrity/foreign keys, contiguous known migration history, evidence hashes and complete artifact-to-database correspondence. It never opens or migrates the coordinator database selected by --db. Fixed byte/file/root bounds fail rather than silently omit data. Unix uses private modes; Windows requires an OS-protected parent ACL. Hashes alone are not producer authentication.
+
+Validation: final full `cargo test --locked` passed 261 Rust tests (three explicit native integrations remain ignored in ordinary tests). All seven backup tests passed, covering live WAL/receipts/deadlines, original-path-independent frozen artifacts, no credential-neighbor copying, incomplete/no-overwrite recovery, semantic tampering despite rehashed manifests, safe path/case/link boundaries, private Unix modes and inspect CLI isolation. Strict Clippy/fmt, TypeScript/native builds and diff checks passed. All fourteen Chromium scenarios passed after rebuilding restored stale embedded JavaScript assets; the first stale-asset browser attempt is not claimed as passing. The new scenario verifies OS CLI creation/inspection and metadata-only, script-inert authenticated factory visibility. Exact final-head native/three-OS CI remains required on the implementing PR.
+
+Restore remains explicitly unavailable (`restore_available:false`): copied leases/credential references/native handles must never start another active coordinator. Authority-safe restore, retention/redaction, remote RBAC, fuller workspace/replay evaluation and operating drills remain required M8 development; native macOS/Windows and remote workers remain M7 development. Existing live credentials/history/mappings/destinations and publisher/merger/gateway authority are separate activation blockers. Fixture backup checks establish no live source/model/external-effect proof.

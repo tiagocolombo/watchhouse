@@ -10,7 +10,7 @@ Connect an observability tool such as Sentry or Datadog. Watchhouse assesses wha
 
 The team keeps the records a real incident organization needs: incident details, investigation logs, escalation and handoff records, change plans, recovery assessments, postmortems, corrective actions, and runbooks.
 
-**Status: bounded M0/M1/M2 mechanisms and M3 source/incident/qualification slices are implemented.** The Rust core owns durable fake execution, independent review, trusted policy, escalation delivery and incident records. Slack and Sentry adapters are fixture-verified; live activation needs explicit mappings, credentials, destinations and trusted ingress. Real harnesses, production mutation and merge automation remain ahead.
+**Status: development is incomplete; automated fixture/native validation continues.** The Rust coordinator owns durable team/incident/recovery/learning workflows, independent review, bounded Codex/Claude text workers, native Linux candidate checks, separately authorized publication/merging and controlled runbook integration. Sentry, Datadog, Slack and external-effect controllers are fixture-verified; live activation requires configured mappings, credentials, destinations and authority. M7 native macOS/Windows/remote workers and remaining M8 hardening are tracked in the [completion ledger](implementation/COMPLETION.md).
 
 ## Development validation bundles
 
@@ -219,3 +219,7 @@ The [synthetic adapter lifecycle](contracts/v1/adapter-trials/README.md) exercis
 ## Bound intake and worker capacity
 
 [Factory capacity v1](contracts/v1/capacity/README.md) supplies OS-installed queue/evidence/native reservation limits, per-scope concurrency and visible backpressure. Exact retries, existing reconciliation and bounded supervisor headroom remain available while full. These are admission/evidence limits, not a whole-database retention or disk-space guarantee.
+
+## Consistent private backups
+
+The OS-only [backup contract](contracts/v1/backups/README.md) exports a consistent SQLite WAL snapshot and its complete declared frozen files, then verifies hashes, evidence, migrations and inventory. Metadata appears in factory history; private backup bytes have no HTTP export endpoint. `backup-inspect` activates no credentials or coordinator state. Authority-safe restore remains separate unfinished M8 work.

@@ -148,3 +148,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 - [ADR 0035 — Factory controls and degraded health](adrs/0035-factory-controls-and-degraded-health.md): durable scoped admission holds, explicit active-result stop fences, monotonic clock visibility and independent observation/supervision/cleanup. Resume grants no new authority; remaining M8 hardening stays open.
 
 - [ADR 0036 — Capacity and supervisor headroom](adrs/0036-transactional-capacity-and-supervisor-headroom.md): immutable transactional queue/evidence/native reservation limits, exact retry preservation, pinned resource scopes, finite supervisor reserve and typed backpressure. Full-history/disk retention and other M8 hardening remain open.
+
+- [ADR 0037 — Consistent private backups](adrs/0037-consistent-private-backups.md): bounded SQLite WAL snapshot, complete declared frozen files, read-only hash/migration/evidence inspection and OS-owned private destinations. Restore remains explicitly unavailable until old authority and uncertain effects can be isolated.
