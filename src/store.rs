@@ -54,6 +54,7 @@ pub(crate) const MIGRATIONS: &[(i64, &str)] = &[
     (32, include_str!("../migrations/032_restore_isolation.sql")),
     (33, include_str!("../migrations/033_remote_access.sql")),
     (34, include_str!("../migrations/034_evidence_redaction.sql")),
+    (35, include_str!("../migrations/035_retention_policy.sql")),
 ];
 
 #[derive(Clone)]

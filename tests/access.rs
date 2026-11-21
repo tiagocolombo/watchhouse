@@ -652,6 +652,7 @@ async fn exact_case_grants_filter_before_limits_and_protect_evidence_and_command
         "/sources/datadog".into(),
         "/model-profiles".into(),
         "/worker-routes".into(),
+        "/retention".into(),
         "/team/escalations".into(),
     ] {
         assert_eq!(

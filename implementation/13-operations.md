@@ -73,3 +73,7 @@ The [backup contract](../contracts/v1/backups/README.md) implements bounded OS-o
 ## Implemented named evidence-store removal
 
 [Retention v1](../contracts/v1/retention/README.md) and ADR 0041 provide OS-owned named blob removal, immutable tombstones, proof invalidation, effect fences and owned reassessment. This is logical removal of that one store body. Other derived/formal/job/receipt/journal/export copies and older backups are separate content/retention scopes; secure physical erasure and complete incident-bundle retention are not claimed. Scheduled per-class retention and those remaining scopes still require implementation.
+
+## Implemented scheduled evidence-body retention
+
+[Scheduled retention v1](../contracts/v1/retention/policy.md) and ADR 0042 add OS-only immutable class ages, indexed eligible bodies, persisted pacing, per-item deferral, explicit unknown-age ownership, metadata status and core-loop operation without a model/browser. Restores hold copied deletion policy. Corrupt bodies require a current digest inspection/pin; the scheduler never guesses original content. Other copied/derived/formal/journal/export/backup scopes remain unfinished.

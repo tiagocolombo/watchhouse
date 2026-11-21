@@ -11,10 +11,25 @@ struct Cli {
 }
 #[derive(Subcommand)]
 enum Command {
+    RetentionPolicy {
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long)]
+        operator: String,
+    },
+    RetentionStatus,
+    RetentionTick,
     /// Logically remove an evidence-store body and invalidate dependent proof.
+    EvidenceInspect {
+        #[arg(long)]
+        digest: String,
+    },
     EvidenceRedact {
         #[arg(long)]
         digest: String,
+        /// Pin the inspected current body when explicitly removing corrupt evidence.
+        #[arg(long)]
+        observed_digest: Option<String>,
         #[arg(long)]
         operator: String,
         #[arg(long)]
@@ -591,7 +606,24 @@ async fn work(
 ) -> anyhow::Result<()> {
     let mut held: Option<watchhouse::application::Claim> = None;
     let mut heartbeat_at = tokio::time::Instant::now();
+    let mut retention_failed = false;
     loop {
+        let reaper = app.clone();
+        let retained = match tokio::task::spawn_blocking(move || reaper.retention_tick()).await? {
+            Ok(value) => {
+                retention_failed = false;
+                value.is_some()
+            }
+            Err(_) => {
+                if !retention_failed {
+                    eprintln!(
+                        "Retention unavailable; deterministic duties continue. Inspect retention-status and the OS retention configuration."
+                    );
+                }
+                retention_failed = true;
+                false
+            }
+        };
         let worker = app.clone();
         let who = identity.clone();
         let previous = held.clone();
@@ -599,12 +631,14 @@ async fn work(
         let outcome = tokio::task::spawn_blocking(move || -> watchhouse::error::Result<_> {
             if manual {
                 return Ok((
-                    worker.process_due_obligations()? + worker.supervise_team()? > 0,
+                    worker.process_due_obligations()? + worker.supervise_team()? > 0 || retained,
                     None,
                 ));
             }
             if stall {
-                let changed = worker.process_due_obligations()? + worker.supervise_team()?;
+                let changed = worker.process_due_obligations()?
+                    + worker.supervise_team()?
+                    + usize::from(retained);
                 if let Some(c) = previous {
                     if heartbeat_due {
                         let command = RunCommand {
@@ -630,7 +664,7 @@ async fn work(
                 }
                 return Ok((changed > 0, worker.accept_or_claim_fake(&who)?));
             }
-            Ok((worker.run_fake_worker_once(&who, block)?, None))
+            Ok((worker.run_fake_worker_once(&who, block)? || retained, None))
         })
         .await?;
         let (ran, next) = match outcome {
@@ -734,11 +768,28 @@ async fn run() -> anyhow::Result<()> {
     }
     let app = Application::new(Store::open(cli.db)?, Arc::new(SystemClock));
     match cli.command {
+        Command::RetentionPolicy { file, operator } => {
+            let source = std::fs::canonicalize(&file)?;
+            print(&app.install_retention_policy(
+                read_command(file)?,
+                &operator,
+                &source.to_string_lossy(),
+            )?)?;
+        }
+        Command::RetentionStatus => print(&app.retention_status()?)?,
+        Command::RetentionTick => print(&app.retention_tick()?)?,
+        Command::EvidenceInspect { digest } => print(&app.inspect_evidence(&digest)?)?,
         Command::EvidenceRedact {
             digest,
+            observed_digest,
             operator,
             reason,
-        } => print(&app.redact_evidence(&digest, &operator, &reason)?)?,
+        } => print(&app.redact_evidence_observed(
+            &digest,
+            observed_digest.as_deref(),
+            &operator,
+            &reason,
+        )?)?,
         Command::EvidenceRedactions { case } => print(&app.evidence_redactions(&case)?)?,
         Command::AccessPolicy { file, operator } => {
             let source = std::fs::canonicalize(&file)?;
@@ -1056,12 +1107,15 @@ async fn run() -> anyhow::Result<()> {
             app.sentry_tick(&watchhouse::sentry::LiveSentry)?
         ),
         Command::Migrate => println!("All registered migrations validated"),
-        Command::Tick => println!(
-            "{} obligation(s) became due",
-            app.process_due_obligations()?
+        Command::Tick => {
+            let changed = app.process_due_obligations()?
                 + app.supervise_team()?
-                + app.process_notifications(&watchhouse::notifications::SlackWebhook)?
-        ),
+                + app.process_notifications(&watchhouse::notifications::SlackWebhook)?;
+            println!(
+                "{} maintenance transition(s) completed",
+                changed + usize::from(app.retention_tick()?.is_some())
+            );
+        }
         Command::Team { action } => {
             let value = match action {
                 TeamCommand::Claim { executor, key } => {
