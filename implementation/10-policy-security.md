@@ -86,3 +86,7 @@ Worker qualification policies are installed only by the OS operator and retain i
 ## Implemented configured global access
 
 ADR 0039 and [Access v1](../contracts/v1/access/README.md) add separately authenticated HTTPS-proxy transport, OS-configured human identities, exact actor binding, observer/operator/admin roles, bounded durable audit and future-admission/stream revocation. These roles retain all domain gates and cannot impersonate fake/remote workers. Copied policy stays fenced on restore. Service-owner scopes and independent remote workers remain development; public TLS/identity provisioning requires actual operator configuration.
+
+## Implemented service-owner scope
+
+ADR 0040 makes service_owner a separate capability with exact OS service/environment or case grants. Scope comes from normalized source mapping with retained-integrity checks or explicit OS case identity, never reported impact/owner/actor text. Evidence and second-case targets require their own membership; automatic global/cross-scope projections are filtered. Grants authorize the retained case and its already incorporated content, not semantic redaction of prose or target dereference. Human credentials never authenticate independent remote workers.

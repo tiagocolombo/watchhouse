@@ -1,6 +1,6 @@
 # Configured HTTPS access v1
 
-Implemented in migration 033 and ADR 0039. This slice provides global observer, operator and administrator identities. Service-owner data scopes and independent remote-worker transport remain separate development, not live-activation waivers.
+Implemented in migration 033 and ADR 0039. Provides global observer/operator/administrator identities and scoped service_owner access (ADR 0040). Independent remote-worker transport remains separate development, not a live-activation waiver.
 
 ## OS configuration and transport
 
@@ -35,3 +35,13 @@ Audit admission is transactional and bounded across restarts. When full, remote 
 ## Verification classes
 
 Rust fixtures inject synthetic credentials, including distinct-key/proxy/origin/duplicate-header denial, roles/actor spoofing/worker denial, exact receipt retry, live stream revocation, key rotation, body bounds, lost completion health, audit exhaustion with continued local duties, owner escalation and restore isolation. A browser fixture runs an actual local TLS proxy with a disposable self-signed certificate and synthetic principals. It verifies UI capability/identity, case ownership, spoof denial, observer inspection and revocation. It does not verify public hosting, certificate issuance, real identity enrollment or any live incident integration.
+
+## Scoped service owners
+
+A principal with `"role":"service_owner"` requires nonempty `"services":[{"service":"checkout","environment":"test"}]` and/or `"case_ids":["case_actual-id"]`. Omit these arrays for global roles; supplying scopes on global roles is rejected instead of silently ignoring the restriction. Arrays are bounded to 64 unique service/environment pairs and 200 unique case IDs. Names are literal exact matches, never wildcard patterns. Service/environment values come from controller-normalized, digest-verified source mappings, not arbitrary reported impact, source tags or a case owner label. Manual/unmapped cases require an exact OS grant. New policy revisions use the same existing OS installation command and restore fences.
+
+Service owners read a queue filtered before its newest-200 limit, inspect granted case snapshots/events/artifacts, and submit enumerated case commands as their actual identity subject to the existing domain gates. They cannot create unclassified global manual intake, inspect global factory/source/model/worker configuration or inboxes, control factory admission, install policy or impersonate a worker. Evidence requires membership in a granted case; knowing a digest grants nothing. Correlation targets and duplicate-disposition target cases need their own grant. A reference contained in a granted case does not grant dereference access to its target. SQL-filtered evidence membership is not capped by unrelated global records.
+
+A case grant covers the complete retained record and content already incorporated into that record, including references/prose/checkpoints and copied knowledge. This is resource authorization, not semantic redaction or revocation of previously downloaded bytes. Automatic cross-scope correlation projections and global topology are omitted from scoped snapshots and qualification Markdown, which share one filtered projection. Historical case records/receipts stay unchanged. Other artifacts remain the granted case's own retained records.
+
+SSE checks current scope every batch as well as policy/credential currency. A new source mapping can revoke service-based case access even with the same human credential; an exact OS case grant remains explicit authority for that case. The UI uses scoped session capabilities, omits global requests/polling, disables global intake and keeps granted case operations usable. Independent remote workers require their own protocol and cannot reuse human service-owner tokens.

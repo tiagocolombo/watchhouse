@@ -25,9 +25,9 @@ interface Snapshot { merges:{id:string;state:string;owner:string;reason:string;d
 const el = <T extends HTMLElement = HTMLElement>(id:string) => document.getElementById(id) as T;
 const input = (id:string) => el<HTMLInputElement>(id).value;
 let token = sessionStorage.getItem('watchhouse-token') ?? '';
-let operatorIdentity='operator';let canOperate=true;let canManageFactory=true;
-function applyAccess(){for(const form of el('workspace').querySelectorAll('form')){const allowed=form.id==='factory-control-form'?canManageFactory:canOperate;for(const item of form.querySelectorAll<HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement|HTMLButtonElement>('input,select,textarea,button'))item.disabled=!allowed;}}
-async function refreshIdentity(){const session=await api<{principal:string;role:string;mode:string;can_operate:boolean;can_manage_factory:boolean}>('/session');operatorIdentity=session.principal;canOperate=session.can_operate;canManageFactory=session.can_manage_factory;el('session-identity').textContent=`${session.mode==='remote'?'Remote':'Local'} access · ${session.principal} · ${session.role}`;el('workspace-mode').textContent=session.mode==='remote'?'REMOTE WORKSPACE':'LOCAL WORKSPACE';applyAccess();}
+let operatorIdentity='operator';let canOperate=true;let canManageFactory=true;let canCreate=true;let globalData=true;
+function applyAccess(){for(const form of el('workspace').querySelectorAll('form')){const allowed=form.id==='factory-control-form'?canManageFactory:form.id==='create-form'?canCreate:canOperate;for(const item of form.querySelectorAll<HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement|HTMLButtonElement>('input,select,textarea,button'))item.disabled=!allowed;}}
+async function refreshIdentity(){const session=await api<{principal:string;role:string;mode:string;can_operate:boolean;can_manage_factory:boolean;can_create:boolean;global_data:boolean}>('/session');operatorIdentity=session.principal;canOperate=session.can_operate;canManageFactory=session.can_manage_factory;canCreate=session.can_create;globalData=session.global_data;el('session-identity').textContent=`${session.mode==='remote'?'Remote':'Local'} access · ${session.principal} · ${session.role}`;el('workspace-mode').textContent=session.mode==='remote'?'REMOTE WORKSPACE':'LOCAL WORKSPACE';applyAccess();}
 
 let selected:Case | undefined;
 let selectedSourceKey="";
@@ -49,11 +49,13 @@ async function api<T>(path:string,body?:unknown):Promise<T> {
 async function queue() {
   await refreshIdentity();
   const cases = await api<Case[]>('/cases');
-  await refreshFactory();
+  if(globalData){await refreshFactory();
   el('source-health').textContent=JSON.stringify(await api('/sources/sentry'),null,2);
   el('datadog-health').textContent=JSON.stringify(await api('/sources/datadog'),null,2);
   el('model-profiles').textContent=JSON.stringify(await api('/model-profiles'),null,2);
-  el('worker-routes').textContent=JSON.stringify(await api('/worker-routes'),null,2);
+  el('worker-routes').textContent=JSON.stringify(await api('/worker-routes'),null,2);}
+  el('factory-status').closest('section')!.hidden=!globalData;
+  for(const id of ['source-health','datadog-health','model-profiles','worker-routes'])el(id).closest('details')!.hidden=!globalData;
   el('cases').replaceChildren();
   for (const item of cases) {
     const button = document.createElement('button'); button.textContent = `${item.title} · ${item.status.replaceAll('_',' ')}`;
@@ -76,13 +78,14 @@ function renderEvent(event:TimelineEvent) {
   el('timeline').append(li);
 }
 function renderState(snapshot:Snapshot) {
+  const retainRename=selected?.id===snapshot.case.id&&formVersions.has('rename-form');
   selected=snapshot.case;
   selectedSourceKey=snapshot.source_freshness?.source_key??"";
   renderFreshness(snapshot.source_freshness);
   el('case-id').textContent=selected.id; el('case-title').textContent=selected.title;
   el('case-status').textContent=selected.status.replaceAll('_',' ');
   el('version').textContent=`Version ${selected.version}`; el('owner').textContent=`Owner: ${selected.owner}`;
-  el('case-description').textContent=selected.description; el<HTMLInputElement>('rename-title').value=selected.title;
+  el('case-description').textContent=selected.description; if(!retainRename)el<HTMLInputElement>('rename-title').value=selected.title;
   el('next').textContent=selected.status==='awaiting_review'?`Next: ${selected.owner} owns review of the synthetic result and the next investigation. Case remains open.`:selected.status==='running'?'Next: fake investigator returns a bounded result. Operator remains accountable.':'Next: coordinator claims the queued investigation. Operator remains accountable.';
   el('results').replaceChildren();
   for(const result of snapshot.results) { const p=document.createElement('p');p.textContent=result.summary; el('results').append(p); }
@@ -143,7 +146,7 @@ async function follow(id:string,cursor:number,current:number,signal:AbortSignal)
           let end:number;
           while((end=buffer.indexOf('\n\n'))>=0) {
             const frame=buffer.slice(0,end); buffer=buffer.slice(end+2);
-            if(frame.includes('event: access_revoked')) {canOperate=false;canManageFactory=false;applyAccess();throw new Error('Access changed; reconnect with a current credential');}
+            if(frame.includes('event: access_revoked')) {canOperate=false;canManageFactory=false;canCreate=false;applyAccess();throw new Error('Access changed; reconnect with a current credential');}
             if(frame.includes('event: unavailable')) throw new Error('Timeline requires reconnect');
             const data=frame.split('\n').find(line=>line.startsWith('data: ')); if(!data) continue;
             if(current!==generation) return;
@@ -160,7 +163,7 @@ async function follow(id:string,cursor:number,current:number,signal:AbortSignal)
   }
 }
 async function openCase(id:string) {
-  if(selected?.id!==id)inspectedEvidence.clear();
+  if(selected?.id!==id){inspectedEvidence.clear();formVersions.clear();}
   active?.abort(); const current=++generation; active=new AbortController();
   const snapshot=await api<Snapshot>(`/cases/${id}`); if(current!==generation) return;
   el('empty').hidden=true;el('case-view').hidden=false;el('timeline').replaceChildren();seen.clear();
@@ -178,9 +181,9 @@ el('create-form').onsubmit=e=>{e.preventDefault();void(async()=>{
   // Retain a key after an uncertain response. Changed content is a new command.
   if(createPayload!==JSON.stringify(payload)){createKey=crypto.randomUUID();createPayload=JSON.stringify(payload);}
   try { const item=await api<Case>('/cases',{...payload,idempotency_key:createKey});createKey=crypto.randomUUID();createPayload='';el<HTMLFormElement>('create-form').reset();await openCase(item.id); }
-  finally {el<HTMLButtonElement>('create').disabled=!canOperate;}
+  finally {el<HTMLButtonElement>('create').disabled=!canCreate;}
 })().catch(fail);};
-el('rename-form').onsubmit=e=>{e.preventDefault();if(!selected) return; const item=selected;void api<Case>(`/cases/${item.id}/rename`,{schema_version:1,idempotency_key:crypto.randomUUID(),actor:operatorIdentity,reason:input('rename-reason'),title:input('rename-title'),expected_version:item.version}).then(()=>openCase(item.id)).catch(fail);};
+
 
 
 class HttpError extends Error {
@@ -321,9 +324,10 @@ function handleForm(id:string,submit:(caseId:string,version:number)=>Promise<unk
   el<HTMLFormElement>(id).onsubmit=e=>{
     e.preventDefault();if(!selected) return;const caseId=selected.id;
     const button=el(id).querySelector<HTMLButtonElement>('button')!;button.disabled=true;el('error').textContent='';
-    void submit(caseId,formVersions.get(id)??selected.version).then(()=>{formVersions.delete(id);if(selected?.id===caseId) return openCase(caseId);}).catch(fail).finally(()=>{button.disabled=false;});
+    void submit(caseId,formVersions.get(id)??selected.version).then(()=>{formVersions.delete(id);if(selected?.id===caseId) return openCase(caseId);}).catch(fail).finally(()=>{button.disabled=!canOperate;});
   };
 }
+handleForm('rename-form',(id,version)=>command(id,'rename',{reason:input('rename-reason'),title:input('rename-title')},version));
 handleForm('evidence-form',(id,version)=>command(id,'evidence',{
   scope:input('evidence-scope'),statement:input('evidence-statement'),collection_method:input('evidence-method'),
   observed_at:input('evidence-time')||null,uncertainty:input('evidence-uncertainty'),reason:input('evidence-reason'),
@@ -435,7 +439,7 @@ el<HTMLFormElement>('challenge-command').onsubmit=e=>{e.preventDefault();if(!sel
 function renderFreshness(value:SourceFreshness|null) {
   el('source-freshness-summary').textContent=value?`Source read: ${value.state.replaceAll('_',' ')} · ${value.age_seconds===null?'No successful API read tracked':`Last successful API read ${value.age_seconds}s ago`} · ${value.error??'Source status does not establish service recovery'}`:'';
 }
-setInterval(()=>{if(!token||healthPolling||!el('login').hidden)return;healthPolling=true;
+setInterval(()=>{if(!token||!globalData||healthPolling||!el('login').hidden)return;healthPolling=true;
   void refreshFactory().catch(()=>{el('factory-status').textContent='Factory health unavailable; inspect before enabling execution.';});
   void api<{known_issue_freshness:SourceFreshness[]}>('/sources/sentry').then(health=>{el('source-health').textContent=JSON.stringify(health,null,2);const value=health.known_issue_freshness.find(v=>v.source_key===selectedSourceKey);if(value)renderFreshness(value);void api('/sources/datadog').then(data=>{el('datadog-health').textContent=JSON.stringify(data,null,2);}).catch(()=>{el('datadog-health').textContent='Datadog health unavailable';});}).catch(()=>{if(selectedSourceKey)el('source-freshness-summary').textContent='Source health unavailable; retained observations may be stale.';}).finally(()=>{healthPolling=false;});
 },5000);

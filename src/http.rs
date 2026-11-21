@@ -469,6 +469,22 @@ async fn authenticate(State(s): State<HttpState>, mut req: Request, next: Next) 
             "This credential does not grant the requested capability",
         ));
     }
+    if denial.is_none() {
+        let app = s.app.clone();
+        let current = session.clone();
+        let resource = path.clone();
+        if !blocking(move || current.resource_allowed(&app, &resource))
+            .await
+            .unwrap_or(false)
+        {
+            decision = "scope_denied";
+            denial = Some(failure(
+                StatusCode::FORBIDDEN,
+                "scope_denied",
+                "This credential does not grant the requested resource",
+            ));
+        }
+    }
     if denial.is_none() && method == "POST" {
         let (parts, body) = req.into_parts();
         let bytes = match tokio::time::timeout(
@@ -499,7 +515,21 @@ async fn authenticate(State(s): State<HttpState>, mut req: Request, next: Next) 
         ));
         if !path.ends_with("/hallmark-export") {
             match serde_json::from_slice::<serde_json::Value>(&bytes) {
-                Ok(value) if crate::access::binds_actor(&value, &session.id) => {}
+                Ok(value) if crate::access::binds_actor(&value, &session.id) => {
+                    let app = s.app.clone();
+                    let current = session.clone();
+                    if !blocking(move || current.body_allowed(&app, &value))
+                        .await
+                        .unwrap_or(false)
+                    {
+                        decision = "scope_denied";
+                        denial = Some(failure(
+                            StatusCode::FORBIDDEN,
+                            "scope_denied",
+                            "Referenced case is outside this credential's grants",
+                        ));
+                    }
+                }
                 Ok(_) => {
                     decision = "identity_denied";
                     denial = Some(failure(
@@ -792,8 +822,11 @@ worker_command!(team_finish, RunCommand, finish_fake);
 async fn team_inbox(State(s): State<HttpState>) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(blocking(move || s.app.escalation_inbox()).await?))
 }
-async fn list(State(s): State<HttpState>) -> Result<impl IntoResponse, ApiError> {
-    Ok(Json(blocking(move || s.app.list_cases()).await?))
+async fn list(
+    State(s): State<HttpState>,
+    Extension(session): Extension<crate::access::Session>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(blocking(move || session.list(&s.app)).await?))
 }
 async fn create(
     State(s): State<HttpState>,
@@ -808,8 +841,9 @@ async fn create(
 async fn snapshot(
     State(s): State<HttpState>,
     Path(id): Path<String>,
+    Extension(session): Extension<crate::access::Session>,
 ) -> Result<impl IntoResponse, ApiError> {
-    Ok(Json(blocking(move || s.app.snapshot(&id)).await?))
+    Ok(Json(blocking(move || session.snapshot(&s.app, &id)).await?))
 }
 async fn rename(
     State(s): State<HttpState>,
@@ -896,8 +930,8 @@ async fn stream(
         let _permit=permit;
         loop {
             if let Authentication::Remote(runtime)=&s.authentication {
-                let app=s.app.clone();let secrets=runtime.secrets.clone();let current=session.clone();
-                if !blocking(move||current.current(&app,secrets.as_ref())).await.unwrap_or(false){yield Ok::<_,Infallible>(SseEvent::default().event("access_revoked").data("Access changed; reconnect with a current credential"));break;}
+                let app=s.app.clone();let secrets=runtime.secrets.clone();let current=session.clone();let case_id=id.clone();
+                if !blocking(move||current.current_for_case(&app,secrets.as_ref(),&case_id)).await.unwrap_or(false){yield Ok::<_,Infallible>(SseEvent::default().event("access_revoked").data("Access changed; reconnect with a current credential"));break;}
             }
             let app = s.app.clone(); let id = id.clone();
             match blocking(move||app.timeline(&id,cursor)).await {
@@ -966,10 +1000,12 @@ async fn incident_markdown(
 async fn qualification_markdown(
     State(s): State<HttpState>,
     Path(id): Path<String>,
+    Extension(session): Extension<crate::access::Session>,
 ) -> Result<impl IntoResponse, ApiError> {
     Ok((
         [(header::CONTENT_TYPE, "text/markdown; charset=utf-8")],
-        blocking(move || s.app.qualification_markdown(&id)).await?,
+        blocking(move || crate::correlation::render_qualification(&session.snapshot(&s.app, &id)?))
+            .await?,
     ))
 }
 

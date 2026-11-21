@@ -1,4 +1,5 @@
 //! Explicit HTTPS-proxy access. Domain ownership and independent review still apply.
+mod scopes;
 use crate::{
     application::{Application, text},
     contracts::V1,
@@ -16,6 +17,7 @@ use std::collections::HashSet;
 #[serde(rename_all = "snake_case")]
 pub enum Role {
     Observer,
+    ServiceOwner,
     Operator,
     Admin,
 }
@@ -24,6 +26,12 @@ impl Role {
         self != Self::Observer
     }
 }
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ServiceScope {
+    pub service: String,
+    pub environment: String,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Principal {
@@ -31,6 +39,10 @@ pub struct Principal {
     pub role: Role,
     pub token_env: String,
     pub disabled: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub services: Vec<ServiceScope>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub case_ids: Vec<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -73,6 +85,26 @@ impl Policy {
         let mut ids = HashSet::new();
         let mut refs = HashSet::from([self.proxy_token_env.as_str()]);
         for p in &self.principals {
+            if p.services.len() > 64
+                || p.case_ids.len() > 200
+                || p.case_ids
+                    .iter()
+                    .any(|id| !id.starts_with("case_") || !crate::operations::ident(id))
+                || p.services.iter().any(|scope| {
+                    text(&scope.service, "access service", 128).is_err()
+                        || text(&scope.environment, "access environment", 128).is_err()
+                })
+                || p.services
+                    .iter()
+                    .enumerate()
+                    .any(|(i, x)| p.services[..i].contains(x))
+                || p.case_ids.iter().collect::<HashSet<_>>().len() != p.case_ids.len()
+                || (p.role == Role::ServiceOwner && p.services.is_empty() && p.case_ids.is_empty())
+                || (p.role != Role::ServiceOwner
+                    && (!p.services.is_empty() || !p.case_ids.is_empty()))
+            {
+                return Err(Error::Invalid("service-owner requires bounded unique exact service/environment or case grants; global roles cannot carry misleading scope restrictions".into()));
+            }
             if !crate::operations::ident(&p.id)
                 || p.id.starts_with("fake-")
                 || p.id.starts_with("model-")
@@ -179,6 +211,8 @@ pub(crate) struct Session {
     pub role: Role,
     pub revision: Option<i64>,
     pub key: [u8; 32],
+    pub services: Vec<ServiceScope>,
+    pub case_ids: Vec<String>,
 }
 impl Session {
     pub(crate) fn local() -> Self {
@@ -187,10 +221,12 @@ impl Session {
             role: Role::Admin,
             revision: None,
             key: [0; 32],
+            services: vec![],
+            case_ids: vec![],
         }
     }
     pub(crate) fn information(&self) -> Value {
-        json!({"mode":if self.revision.is_some(){"remote"}else{"local"},"principal":self.id,"role":self.role,"policy_revision":self.revision,"can_operate":self.role.operates(),"can_manage_factory":self.role==Role::Admin,"identity_source":if self.revision.is_some(){"OS-configured credential"}else{"shared local operator attribution"},"scope":"global operational records; service-owner and independent remote-worker capabilities remain separate development","limits":{"requests_per_second":64,"concurrent_requests":64,"event_streams":16}})
+        json!({"mode":if self.revision.is_some(){"remote"}else{"local"},"principal":self.id,"role":self.role,"policy_revision":self.revision,"can_operate":self.role.operates(),"can_create":self.role.operates()&&self.role!=Role::ServiceOwner,"global_data":self.role!=Role::ServiceOwner,"can_manage_factory":self.role==Role::Admin,"identity_source":if self.revision.is_some(){"OS-configured credential"}else{"shared local operator attribution"},"scope":if self.role==Role::ServiceOwner{"OS-configured services/environments and exact case grants; copied case references remain part of that authorized record"}else{"global operational records"},"services":self.services,"case_ids":self.case_ids,"limits":{"requests_per_second":64,"concurrent_requests":64,"event_streams":16}})
     }
     pub(crate) fn current(&self, app: &Application, secrets: &dyn Secrets) -> Result<bool> {
         let p = active(app)?;
@@ -216,11 +252,21 @@ pub(crate) fn identify(p: &Policy, keys: &Keys, supplied: &str) -> Option<Sessio
             role: principal.role,
             revision: Some(p.revision),
             key,
+            services: principal.services.clone(),
+            case_ids: principal.case_ids.clone(),
         })
 }
 /// New mutation endpoints must opt into a capability. Remote UI credentials never
 /// authenticate the legacy fake-worker simulator or independent remote workers.
 pub(crate) fn permitted(role: Role, method: &str, path: &str) -> bool {
+    if role == Role::ServiceOwner
+        && !(path == "/session"
+            || (method == "GET" && path == "/cases")
+            || path.starts_with("/cases/")
+            || (method == "GET" && path.starts_with("/evidence/")))
+    {
+        return false;
+    }
     if method == "GET" {
         return !path.starts_with("/admin/") || role == Role::Admin;
     }
@@ -391,8 +437,8 @@ impl Application {
         let cutoff =
             (self.clock.now() - Duration::seconds(30)).to_rfc3339_opts(SecondsFormat::Millis, true);
         let incomplete=db.query_row("SELECT COUNT(*) FROM api_access_requests r WHERE started_at<?1 AND NOT EXISTS(SELECT 1 FROM api_access_results s WHERE s.id=r.id)",[cutoff],|r|r.get(0))?;
-        let principals=p.as_ref().map(|p|p.principals.iter().map(|u|json!({"id":u.id,"role":u.role,"disabled":u.disabled,"credential_checked":!held&&!p.paused&&!u.disabled,"credential_present":!held&&!p.paused&&!u.disabled&&std::env::var(&u.token_env).is_ok_and(|v|(32..=512).contains(&v.len()))})).collect()).unwrap_or_default();
-        Ok(Status{audit_remaining:p.as_ref().map_or(0,|p|(i64::from(p.max_audit_rows)-count).max(0)),policy:p,restored_authority_held:held,audit_requests:count,audit_stale_incomplete:incomplete,principals,limitation:"Explicit proxy HTTPS assertion plus distinct bearer identities; global observer/operator/admin roles only. Domain ownership, independent review and OS-only policy installation remain required. Service-owner data scopes and remote worker trust are separate development. Audit counts server intent/status, not client delivery; bounded audit capacity denies remote access while local CLI/timers remain available.".into()})
+        let principals=p.as_ref().map(|p|p.principals.iter().map(|u|json!({"id":u.id,"role":u.role,"services":u.services,"case_ids":u.case_ids,"disabled":u.disabled,"credential_checked":!held&&!p.paused&&!u.disabled,"credential_present":!held&&!p.paused&&!u.disabled&&std::env::var(&u.token_env).is_ok_and(|v|(32..=512).contains(&v.len()))})).collect()).unwrap_or_default();
+        Ok(Status{audit_remaining:p.as_ref().map_or(0,|p|(i64::from(p.max_audit_rows)-count).max(0)),policy:p,restored_authority_held:held,audit_requests:count,audit_stale_incomplete:incomplete,principals,limitation:"Explicit proxy HTTPS assertion plus distinct bearer identities; global observer/operator/admin and scoped service-owner roles. Domain ownership, independent review and OS-only policy installation remain required. Independent remote worker trust remains separate development. Audit counts server intent/status, not client delivery; bounded audit capacity denies remote access while local CLI/timers remain available.".into()})
     }
     pub fn access_audit(&self) -> Result<Vec<Value>> {
         let db = self.store.connect()?;

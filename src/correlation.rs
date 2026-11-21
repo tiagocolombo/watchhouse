@@ -444,25 +444,28 @@ impl Application {
         Ok(record)
     }
     pub fn qualification_markdown(&self, id: &str) -> Result<String> {
-        let s = self.snapshot(id)?;
-        let mut report = format!(
-            "# Case qualification {}\n\nAll classifications and links require scoped evidence. Source status and duplicate links do not prove recovery or close duties.\n\n## Source context\n\n",
-            id
-        );
-        // Escape code-fence delimiters and markup; fields remain untrusted literal text.
-        for (name, value) in [
-            ("Source", serde_json::to_value(&s.source)?),
-            ("Freshness", serde_json::to_value(&s.source_freshness)?),
-            ("Qualification", serde_json::to_value(&s.qualification)?),
-            ("Impact", serde_json::to_value(&s.impact)?),
-            ("Correlations", serde_json::to_value(&s.correlations)?),
-        ] {
-            let raw = serde_json::to_string_pretty(&value)?
-                .replace('`', "\\u0060")
-                .replace('<', "\\u003c")
-                .replace('>', "\\u003e");
-            report.push_str(&format!("## {name}\n\n```json\n{raw}\n```\n\n"));
-        }
-        Ok(report)
+        render_qualification(&self.snapshot(id)?)
     }
+}
+pub(crate) fn render_qualification(s: &Snapshot) -> Result<String> {
+    let id = &s.case.id;
+    let mut report = format!(
+        "# Case qualification {}\n\nAll classifications and links require scoped evidence. Source status and duplicate links do not prove recovery or close duties.\n\n## Source context\n\n",
+        id
+    );
+    // Escape code-fence delimiters and markup; fields remain untrusted literal text.
+    for (name, value) in [
+        ("Source", serde_json::to_value(&s.source)?),
+        ("Freshness", serde_json::to_value(&s.source_freshness)?),
+        ("Qualification", serde_json::to_value(&s.qualification)?),
+        ("Impact", serde_json::to_value(&s.impact)?),
+        ("Correlations", serde_json::to_value(&s.correlations)?),
+    ] {
+        let raw = serde_json::to_string_pretty(&value)?
+            .replace('`', "\\u0060")
+            .replace('<', "\\u003c")
+            .replace('>', "\\u003e");
+        report.push_str(&format!("## {name}\n\n```json\n{raw}\n```\n\n"));
+    }
+    Ok(report)
 }
