@@ -1,6 +1,6 @@
 # Evidence-store removal and invalidation v1
 
-Migration 034 implements an OS-owned **named evidence-store body** removal slice. Class-specific scheduled retention, derived/formal-record removal, native journals/files, backup/export expiry and complete incident-bundle redaction remain subsequent development. This contract does not claim privacy erasure of every copy.
+Migration 034 implements an OS-owned **named evidence-store body** removal slice. [Class-specific scheduled body expiry](policy.md) is implemented in migration 035. Derived/formal-record removal, native journals/files, backup/export expiry and complete incident-bundle redaction remain subsequent development. This contract does not claim privacy erasure of every copy.
 
 ## Commands and retained scope
 
@@ -9,11 +9,11 @@ watchhouse --db state.db evidence-redact --digest sha256:ACTUAL_HEX --operator o
 watchhouse --db state.db evidence-redactions --case case_ACTUAL_ID
 ```
 
-There is no HTTP mutation or agent self-erasure capability. The OS caller supplies an exact existing valid digest, human operator identity and bounded reason. Reject corrupt/missing original content before targeted removal; corruption needs an explicit review. Repeat removal returns the original immutable tombstone, never a new reason, timestamp or authority. A worker/model identity cannot remove evidence.
+There is no HTTP mutation or agent self-erasure capability. The OS caller supplies an exact existing valid digest, human operator identity and bounded reason. Ordinary removal rejects corrupt/missing original content; [metadata inspection and a pinned current-body digest](policy.md#failure-and-explicit-integrity-reconciliation) provide the separate explicit OS corruption-review path. Repeat removal returns the original immutable tombstone, never a new reason, timestamp or authority. A worker/model identity cannot remove evidence.
 
 A single immediate transaction replaces `evidence.content` with the empty body and records a hash-verified immutable tombstone containing original digest, byte length, provenance, actor, reason and removal time. The empty body is not presented as having the original digest. The digest row, foreign-key memberships, command keys/receipts and historical records are retained. Updates/deletes cannot rehydrate a tombstoned body or remove its audit identity. Evidence byte accounting shrinks through existing triggers. `secure_delete` is requested for replaced SQLite cells, but logical removal is the supported guarantee: old WAL readers/pages, filesystem snapshots, exports and prior backups are not securely erased by this command.
 
-This scope removes the one named evidence-store body. Case prose/events, source projections, model/job records, accepted document text, native journals, candidate/source files, receipts and exported copies may independently contain derived or copied data; they are explicitly outside this slice's content-removal scope. Full retention/redaction remains open until those scopes and configured retention classes are implemented. A tombstone/invalidation cannot be advertised as having removed those copies.
+This scope removes the one named evidence-store body. Case prose/events, source projections, model/job records, accepted document text, native journals, candidate/source files, receipts and exported copies may independently contain derived or copied data; they are explicitly outside this slice's content-removal scope. Full retention/redaction remains open until those remaining content scopes are implemented. A tombstone/invalidation cannot be advertised as having removed those copies.
 
 ## Invalidation and operating duties
 

@@ -158,3 +158,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 - [ADR 0040 — Scoped service-owner access](adrs/0040-scoped-service-owner-access.md): exact OS grants, normalized source scope integrity, pre-limit queue/evidence filtering, cross-case target checks, scope-aware streams and shared filtered snapshot/export projections.
 
 - [ADR 0041 — Evidence removal and proof epochs](adrs/0041-evidence-removal-and-proof-epochs.md): named blob absence, retained identity, immutable epoch-bound proof, atomic effect fences/duties and backup/restore preservation; other content scopes and scheduled retention remain open.
+
+- [ADR 0042 — Scheduled evidence-store retention](adrs/0042-scheduled-evidence-store-retention.md): explicit class ages, indexed eligible bodies, persisted cadence/deferral, unknown-age ownership, core availability and restore-held deletion policy; metadata-only pinned corruption reconciliation.

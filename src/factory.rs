@@ -99,6 +99,8 @@ pub(crate) fn gate(db: &Connection, case: &str, effect: &str, now: &str) -> Resu
 pub struct Status {
     pub restoration: Option<crate::restore::Record>,
     pub remote_access: crate::access::Health,
+    pub retention: Option<crate::retention::Status>,
+    pub retention_unavailable: bool,
     pub version: i64,
     pub capacity: crate::capacity::Status,
     pub state: String,
@@ -270,11 +272,19 @@ impl Application {
         };
         let capacity = self.capacity_status()?;
         let remote_access = self.access_health()?;
+        let (retention, retention_unavailable) = match self.retention_status() {
+            Ok(s) => (Some(s), false),
+            Err(_) => (None, true),
+        };
         let state = if clock_behind
             || lag.is_some_and(|s| s > 5)
             || uncertain > 0
             || unavailable > 0
             || remote_access.audit_stale_incomplete > 0
+            || retention_unavailable
+            || retention
+                .as_ref()
+                .is_some_and(|s| s.deferred_failures > 0 || s.unaged_expiring_rows > 0)
         {
             "degraded"
         } else if !pauses.is_empty() {
@@ -289,7 +299,7 @@ impl Application {
         } else {
             "running"
         };
-        Ok(Status{remote_access,restoration:self.restore_status()?,capacity,version,state:state.into(),now,last_tick,clock_high_at:high,scheduler_lag_seconds:lag,clock_behind,pauses,queues,uncertain_resources:uncertain,open_escalations:escalations,source_reads_unavailable:unavailable,audit,active_while_paused:vec!["source observation".into(),"timers and escalation".into(),"notification delivery".into(),"read-only reconciliation".into(),"original-worker cleanup (restored old handles remain held)".into()],limitation:"Factory health is separate from service recovery. Pause removes admission, not an already dispatched effect. Stop fences active results and requests scoped cleanup; unknown outcomes require reconciliation. External gateway stop/rollback and credential revocation require their own configured authority. Resume does not reset attempts, deadlines, uncertainty, credentials or native qualification. Status lists at most 200 active pauses and 100 audit entries; admission checks all pauses.".into()})
+        Ok(Status{retention,retention_unavailable,remote_access,restoration:self.restore_status()?,capacity,version,state:state.into(),now,last_tick,clock_high_at:high,scheduler_lag_seconds:lag,clock_behind,pauses,queues,uncertain_resources:uncertain,open_escalations:escalations,source_reads_unavailable:unavailable,audit,active_while_paused:vec!["source observation".into(),"timers and escalation".into(),"notification delivery".into(),"read-only reconciliation".into(),"original-worker cleanup (restored old handles remain held)".into()],limitation:"Factory health is separate from service recovery. Pause removes admission, not an already dispatched effect. Stop fences active results and requests scoped cleanup; unknown outcomes require reconciliation. External gateway stop/rollback and credential revocation require their own configured authority. Resume does not reset attempts, deadlines, uncertainty, credentials or native qualification. Status lists at most 200 active pauses and 100 audit entries; admission checks all pauses.".into()})
     }
 }
 

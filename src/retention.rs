@@ -1,9 +1,11 @@
 //! OS-owned logical evidence removal with immutable tombstones and proof epochs.
+mod policy;
 use crate::{
     application::{Application, text},
     error::{Error, Result},
     store,
 };
+pub use policy::{Class, Policy, Status};
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use serde::{Deserialize, Serialize};
 
@@ -15,6 +17,8 @@ pub struct Tombstone {
     pub reason: String,
     pub original_bytes: u64,
     pub provenance: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observed_digest: Option<String>,
     pub limitation: String,
 }
 pub(crate) fn epoch(db: &Connection, case: &str) -> Result<i64> {
@@ -77,6 +81,22 @@ pub(crate) fn validate_operator(who: &str, reason: &str) -> Result<()> {
     text(reason, "redaction reason", 2000)
 }
 impl Application {
+    pub fn inspect_evidence(&self, sum: &str) -> Result<serde_json::Value> {
+        let db = self.store.connect()?;
+        let row: Option<(String, String, String)> = db
+            .query_row(
+                "SELECT content,provenance,recorded_at FROM evidence WHERE digest=?1",
+                [sum],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .optional()?;
+        let (body, provenance, at) = row.ok_or(Error::NotFound)?;
+        let removed = tombstone(&db, sum)?;
+        let actual = store::digest(&body);
+        Ok(
+            serde_json::json!({"digest":sum,"observed_digest":actual,"integrity_current":actual==sum&&removed.is_none(),"current_bytes":body.len(),"provenance":provenance,"recorded_at":at,"tombstone":removed,"limitation":"Metadata and current digest only; other derived copies and prior exports are separate retention scopes"}),
+        )
+    }
     pub fn evidence_redactions(&self, case: &str) -> Result<Vec<Tombstone>> {
         let db = self.store.connect()?;
         store::case(&db, case)?;
@@ -86,6 +106,15 @@ impl Application {
     /// Logical removal of this evidence-store body. Other retained records,
     /// journals, exports and historical backups are explicitly separate copies.
     pub fn redact_evidence(&self, sum: &str, who: &str, reason: &str) -> Result<Tombstone> {
+        self.redact_evidence_observed(sum, None, who, reason)
+    }
+    pub fn redact_evidence_observed(
+        &self,
+        sum: &str,
+        observed: Option<&str>,
+        who: &str,
+        reason: &str,
+    ) -> Result<Tombstone> {
         validate_operator(who, reason)?;
         if !crate::real_execution::protocol::sha_valid(sum) {
             return Err(Error::Invalid("exact evidence digest required".into()));
@@ -95,110 +124,122 @@ impl Application {
         // does not promise filesystem/WAL/snapshot secure physical erasure.
         db.pragma_update(None, "secure_delete", true)?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        if let Some(old) = tombstone(&tx, sum)? {
-            return Ok(old);
-        }
-        let row: Option<(String, String)> = tx
-            .query_row(
-                "SELECT content,provenance FROM evidence WHERE digest=?1",
-                [sum],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )
-            .optional()?;
-        let (body, provenance) = row.ok_or(Error::NotFound)?;
-        if store::digest(&body) != sum {
-            return Err(Error::Conflict(
-                "evidence integrity failure; targeted corruption review required".into(),
-            ));
-        }
-        let now = self.now();
-        let t=Tombstone{digest:sum.into(),redacted_at:now.clone(),operator:who.into(),reason:reason.into(),original_bytes:body.len() as u64,provenance,limitation:"This evidence-store body is logically removed; its digest, audit, case records and other derived copies remain. Existing exports/backups, native journals and filesystem snapshots are separate retention scopes; physical secure erasure is not claimed. Dependent current proof is invalidated; historical facts and receipts are retained.".into()};
-        let raw = serde_json::to_string(&t)?;
-        tx.execute(
-            "INSERT INTO evidence_redactions VALUES (?1,?2,?3)",
-            params![sum, raw, store::digest(&raw)],
-        )?;
-        tx.execute("UPDATE evidence SET content='' WHERE digest=?1", [sum])?;
-        // A temporary key set keeps memory bounded and preserves all direct
-        // memberships, including source projections not in case_evidence.
-        tx.execute_batch("CREATE TEMP TABLE redaction_cases(case_id TEXT PRIMARY KEY)")?;
-        tx.execute("INSERT INTO redaction_cases SELECT case_id FROM case_evidence WHERE digest=?1 UNION SELECT case_id FROM source_cases WHERE digest=?1",[sum])?;
-        tx.execute("INSERT OR IGNORE INTO redaction_cases SELECT case_id FROM dispositions WHERE json_extract(record,'$.plan.target_case') IN (SELECT case_id FROM redaction_cases)",[])?;
-        let mut cases = tx.prepare("SELECT case_id FROM redaction_cases ORDER BY case_id")?;
-        for case in cases.query_map([], |r| r.get::<_, String>(0))? {
-            let case = case?;
-            tx.execute(
-                "INSERT INTO retention_invalidations(digest,case_id,recorded_at) VALUES (?1,?2,?3)",
-                params![sum, case, now],
-            )?;
-            let epoch = epoch(&tx, &case)?;
-            crate::recovery::invalidate_redacted(&tx, &case)?;
-            tx.execute(
-                "UPDATE impact_assessments SET due=1 WHERE case_id=?1",
-                [&case],
-            )?;
-            let pause = store::id("pause");
-            tx.execute(
-                "INSERT INTO factory_pauses VALUES (?1,'case',?2,'all',?3,?4,1,'active',?5,NULL)",
-                params![
-                    pause,
-                    case,
-                    who,
-                    "Evidence redacted; reassess dependencies and revalidate before resuming",
-                    now
-                ],
-            )?;
-            crate::factory::stop_case(&tx, &case, &pause, &now, crate::factory::Effect::All)?;
-            tx.execute(
-                "UPDATE dispositions SET state='reopened' WHERE case_id=?1 AND state='active'",
-                [&case],
-            )?;
-            tx.execute("UPDATE obligations SET state='due',triggered_at=COALESCE(triggered_at,?1) WHERE disposition_id IN (SELECT id FROM dispositions WHERE case_id=?2) AND state='pending'",params![now,case])?;
-            // Reopen current fulfilled actions conservatively. Their immutable
-            // historical submission/verification records remain available.
-            let mut actions=tx.prepare("SELECT record FROM corrective_actions WHERE case_id=?1 AND state IN ('submitted','complete','completed','verified','waived')")?;
-            for raw in actions.query_map([&case], |r| r.get::<_, String>(0))? {
-                let mut a: crate::recovery::CorrectiveAction = serde_json::from_str(&raw?)?;
-                a.revision += 1;
-                a.state = "open".into();
-                a.submitted_at = None;
-                a.submitted_version = None;
-                a.submission_refs.clear();
-                a.verification_refs.clear();
-                a.residual_risk = None;
-                a.escalated = true;
-                tx.execute(
-                    "UPDATE corrective_actions SET state='open',escalated=1,record=?1 WHERE id=?2",
-                    params![serde_json::to_string(&a)?, a.id],
-                )?;
-            }
-            store::emit(
-                &tx,
-                &case,
-                crate::application::operator(who),
-                sum,
-                &now,
-                crate::contracts::EventData::EvidenceRedacted {
-                    digest: sum.into(),
-                    epoch,
-                    reason: reason.into(),
-                },
-            )?;
-            crate::team::escalate(
-                &tx,
-                &case,
-                "evidence_redaction",
-                sum,
-                "Evidence removed; owner must reassess missing proof, collect replacement evidence and revalidate dependent claims before explicitly resuming",
-                &now,
-            )?;
-        }
-        drop(cases);
-        tx.execute("UPDATE factory_state SET version=version+1 WHERE id=1", [])?;
-        tx.execute("INSERT INTO factory_events(record) VALUES (?1)",[serde_json::json!({"type":"evidence_redacted","tombstone":t,"affected_cases":tx.query_row("SELECT COUNT(*) FROM redaction_cases",[],|r|r.get::<_,i64>(0))?}).to_string()])?;
+        let t = remove(&tx, sum, observed, who, reason, &self.now())?;
         tx.commit()?;
         Ok(t)
     }
+}
+pub(crate) fn remove(
+    tx: &rusqlite::Transaction<'_>,
+    sum: &str,
+    observed: Option<&str>,
+    who: &str,
+    reason: &str,
+    now: &str,
+) -> Result<Tombstone> {
+    if let Some(old) = tombstone(tx, sum)? {
+        return Ok(old);
+    }
+    let row: Option<(String, String)> = tx
+        .query_row(
+            "SELECT content,provenance FROM evidence WHERE digest=?1",
+            [sum],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?;
+    let (body, provenance) = row.ok_or(Error::NotFound)?;
+    let actual = store::digest(&body);
+    if observed.is_some_and(|expected| expected != actual)
+        || (actual != sum && observed != Some(actual.as_str()))
+    {
+        return Err(Error::Conflict("evidence integrity failure; inspect current digest and explicitly target the observed body".into()));
+    }
+    let t=Tombstone{digest:sum.into(),redacted_at:now.into(),operator:who.into(),reason:reason.into(),original_bytes:body.len() as u64,observed_digest:if actual==sum{None}else{Some(actual)},provenance,limitation:"This evidence-store body is logically removed; its digest, audit, case records and other derived copies remain. Existing exports/backups, native journals and filesystem snapshots are separate retention scopes; physical secure erasure is not claimed. Dependent current proof is invalidated; historical facts and receipts are retained.".into()};
+    let raw = serde_json::to_string(&t)?;
+    tx.execute(
+        "INSERT INTO evidence_redactions VALUES (?1,?2,?3)",
+        params![sum, raw, store::digest(&raw)],
+    )?;
+    tx.execute("UPDATE evidence SET content='' WHERE digest=?1", [sum])?;
+    tx.execute("DELETE FROM retention_failures WHERE digest=?1", [sum])?;
+    // A temporary key set keeps memory bounded and preserves all direct
+    // memberships, including source projections not in case_evidence.
+    tx.execute_batch("CREATE TEMP TABLE IF NOT EXISTS redaction_cases(case_id TEXT PRIMARY KEY); DELETE FROM redaction_cases")?;
+    tx.execute("INSERT INTO redaction_cases SELECT case_id FROM case_evidence WHERE digest=?1 UNION SELECT case_id FROM source_cases WHERE digest=?1",[sum])?;
+    tx.execute("INSERT OR IGNORE INTO redaction_cases SELECT case_id FROM dispositions WHERE json_extract(record,'$.plan.target_case') IN (SELECT case_id FROM redaction_cases)",[])?;
+    let mut cases = tx.prepare("SELECT case_id FROM redaction_cases ORDER BY case_id")?;
+    for case in cases.query_map([], |r| r.get::<_, String>(0))? {
+        let case = case?;
+        tx.execute(
+            "INSERT INTO retention_invalidations(digest,case_id,recorded_at) VALUES (?1,?2,?3)",
+            params![sum, case, now],
+        )?;
+        let epoch = epoch(tx, &case)?;
+        crate::recovery::invalidate_redacted(tx, &case)?;
+        tx.execute(
+            "UPDATE impact_assessments SET due=1 WHERE case_id=?1",
+            [&case],
+        )?;
+        let pause = store::id("pause");
+        tx.execute(
+            "INSERT INTO factory_pauses VALUES (?1,'case',?2,'all',?3,?4,1,'active',?5,NULL)",
+            params![
+                pause,
+                case,
+                who,
+                "Evidence redacted; reassess dependencies and revalidate before resuming",
+                now
+            ],
+        )?;
+        crate::factory::stop_case(tx, &case, &pause, now, crate::factory::Effect::All)?;
+        tx.execute(
+            "UPDATE dispositions SET state='reopened' WHERE case_id=?1 AND state='active'",
+            [&case],
+        )?;
+        tx.execute("UPDATE obligations SET state='due',triggered_at=COALESCE(triggered_at,?1) WHERE disposition_id IN (SELECT id FROM dispositions WHERE case_id=?2) AND state='pending'",params![now,case])?;
+        // Reopen current fulfilled actions conservatively. Their immutable
+        // historical submission/verification records remain available.
+        let mut actions=tx.prepare("SELECT record FROM corrective_actions WHERE case_id=?1 AND state IN ('submitted','complete','completed','verified','waived')")?;
+        for raw in actions.query_map([&case], |r| r.get::<_, String>(0))? {
+            let mut a: crate::recovery::CorrectiveAction = serde_json::from_str(&raw?)?;
+            a.revision += 1;
+            a.state = "open".into();
+            a.submitted_at = None;
+            a.submitted_version = None;
+            a.submission_refs.clear();
+            a.verification_refs.clear();
+            a.residual_risk = None;
+            a.escalated = true;
+            tx.execute(
+                "UPDATE corrective_actions SET state='open',escalated=1,record=?1 WHERE id=?2",
+                params![serde_json::to_string(&a)?, a.id],
+            )?;
+        }
+        store::emit(
+            tx,
+            &case,
+            crate::application::operator(who),
+            sum,
+            now,
+            crate::contracts::EventData::EvidenceRedacted {
+                digest: sum.into(),
+                epoch,
+                reason: reason.into(),
+            },
+        )?;
+        crate::team::escalate(
+            tx,
+            &case,
+            "evidence_redaction",
+            sum,
+            "Evidence removed; owner must reassess missing proof, collect replacement evidence and revalidate dependent claims before explicitly resuming",
+            now,
+        )?;
+    }
+    drop(cases);
+    tx.execute("UPDATE factory_state SET version=version+1 WHERE id=1", [])?;
+    tx.execute("INSERT INTO factory_events(record) VALUES (?1)",[serde_json::json!({"type":"evidence_redacted","tombstone":t,"affected_cases":tx.query_row("SELECT COUNT(*) FROM redaction_cases",[],|r|r.get::<_,i64>(0))?}).to_string()])?;
+    Ok(t)
 }
 
 pub(crate) fn for_case(db: &Connection, case: &str) -> Result<Vec<Tombstone>> {

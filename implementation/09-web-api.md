@@ -105,3 +105,7 @@ ADR 0040 extends [Access v1](../contracts/v1/access/README.md) with exact OS ser
 ## Implemented missing-evidence visibility
 
 Case snapshots expose `evidence_redactions`; evidence reads return an explicit tombstone instead of an apparently valid body. The browser shows inert removal reasons, retained-history scope, owned reassessment and the resulting case pause. Removal itself is OS-only. See [Retention v1](../contracts/v1/retention/README.md); other copied/derived content is a separate unfinished scope.
+
+## Implemented retention health
+
+Authenticated global `/api/v1/retention` and factory health expose body-class configuration, owner, interval, counts, deferrals, unknown ages and restored deletion hold without returning bodies. The workspace shows configured/paused/held/unavailable expiry and review counts. Scoped service owners cannot inspect global policy, and no HTTP deletion/policy installation is exposed. The isolated browser fixture observes automatic core expiry before opening any workspace.

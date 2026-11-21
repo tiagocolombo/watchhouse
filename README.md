@@ -229,3 +229,5 @@ The OS-only [backup contract](contracts/v1/backups/README.md) exports a consiste
 [Service-owner grants](contracts/v1/access/README.md#scoped-service-owners) scope queues, case commands, evidence and exports to explicit OS service/environment or case grants. Independent remote worker access and the remaining M8 hardening are still development work.
 
 [Evidence-store removal v1](contracts/v1/retention/README.md) removes a named blob through an OS command while retaining a tombstone, invalidating prior proof and creating owned reassessment. It does not erase derived case/receipt/job/journal/export copies; full retention remains development.
+
+[Scheduled body expiry](contracts/v1/retention/policy.md) applies explicit OS class ages through the same invalidation/stop transaction. Core scheduling works without a browser or executor; copied policy stays held after restore. Body-free status and pinned corruption reconciliation are available. Derived/formal/job/journal/receipt/export/backup copies remain separate development.

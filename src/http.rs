@@ -189,6 +189,7 @@ fn build_router(
         .route("/model-profiles", get(model_profiles))
         .route("/worker-routes", get(worker_routes))
         .route("/factory", get(factory_status).post(factory_control))
+        .route("/retention", get(retention_status))
         .route("/cases/{id}/team/messages", post(team_message))
         .route("/cases/{id}/team/message-ack", post(team_message_ack))
         .route("/cases/{id}/team/handoffs", post(team_handoff))
@@ -609,6 +610,9 @@ async fn authenticate(State(s): State<HttpState>, mut req: Request, next: Next) 
         .headers_mut()
         .insert("x-watchhouse-request-id", id.parse().unwrap());
     response
+}
+async fn retention_status(State(s): State<HttpState>) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(blocking(move || s.app.retention_status()).await?))
 }
 async fn session_information(
     Extension(session): Extension<crate::access::Session>,
