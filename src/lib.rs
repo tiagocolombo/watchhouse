@@ -43,3 +43,5 @@ pub mod datadog;
 pub mod routing;
 
 pub mod factory;
+
+pub mod capacity;

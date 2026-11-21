@@ -24,6 +24,9 @@ impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let (status, code, message) = match self.0 {
             Error::Invalid(message) => (StatusCode::BAD_REQUEST, "invalid_command", message),
+            Error::Backpressure(message) => {
+                (StatusCode::TOO_MANY_REQUESTS, "factory_capacity", message)
+            }
             Error::Conflict(message) => (StatusCode::CONFLICT, "conflict", message),
             Error::NotFound => (
                 StatusCode::NOT_FOUND,
@@ -39,11 +42,17 @@ impl IntoResponse for ApiError {
                 )
             }
         };
-        (
+        let mut response = (
             status,
             Json(serde_json::json!({"code":code,"message":message})),
         )
-            .into_response()
+            .into_response();
+        if status == StatusCode::TOO_MANY_REQUESTS {
+            response
+                .headers_mut()
+                .insert("retry-after", axum::http::HeaderValue::from_static("1"));
+        }
+        response
     }
 }
 async fn blocking<T: Send + 'static>(

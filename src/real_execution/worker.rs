@@ -667,8 +667,13 @@ impl Application {
                     if let Some(listener) = &canary {
                         output.checks.insert("host_canary_held".into(), matches!(listener.accept(), Err(e) if e.kind() == std::io::ErrorKind::WouldBlock));
                     }
-                    if self.finish_container(&j, output, backend.native()).is_err() {
-                        self.container_unknown(&j.id,"Worker returned invalid or unaccepted output; reconcile the reserved resource")?;
+                    let cleanup_ack=j.kind=="qualification" && backend.native() && output.checks.get("removal_acknowledged")==Some(&true);
+                    if let Err(error)=self.finish_container(&j, output, backend.native()) {
+                        if matches!(error,Error::Backpressure(_)) {
+                            self.container_capacity_failure(&j.id, cleanup_ack)?;
+                        }else{
+                            self.container_unknown(&j.id,"Worker returned invalid or unaccepted output; reconcile the reserved resource")?;
+                        }
                     }
                 },
                 Err(e) => self.container_unknown(&j.id,&format!("Container start/result outcome unknown; inspect existing container without repeating start: {}",diagnostic(e)))?
@@ -732,6 +737,33 @@ impl Application {
             )?,
         }
         Ok(true)
+    }
+    fn container_capacity_failure(&self, id: &str, cleanup_ack: bool) -> Result<()> {
+        let mut db = self.store.connect()?;
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let mut current = get(&tx, id)?;
+        if [
+            "passed",
+            "failed",
+            "simulated",
+            "cancelled",
+            "reported_cleaned",
+            "blocked",
+        ]
+        .contains(&current.state.as_str())
+        {
+            return Ok(());
+        }
+        current.cancel_requested = true;
+        current.quarantined = !cleanup_ack;
+        current.state = if cleanup_ack { "cancelled" } else { "unknown" }.into();
+        current.reason=if cleanup_ack {"Evidence capacity exhausted; trusted backend already acknowledged removal. No qualification/result accepted"}else{"Evidence capacity exhausted; original worker must clean reserved resource without replay"}.into();
+        save(&tx, &current, supervisor(), id, &self.now())?;
+        if current.quarantined {
+            escalate(&tx, &current, &self.now())?;
+        }
+        tx.commit()?;
+        Ok(())
     }
     fn container_preflight_failed(&self, id: &str, reason: &str) -> Result<()> {
         let mut db = self.store.connect()?;

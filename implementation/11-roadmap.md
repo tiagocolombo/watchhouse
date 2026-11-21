@@ -115,3 +115,5 @@ Completed: M0 plus manual case creation -> persisted event -> queued fake assign
 2026-11-20: Optional Hallmark repair spike completed at actual source/CLI 0.3.18/15ee84d (ADR 0034). Keep knowledge exchange; the full repair loop is not selected. No live/repair execution or native admission was inferred. Native platform workers and M8 remain required development.
 
 2026-11-20: M8 scoped factory pause/stop, original-worker cleanup integration, mutation reservation fencing, health/tick/clock visibility and CLI/API/web controls implemented (ADR 0035). Capacity/backpressure, backup/restore, retention/redaction, remote RBAC, full workspace and replay/operating drills remain development work. M7 native macOS/Windows workers and remote transport remain open.
+
+2026-11-20: M8 transactional capacity, evidence byte accounting, finite supervisor reserve, pinned global/repository/service resource concurrency and API backpressure implemented (ADR 0036). Backup/restore, retention/redaction, remote RBAC, fuller workspace/replay evaluation and operating drills remain development work; native macOS/Windows workers and remote transport remain open.

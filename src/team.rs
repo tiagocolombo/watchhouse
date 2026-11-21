@@ -299,7 +299,11 @@ fn make_block(
         &serde_json::to_string(
             &serde_json::json!({"schema_version":1,"case_id":c.case_id,"run_id":c.run_id,"recorded_at":now,"details":details}),
         )?,
-        "fake-worker-checkpoint-v1",
+        if actor.kind == "supervisor" {
+            "supervisor-checkpoint-v1"
+        } else {
+            "fake-worker-checkpoint-v1"
+        },
         now,
     )?;
     details.evidence_refs.push(checkpoint.clone());

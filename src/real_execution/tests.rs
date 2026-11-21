@@ -663,6 +663,50 @@ pub(crate) mod controller {
         );
     }
     #[tokio::test]
+    async fn evidence_capacity_never_accepts_container_proof_or_repeats_start() {
+        for native in [false, true] {
+            let f = fixture();
+            let q = qualify(&f, "quota-qualification");
+            let b = FixtureBackend {
+                native,
+                ..Default::default()
+            };
+            let p = crate::capacity::Limits {
+                revision: 2,
+                max_evidence_bytes: 1024,
+                ..Default::default()
+            };
+            f.app
+                .install_factory_limits(p, "operator", "container quota fixture")
+                .unwrap();
+            f.app
+                .store
+                .connect()
+                .unwrap()
+                .execute(
+                    "INSERT INTO evidence VALUES ('full-capacity','text/plain',?1,'fixture','now')",
+                    ["x".repeat(1024)],
+                )
+                .unwrap();
+            dispatch(&f, &b).await;
+            let current = f.app.container_job(&f.case, &q.id).unwrap();
+            assert!(current.evidence_digest.is_none());
+            assert!(admission(&f.app.store.connect().unwrap(), &f.policy, &f.app.now()).is_err());
+            if !native {
+                assert_eq!(current.state, "unknown");
+                assert!(current.cancel_requested);
+                assert!(f.app.run_container_once(&b).await.unwrap());
+            }
+            assert_eq!(
+                f.app.container_job(&f.case, &q.id).unwrap().state,
+                "cancelled"
+            );
+            let s = b.state.lock().unwrap();
+            assert_eq!(s.created, 1);
+            assert_eq!(s.started, 1);
+        }
+    }
+    #[tokio::test]
     async fn lost_create_reconciles_existing_handle_without_duplicate_create() {
         let f = fixture();
         let q = qualify(&f, "qualification");

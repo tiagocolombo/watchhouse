@@ -215,3 +215,7 @@ The [synthetic adapter lifecycle](contracts/v1/adapter-trials/README.md) exercis
 ## Control factory operation
 
 [Factory controls v1](contracts/v1/factory/README.md) provides scoped pause/stop and individual resume through CLI/API/web. Factory health exposes scheduler lag, clock rollback, owned holds and uncertain effects without models. Monitoring, escalation and cleanup continue while admission is paused; resume does not replay uncertain work or reset authority.
+
+## Bound intake and worker capacity
+
+[Factory capacity v1](contracts/v1/capacity/README.md) supplies OS-installed queue/evidence/native reservation limits, per-scope concurrency and visible backpressure. Exact retries, existing reconciliation and bounded supervisor headroom remain available while full. These are admission/evidence limits, not a whole-database retention or disk-space guarantee.

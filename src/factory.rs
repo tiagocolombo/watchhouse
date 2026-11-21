@@ -98,6 +98,7 @@ pub(crate) fn gate(db: &Connection, case: &str, effect: &str, now: &str) -> Resu
 #[derive(Serialize)]
 pub struct Status {
     pub version: i64,
+    pub capacity: crate::capacity::Status,
     pub state: String,
     pub now: String,
     pub last_tick: Option<String>,
@@ -286,16 +287,19 @@ impl Application {
                 .map(|r| Ok(serde_json::from_str(&r?)?))
                 .collect::<Result<_>>()?
         };
+        let capacity = self.capacity_status()?;
         let state =
             if clock_behind || lag.is_some_and(|s| s > 5) || uncertain > 0 || unavailable > 0 {
                 "degraded"
             } else if !pauses.is_empty() {
                 "paused"
+            } else if capacity.intake_at_capacity || capacity.evidence_at_capacity {
+                "limited"
             } else if last_tick.is_none() {
                 "unknown"
             } else {
                 "running"
             };
-        Ok(Status{version,state:state.into(),now,last_tick,clock_high_at:high,scheduler_lag_seconds:lag,clock_behind,pauses,queues,uncertain_resources:uncertain,open_escalations:escalations,source_reads_unavailable:unavailable,audit,active_while_paused:vec!["source observation".into(),"timers and escalation".into(),"notification delivery".into(),"read-only reconciliation".into(),"original-worker cleanup".into()],limitation:"Factory health is separate from service recovery. Pause removes admission, not an already dispatched effect. Stop fences active results and requests scoped cleanup; unknown outcomes require reconciliation. External gateway stop/rollback and credential revocation require their own configured authority. Resume does not reset attempts, deadlines, uncertainty, credentials or native qualification. Status lists at most 200 active pauses and 100 audit entries; admission checks all pauses.".into()})
+        Ok(Status{capacity,version,state:state.into(),now,last_tick,clock_high_at:high,scheduler_lag_seconds:lag,clock_behind,pauses,queues,uncertain_resources:uncertain,open_escalations:escalations,source_reads_unavailable:unavailable,audit,active_while_paused:vec!["source observation".into(),"timers and escalation".into(),"notification delivery".into(),"read-only reconciliation".into(),"original-worker cleanup".into()],limitation:"Factory health is separate from service recovery. Pause removes admission, not an already dispatched effect. Stop fences active results and requests scoped cleanup; unknown outcomes require reconciliation. External gateway stop/rollback and credential revocation require their own configured authority. Resume does not reset attempts, deadlines, uncertainty, credentials or native qualification. Status lists at most 200 active pauses and 100 audit entries; admission checks all pauses.".into()})
     }
 }

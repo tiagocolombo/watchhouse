@@ -1003,3 +1003,362 @@ async fn factory_stop_survives_resume_and_never_restarts_a_created_client() {
     assert_eq!(s.starts, 0);
     assert_eq!(s.cancels, 1);
 }
+
+#[tokio::test]
+async fn native_capacity_wait_does_not_starve_running_result_cleanup_or_extend_queue_deadline() {
+    let f = fixture();
+    let first = queue(&f, "capacity-first");
+    let b = Fake::default();
+    let mut limits = crate::capacity::Limits {
+        revision: 2,
+        ..Default::default()
+    };
+    limits.max_native_resources = 1;
+    limits.max_native_per_repository = 1;
+    limits.max_native_per_service = 1;
+    f.app
+        .install_factory_limits(limits, "operator", "capacity fixture")
+        .unwrap();
+    f.app.run_model_once(&b).await.unwrap();
+    f.app.run_model_once(&b).await.unwrap();
+    assert_eq!(f.app.capacity_status().unwrap().native_resources, 1);
+    let other = f
+        .app
+        .create_case(FakeSource.manual_command("capacity-other-case"))
+        .unwrap();
+    let second = f
+        .app
+        .request_model(
+            &other.id,
+            Request {
+                command: OperatorCommand {
+                    meta: CommandMeta {
+                        schema_version: V1,
+                        idempotency_key: "capacity-second".into(),
+                        actor: "operator".into(),
+                        reason: "Second bounded resource fixture".into(),
+                    },
+                    expected_version: other.version,
+                },
+                policy_revision: 1,
+                action: Action::Qualification,
+                fixture_response: None,
+            },
+        )
+        .unwrap();
+    let original_deadline = second.deadline.clone();
+    assert!(f.app.run_model_once(&b).await.unwrap());
+    assert_eq!(b.state.lock().unwrap().creates, 1);
+    assert_eq!(
+        f.app.model_job(&other.id, &second.id).unwrap().state,
+        "queued"
+    );
+    assert!(f.app.run_model_once(&b).await.unwrap());
+    assert!(matches!(
+        f.app.model_job(&f.case, &first.id).unwrap().state.as_str(),
+        "simulated" | "failed"
+    ));
+    assert_eq!(f.app.capacity_status().unwrap().native_resources, 0);
+    assert!(f.app.run_model_once(&b).await.unwrap());
+    assert_eq!(b.state.lock().unwrap().creates, 2);
+    assert_eq!(
+        f.app.model_job(&other.id, &second.id).unwrap().deadline,
+        original_deadline
+    );
+}
+
+#[tokio::test]
+async fn queued_effect_limit_preserves_exact_model_receipt_and_existing_transition() {
+    let f = fixture();
+    let mut limits = crate::capacity::Limits {
+        revision: 2,
+        ..Default::default()
+    };
+    limits.max_queued_effects = 1;
+    f.app
+        .install_factory_limits(limits, "operator", "effect quota fixture")
+        .unwrap();
+    let cmd = Request {
+        command: command(&f, "one-effect"),
+        policy_revision: 1,
+        action: Action::Qualification,
+        fixture_response: None,
+    };
+    let j = f.app.request_model(&f.case, cmd.clone()).unwrap();
+    let other = f
+        .app
+        .create_case(FakeSource.manual_command("effect-capacity-other"))
+        .unwrap();
+    let second = Request {
+        command: OperatorCommand {
+            meta: CommandMeta {
+                schema_version: V1,
+                idempotency_key: "two-effects".into(),
+                actor: "operator".into(),
+                reason: "Queued effect bound fixture".into(),
+            },
+            expected_version: other.version,
+        },
+        policy_revision: 1,
+        action: Action::Qualification,
+        fixture_response: None,
+    };
+    assert!(matches!(
+        f.app.request_model(&other.id, second.clone()),
+        Err(crate::error::Error::Backpressure(_))
+    ));
+    assert_eq!(f.app.request_model(&f.case, cmd).unwrap().id, j.id);
+    assert_eq!(std::fs::read_dir(&f.p.jobs_root).unwrap().count(), 1);
+    let b = Fake::default();
+    f.app.run_model_once(&b).await.unwrap();
+    f.app.request_model(&other.id, second).unwrap();
+    assert!(f.app.run_model_once(&b).await.unwrap());
+    assert_eq!(b.state.lock().unwrap().starts, 1);
+}
+
+#[tokio::test]
+async fn native_reservations_limit_same_repository_or_service_without_blocking_other_scopes() {
+    let f = fixture();
+    let mut cases = vec![f.case.clone()];
+    for n in 1..4 {
+        cases.push(
+            f.app
+                .create_case(FakeSource.manual_command(&format!("scope-{n}")))
+                .unwrap()
+                .id,
+        );
+    }
+    let db = f.app.store.connect().unwrap();
+    for (n, (repo, service)) in [
+        ("example/a", "service-a"),
+        ("example/a", "service-b"),
+        ("example/b", "service-a"),
+        ("example/c", "service-c"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        // Explicit synthetic source projection, not a provider or native proof.
+        let source = crate::sentry::SourceObservation {
+            source_key: format!("fixture:capacity/{n}"),
+            signal: crate::sentry::Signal {
+                issue_id: n.to_string(),
+                project_id: "fixture".into(),
+                title: "Capacity mapping fixture".into(),
+                status: "unresolved".into(),
+                last_seen: f.app.now(),
+                count: None,
+            },
+            authoritative: false,
+            observed_at: f.app.now(),
+            configuration_revision: 1,
+            service: service.into(),
+            environment: "fixture".into(),
+            repository: repo.into(),
+            release: None,
+            deployed_revision: None,
+            exceptions: vec![],
+            diagnostic: None,
+            uncertainty: "Projection fixture only".into(),
+        };
+        let raw = serde_json::to_string(&source).unwrap();
+        let digest = crate::store::digest(&raw);
+        db.execute(
+            "INSERT INTO evidence VALUES (?1,'application/json',?2,'capacity-fixture','now')",
+            rusqlite::params![digest, raw],
+        )
+        .unwrap();
+        db.execute(
+            "INSERT INTO source_cases VALUES (?1,?2,?3,?4)",
+            rusqlite::params![source.source_key, cases[n], raw, digest],
+        )
+        .unwrap();
+    }
+    let mut limits = crate::capacity::Limits {
+        revision: 2,
+        ..Default::default()
+    };
+    limits.max_native_resources = 4;
+    limits.max_native_per_repository = 1;
+    limits.max_native_per_service = 1;
+    f.app
+        .install_factory_limits(limits, "operator", "scoped native fixture")
+        .unwrap();
+    let mut jobs = vec![];
+    for (n, case) in cases.iter().enumerate() {
+        jobs.push(
+            f.app
+                .request_model(
+                    case,
+                    Request {
+                        command: OperatorCommand {
+                            meta: CommandMeta {
+                                schema_version: V1,
+                                idempotency_key: format!("scope-job-{n}"),
+                                actor: "operator".into(),
+                                reason: "Scoped capacity fixture".into(),
+                            },
+                            expected_version: f.app.snapshot(case).unwrap().case.version,
+                        },
+                        policy_revision: 1,
+                        action: Action::Qualification,
+                        fixture_response: None,
+                    },
+                )
+                .unwrap(),
+        );
+    }
+    let b = Fake::default();
+    for _ in 0..3 {
+        assert!(f.app.run_model_once(&b).await.unwrap());
+    }
+    assert_eq!(b.state.lock().unwrap().creates, 2);
+    assert_eq!(
+        f.app.model_job(&cases[1], &jobs[1].id).unwrap().state,
+        "queued"
+    );
+    assert_eq!(
+        f.app.model_job(&cases[2], &jobs[2].id).unwrap().state,
+        "queued"
+    );
+    assert_eq!(
+        f.app.model_job(&cases[3], &jobs[3].id).unwrap().state,
+        "created"
+    );
+    db.execute("UPDATE source_cases SET record=json_set(record,'$.repository','example/remapped','$.service','remapped') WHERE case_id=?1",[&cases[0]]).unwrap();
+    let scope: (String, String) = db
+        .query_row(
+            "SELECT repository,service FROM factory_scoped_resources WHERE id=?1",
+            [&jobs[0].id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(scope, ("example/a".into(), "service-a".into()));
+    assert!(
+        f.app
+            .capacity_status()
+            .unwrap()
+            .scoped_usage
+            .iter()
+            .any(|v| v["scope"] == "example/a")
+    );
+}
+
+#[tokio::test]
+async fn evidence_capacity_cancels_model_resource_without_accepting_or_replaying_output() {
+    let f = fixture();
+    let j = queue(&f, "quota-client");
+    let b = Fake::default();
+    let p = crate::capacity::Limits {
+        revision: 2,
+        max_evidence_bytes: 1024,
+        ..Default::default()
+    };
+    f.app
+        .install_factory_limits(p, "operator", "model quota fixture")
+        .unwrap();
+    f.app
+        .store
+        .connect()
+        .unwrap()
+        .execute(
+            "INSERT INTO evidence VALUES ('full-model-capacity','text/plain',?1,'fixture','now')",
+            ["x".repeat(1024)],
+        )
+        .unwrap();
+    for _ in 0..3 {
+        f.app.run_model_once(&b).await.unwrap();
+    }
+    let current = f.app.model_job(&f.case, &j.id).unwrap();
+    assert_eq!(current.state, "unknown");
+    assert!(current.output.is_none());
+    assert!(current.cancel_requested);
+    assert_eq!(f.app.capacity_status().unwrap().native_resources, 1);
+    f.app.run_model_once(&b).await.unwrap();
+    assert_eq!(f.app.model_job(&f.case, &j.id).unwrap().state, "cancelled");
+    assert_eq!(f.app.capacity_status().unwrap().native_resources, 0);
+    let s = b.state.lock().unwrap();
+    assert_eq!(s.creates, 1);
+    assert_eq!(s.starts, 1);
+    assert_eq!(s.cancels, 1);
+}
+
+#[tokio::test]
+async fn corrupt_capacity_policy_denies_new_resource_binding_but_keeps_old_cleanup() {
+    let f = fixture();
+    let first = queue(&f, "capacity-corruption-existing");
+    let b = Fake::default();
+    f.app.run_model_once(&b).await.unwrap();
+    let other = f
+        .app
+        .create_case(FakeSource.manual_command("capacity-corruption-other"))
+        .unwrap();
+    let second = f
+        .app
+        .request_model(
+            &other.id,
+            Request {
+                command: OperatorCommand {
+                    meta: CommandMeta {
+                        schema_version: V1,
+                        idempotency_key: "capacity-corruption-queued".into(),
+                        actor: "operator".into(),
+                        reason: "Corrupt policy must not grant a resource".into(),
+                    },
+                    expected_version: other.version,
+                },
+                policy_revision: 1,
+                action: Action::Qualification,
+                fixture_response: None,
+            },
+        )
+        .unwrap();
+    f.app
+        .store
+        .connect()
+        .unwrap()
+        .execute_batch(
+            "DROP TRIGGER factory_limits_no_update; UPDATE factory_limits SET digest='corrupt';",
+        )
+        .unwrap();
+    f.app
+        .control_factory(crate::factory::Command {
+            meta: CommandMeta {
+                schema_version: V1,
+                idempotency_key: "capacity-corruption-stop".into(),
+                actor: "operator".into(),
+                reason: "Cleanup remains available with corrupt capacity policy".into(),
+            },
+            expected_version: 0,
+            action: crate::factory::Action::Pause {
+                scope: crate::factory::Scope::Case,
+                target: Some(f.case.clone()),
+                effect: crate::factory::Effect::Model,
+                cancel_running: true,
+            },
+        })
+        .unwrap();
+    assert!(f.app.run_model_once(&b).await.unwrap());
+    assert_eq!(
+        f.app.model_job(&f.case, &first.id).unwrap().state,
+        "cancelled"
+    );
+    assert!(f.app.run_model_once(&b).await.is_err());
+    assert_eq!(b.state.lock().unwrap().creates, 1);
+    assert_eq!(
+        f.app.model_job(&other.id, &second.id).unwrap().state,
+        "queued"
+    );
+    let bound: i64 = f
+        .app
+        .store
+        .connect()
+        .unwrap()
+        .query_row(
+            "SELECT COUNT(*) FROM worker_bindings WHERE job_id=?1",
+            [&second.id],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(bound, 0);
+}
