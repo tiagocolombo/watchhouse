@@ -216,6 +216,7 @@ fn save(tx: &Transaction<'_>, j: &Job, now: &str) -> Result<()> {
 }
 fn current(db: &Connection, j: &Job, now: &str) -> Result<Policy> {
     let p = policy(db, None)?;
+    crate::restore::require_fresh(db, "merge", p.revision)?;
     if p.revision != j.policy_revision
         || p.paused
         || store::digest(&serde_json::to_string(&p)?) != j.policy_digest
@@ -527,12 +528,19 @@ impl Application {
         Ok(j)
     }
     pub fn reconcile_merge(&self, case: &str, id: &str, b: &dyn github::Backend) -> Result<Job> {
-        let db = self.store.connect()?;
-        let j = get(&db, id)?;
+        let mut db = self.store.connect()?;
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let mut j = get(&tx, id)?;
         if j.case_id != case || !["reserved", "unknown"].contains(&j.state.as_str()) {
             return Err(Error::Conflict("uncertain merge identity required".into()));
         }
-        let p = policy(&db, Some(j.policy_revision))?;
+        let p = policy(&tx, Some(j.policy_revision))?;
+        j.native = b.native();
+        j.fence = store::id("read-fence");
+        j.state = "unknown".into();
+        j.reason = "Read-only exact merge reconciliation reserved; no merge replay".into();
+        save(&tx, &j, &self.now())?;
+        tx.commit()?;
         self.finish_merge(
             &j,
             b.reconcile(&p, &j)

@@ -277,7 +277,7 @@ impl Application {
             let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
             let config: Option<String> = tx
                 .query_row(
-                    "SELECT record FROM notification_configs ORDER BY revision DESC LIMIT 1",
+                    "SELECT record FROM notification_configs c WHERE NOT EXISTS(SELECT 1 FROM restore_fences f WHERE f.kind='notification' AND f.identity=CAST(c.revision AS TEXT)) ORDER BY revision DESC LIMIT 1",
                     [],
                     |r| r.get(0),
                 )
@@ -285,7 +285,7 @@ impl Application {
             if let Some(raw) = config {
                 let cfg: NotificationConfig = serde_json::from_str(&raw)?;
                 cfg.validate()?;
-                let mut s=tx.prepare("SELECT id FROM escalations WHERE id NOT IN (SELECT escalation_id FROM escalation_routes) AND id NOT IN (SELECT escalation_id FROM escalation_resolutions) ORDER BY rowid LIMIT 100")?;
+                let mut s=tx.prepare("SELECT id FROM escalations WHERE id NOT IN (SELECT escalation_id FROM escalation_routes) AND id NOT IN (SELECT escalation_id FROM escalation_resolutions) AND NOT EXISTS(SELECT 1 FROM restore_fences f WHERE f.kind='escalation' AND f.identity=escalations.id) ORDER BY rowid LIMIT 100")?;
                 let ids = s
                     .query_map([], |r| r.get::<_, String>(0))?
                     .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -302,7 +302,7 @@ impl Application {
                     changed += 1;
                 }
             }
-            let mut s=tx.prepare("SELECT r.escalation_id,r.config,r.level,r.acknowledge_by,r.response_by,e.state FROM escalation_routes r JOIN escalations e ON e.id=r.escalation_id WHERE r.exhausted=0 AND r.escalation_id NOT IN (SELECT escalation_id FROM escalation_resolutions) ORDER BY r.rowid LIMIT 100")?;
+            let mut s=tx.prepare("SELECT r.escalation_id,r.config,r.level,r.acknowledge_by,r.response_by,e.state FROM escalation_routes r JOIN escalations e ON e.id=r.escalation_id WHERE r.exhausted=0 AND r.escalation_id NOT IN (SELECT escalation_id FROM escalation_resolutions) AND NOT EXISTS(SELECT 1 FROM restore_fences f WHERE (f.kind='notification' AND f.identity=CAST(json_extract(r.config,'$.revision') AS TEXT)) OR (f.kind='escalation' AND f.identity=r.escalation_id)) ORDER BY r.rowid LIMIT 100")?;
             let routes = s
                 .query_map([], |r| {
                     Ok((
@@ -318,6 +318,11 @@ impl Application {
             drop(s);
             for (id, raw, mut level, ack, response, state) in routes {
                 let cfg: NotificationConfig = serde_json::from_str(&raw)?;
+                if crate::restore::fenced(&tx, "notification", cfg.revision)?
+                    || crate::restore::fenced(&tx, "escalation", &id)?
+                {
+                    continue;
+                }
                 let failed:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM notification_deliveries WHERE escalation_id=?1 AND level=?2 AND state='failed')",params![id,level],|r|r.get(0))?;
                 if failed
                     || (state == "open" && ack <= now)
@@ -373,12 +378,24 @@ impl Application {
             let job = {
                 let mut db = self.store.connect()?;
                 let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-                let row:Option<(String,String,String,String,usize)>=tx.query_row("SELECT d.id,d.escalation_id,e.case_id,r.config,d.level FROM notification_deliveries d JOIN escalation_routes r ON r.escalation_id=d.escalation_id AND r.level=d.level JOIN escalations e ON e.id=d.escalation_id WHERE d.state IN ('pending','retry') AND d.next_at<=?1 AND r.exhausted=0 AND e.state='open' AND e.id NOT IN (SELECT escalation_id FROM escalation_resolutions) ORDER BY d.rowid LIMIT 1",[&now],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).optional()?;
+                let (interval, ready): (u32, bool) = tx.query_row(
+                    "SELECT interval_seconds,next_at<=?1 FROM notification_pacing WHERE id=1",
+                    [&now],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )?;
+                if !ready {
+                    return Ok(changed);
+                }
+                let row:Option<(String,String,String,String,usize)>=tx.query_row("SELECT d.id,d.escalation_id,e.case_id,r.config,d.level FROM notification_deliveries d JOIN escalation_routes r ON r.escalation_id=d.escalation_id AND r.level=d.level JOIN escalations e ON e.id=d.escalation_id WHERE d.state IN ('pending','retry') AND d.next_at<=?1 AND r.exhausted=0 AND e.state='open' AND NOT EXISTS(SELECT 1 FROM restore_fences f WHERE (f.kind='notification' AND f.identity=CAST(json_extract(r.config,'$.revision') AS TEXT)) OR (f.kind='escalation' AND f.identity=e.id)) AND e.id NOT IN (SELECT escalation_id FROM escalation_resolutions) ORDER BY d.rowid LIMIT 1",[&now],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).optional()?;
                 match row {
                     None => None,
                     Some((id, esc, case, raw, level)) => {
                         let cfg: NotificationConfig = serde_json::from_str(&raw)?;
                         let fence = store::id("send");
+                        tx.execute(
+                            "UPDATE notification_pacing SET next_at=?1 WHERE id=1",
+                            [after(self.clock.now(), interval)],
+                        )?;
                         tx.execute("UPDATE notification_deliveries SET state='inflight',attempts=attempts+1,lease_until=?1,fence=?2 WHERE id=?3",params![after(self.clock.now(),30),fence,id])?;
                         tx.commit()?;
                         Some((id, esc, case, cfg, level, fence))

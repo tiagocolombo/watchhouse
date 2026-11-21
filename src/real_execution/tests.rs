@@ -311,6 +311,127 @@ pub(crate) mod controller {
             )
             .unwrap()
     }
+    #[tokio::test]
+    async fn container_reservation_refreshes_time_after_cleanup_before_clock_admission() {
+        use crate::domain::Clock;
+        use std::sync::atomic::{AtomicI64, Ordering};
+        struct AdvancingClock {
+            base: chrono::DateTime<Utc>,
+            step: AtomicI64,
+        }
+        impl Clock for AdvancingClock {
+            fn now(&self) -> chrono::DateTime<Utc> {
+                self.base + Duration::seconds(self.step.fetch_add(1, Ordering::SeqCst))
+            }
+        }
+        let f = fixture();
+        let j = qualify(&f, "clock-caught-up");
+        let db = f.app.store.connect().unwrap();
+        let high = (f.clock.now() + Duration::seconds(1))
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        db.execute("UPDATE factory_state SET high_at=?1", [high])
+            .unwrap();
+        let app = Application::new(
+            f.app.store.clone(),
+            Arc::new(AdvancingClock {
+                base: f.clock.now(),
+                step: AtomicI64::new(0),
+            }),
+        );
+        let backend = FixtureBackend::default();
+        assert!(app.run_container_once(&backend).await.unwrap());
+        assert_eq!(app.container_job(&f.case, &j.id).unwrap().state, "created");
+        assert_eq!(backend.state.lock().unwrap().created, 1);
+    }
+    #[tokio::test]
+    async fn restored_container_handles_cannot_cleanup_or_adopt_original_resources() {
+        let f = fixture();
+        let j = qualify(&f, "restore-container");
+        let original = FixtureBackend::default();
+        assert!(f.app.run_container_once(&original).await.unwrap());
+        let canary = j.root.join("private-neighbor-fixture");
+        fs::write(&canary, "not a backup artifact").unwrap();
+        let backup = f._root.path().join("backup");
+        let b = f
+            .app
+            .create_backup(&backup, "operator", "Container restore fixture")
+            .unwrap();
+        let output = f._root.path().join("restored");
+        let r = crate::restore::restore(
+            &backup,
+            &output,
+            &b.manifest_digest,
+            "operator",
+            "Hold old container handles",
+        )
+        .unwrap();
+        let app = Application::new(
+            Store::open(output.join("watchhouse.db")).unwrap(),
+            Arc::new(crate::domain::SystemClock),
+        );
+        let backend = FixtureBackend::default();
+        assert!(!app.run_container_once(&backend).await.unwrap());
+        let old = app.container_job(&f.case, &j.id).unwrap();
+        assert_eq!(old.state, "unknown");
+        assert!(old.quarantined);
+        let meta = |key: &str| OperatorCommand {
+            meta: CommandMeta {
+                schema_version: V1,
+                idempotency_key: key.into(),
+                actor: "operator".into(),
+                reason: "Restore fixture inspection".into(),
+            },
+            expected_version: app.snapshot(&f.case).unwrap().case.version,
+        };
+        assert!(
+            app.manage_container(
+                &f.case,
+                Manage {
+                    command: meta("deny-old-container-cancel"),
+                    job_id: j.id.clone(),
+                    action: ManageAction::Cancel,
+                    evidence_refs: vec![]
+                },
+                &backend
+            )
+            .await
+            .is_err()
+        );
+        assert!(
+            app.qualify_container(
+                &f.case,
+                Qualify {
+                    command: meta("deny-old-container-policy"),
+                    policy_revision: 1
+                }
+            )
+            .is_err()
+        );
+        let proof=app.record_evidence(&f.case,RecordEvidence{schema_version:V1,idempotency_key:"restored-container-inspection".into(),actor:"operator".into(),reason:"Report synthetic old-resource inspection".into(),expected_version:app.snapshot(&f.case).unwrap().case.version,scope:"fixture only".into(),statement:"Operator reports original deployment retired and exact old resource inspected".into(),collection_method:"Fixture report, no native proof".into(),observed_at:None,uncertainty:"No capability granted".into()}).unwrap().evidence.digest;
+        let closed = app
+            .manage_container(
+                &f.case,
+                Manage {
+                    command: meta("report-old-container-inspection"),
+                    job_id: j.id.clone(),
+                    action: ManageAction::ReportCleanup,
+                    evidence_refs: vec![proof],
+                },
+                &backend,
+            )
+            .await
+            .unwrap();
+        assert_eq!(closed.state, "reported_cleaned");
+        assert!(!closed.native);
+        assert_eq!(backend.state.lock().unwrap().cancelled, 0);
+        assert_eq!(backend.state.lock().unwrap().created, 0);
+        assert_eq!(fs::read_to_string(canary).unwrap(), "not a backup artifact");
+        assert_eq!(
+            f.app.container_job(&f.case, &j.id).unwrap().state,
+            "created"
+        );
+        assert!(r.uncertain_native_resources > 0);
+    }
     #[derive(Default)]
     struct State {
         created: usize,

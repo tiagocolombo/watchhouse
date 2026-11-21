@@ -201,6 +201,181 @@ fn queue(f: &Fixture, key: &str) -> Job {
         )
         .unwrap()
 }
+
+#[tokio::test]
+async fn restore_never_touches_original_model_roots_and_requires_new_inspection_and_policy() {
+    let f = fixture();
+    let original = Fake::default();
+    let j = queue(&f, "restore-model");
+    f.app.run_model_once(&original).await.unwrap();
+    let canary = j.root.join("private-auth-fixture");
+    std::fs::write(&canary, "synthetic private neighbor").unwrap();
+    let names = |p: &std::path::Path| {
+        let mut v = std::fs::read_dir(p)
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect::<Vec<_>>();
+        v.sort();
+        v
+    };
+    let before = names(&j.root);
+    let evidence = |app: &Application, key: &str| {
+        app.record_evidence(&f.case,serde_json::from_value(json!({"schema_version":1,"idempotency_key":key,"actor":"operator","reason":"Controlled reported cleanup fixture","expected_version":app.snapshot(&f.case).unwrap().case.version,"scope":"synthetic resource only","statement":"Operator reports retired original deployment and inspected its resource","collection_method":"Fixture inspection, not physical proof","observed_at":null,"uncertainty":"No native/live capability granted"})).unwrap()).unwrap().evidence.digest
+    };
+    let old_evidence = evidence(&f.app, "before-restore");
+    let backup = f.root.path().join("backup");
+    let b = f
+        .app
+        .create_backup(&backup, "operator", "Model restore fixture")
+        .unwrap();
+    let output = f.root.path().join("restored");
+    let r = crate::restore::restore(
+        &backup,
+        &output,
+        &b.manifest_digest,
+        "operator",
+        "Isolate old resource",
+    )
+    .unwrap();
+    let now = chrono::DateTime::parse_from_rfc3339(&r.restored_at)
+        .unwrap()
+        .with_timezone(&Utc)
+        + chrono::Duration::seconds(1);
+    let app = Application::new(
+        Store::open(output.join("watchhouse.db")).unwrap(),
+        Arc::new(ManualClock::new(now)),
+    );
+    let status = app.factory_status().unwrap();
+    app.control_factory(crate::factory::Command {
+        meta: CommandMeta {
+            schema_version: V1,
+            idempotency_key: "resume-restored-model".into(),
+            actor: "operator".into(),
+            reason: "Review fixture hold".into(),
+        },
+        expected_version: status.version,
+        action: crate::factory::Action::Resume {
+            pause_id: r.pause_id,
+        },
+    })
+    .unwrap();
+    let backend = Fake::default();
+    assert!(!app.run_model_once(&backend).await.unwrap());
+    let current = app.model_job(&f.case, &j.id).unwrap();
+    assert_eq!(current.state, "unknown");
+    assert!(current.quarantined);
+    assert!(
+        app.request_model(
+            &f.case,
+            Request {
+                command: OperatorCommand {
+                    meta: CommandMeta {
+                        schema_version: V1,
+                        idempotency_key: "old-profile-after-resume".into(),
+                        actor: "operator".into(),
+                        reason: "Must not inherit old policy".into()
+                    },
+                    expected_version: app.snapshot(&f.case).unwrap().case.version
+                },
+                policy_revision: 1,
+                action: Action::Qualification,
+                fixture_response: None
+            }
+        )
+        .is_err()
+    );
+    let manage = |key: &str, action, evidence_refs| Manage {
+        command: OperatorCommand {
+            meta: CommandMeta {
+                schema_version: V1,
+                idempotency_key: key.into(),
+                actor: "operator".into(),
+                reason: "Inspect old deployment before closure".into(),
+            },
+            expected_version: app.snapshot(&f.case).unwrap().case.version,
+        },
+        job_id: j.id.clone(),
+        action,
+        evidence_refs,
+    };
+    assert!(
+        app.manage_model(
+            &f.case,
+            manage("deny-old-cancel", ManageAction::Cancel, vec![]),
+            &backend
+        )
+        .await
+        .is_err()
+    );
+    assert!(
+        app.manage_model(
+            &f.case,
+            manage(
+                "deny-old-proof",
+                ManageAction::ReportCleanup,
+                vec![old_evidence]
+            ),
+            &backend
+        )
+        .await
+        .is_err()
+    );
+    let fresh = evidence(&app, "new-after-restore");
+    let closed = app
+        .manage_model(
+            &f.case,
+            manage(
+                "reported-old-cleanup",
+                ManageAction::ReportCleanup,
+                vec![fresh],
+            ),
+            &backend,
+        )
+        .await
+        .unwrap();
+    assert_eq!(closed.state, "reported_cleaned");
+    assert!(!closed.native);
+    assert!(!closed.quarantined);
+    assert_eq!(names(&j.root), before);
+    assert_eq!(
+        std::fs::read_to_string(canary).unwrap(),
+        "synthetic private neighbor"
+    );
+    assert_eq!(original.state.lock().unwrap().cancels, 0);
+    assert_eq!(backend.state.lock().unwrap().creates, 0);
+    assert_eq!(backend.state.lock().unwrap().cancels, 0);
+    assert_eq!(f.app.model_job(&f.case, &j.id).unwrap().state, "created");
+    let mut p = f.p.clone();
+    p.revision = 2;
+    app.install_model_policy(p, "operator", "Fresh explicit fixture authority")
+        .unwrap();
+    let case = app
+        .create_case(FakeSource.manual_command("fresh-after-restore"))
+        .unwrap();
+    let queued = app
+        .request_model(
+            &case.id,
+            Request {
+                command: OperatorCommand {
+                    meta: CommandMeta {
+                        schema_version: V1,
+                        idempotency_key: "fresh-model-after-restore".into(),
+                        actor: "operator".into(),
+                        reason: "New fixture qualification, no inherited proof".into(),
+                    },
+                    expected_version: case.version,
+                },
+                policy_revision: 2,
+                action: Action::Qualification,
+                fixture_response: None,
+            },
+        )
+        .unwrap();
+    assert_eq!(queued.state, "queued");
+    assert!(app.run_model_once(&backend).await.unwrap());
+    assert_eq!(backend.state.lock().unwrap().creates, 1);
+    assert!(admission(&app.store.connect().unwrap(), &f.p, &app.now()).is_err());
+}
 #[derive(Default)]
 struct State {
     creates: u32,
@@ -631,6 +806,61 @@ async fn native_text_client_drill(adapter: super::policy::Adapter, runtime_env: 
         );
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
     }
+    // A restored coordinator on the same host must neither adopt this handle nor
+    // revoke/kill the original deployment's live group, even after explicit resume.
+    let backup = f.root.path().join("native-restore-backup");
+    let b = f
+        .app
+        .create_backup(
+            &backup,
+            "operator",
+            "Native synthetic-resource restore drill",
+        )
+        .unwrap();
+    let destination = f.root.path().join("native-restored");
+    let restored_record = crate::restore::restore(
+        &backup,
+        &destination,
+        &b.manifest_digest,
+        "operator",
+        "Keep original native resource isolated",
+    )
+    .unwrap();
+    assert_eq!(restored_record.uncertain_native_resources, 1);
+    let restored = Application::new(
+        Store::open(destination.join("watchhouse.db")).unwrap(),
+        Arc::new(crate::domain::SystemClock),
+    );
+    assert_eq!(
+        restored.model_job(&f.case, &j.id).unwrap().state,
+        "qualified"
+    );
+    let controls = restored.factory_status().unwrap();
+    restored
+        .control_factory(crate::factory::Command {
+            meta: CommandMeta {
+                schema_version: V1,
+                idempotency_key: "native-restored-resume".into(),
+                actor: "operator".into(),
+                reason: "Resume does not inherit original native authority".into(),
+            },
+            expected_version: controls.version,
+            action: crate::factory::Action::Resume {
+                pause_id: restored_record.pause_id,
+            },
+        })
+        .unwrap();
+    assert!(
+        !restored
+            .run_model_on(&Native, Some("native-model"))
+            .await
+            .unwrap()
+    );
+    assert!(
+        super::cgroup::populated(&f.p.cgroup_root, &resource).unwrap(),
+        "restored coordinator disturbed original native resource"
+    );
+    assert!(admission(&restored.store.connect().unwrap(), &f.p, &restored.now()).is_err());
     let stop = f
         .app
         .control_factory(crate::factory::Command {

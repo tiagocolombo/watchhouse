@@ -416,6 +416,8 @@ impl Application {
         if unresolved {
             return Err(Error::Conflict("quarantined qualification resources require explicit operator reconciliation before a new probe".into()));
         }
+        crate::restore::require_fresh(&tx, "worker", cmd.policy_revision)?;
+        crate::restore::require_fresh(&tx, "repair_source", cmd.source_revision)?;
         let source = crate::repair::source(&tx, cmd.source_revision)?;
         let (p, digest) = policy(&tx, cmd.policy_revision)?;
         let active: i64 = tx.query_row("SELECT MAX(revision) FROM worker_policies", [], |r| {

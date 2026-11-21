@@ -199,6 +199,7 @@ pub(crate) fn trusted_case_policy(db: &Connection, case: &str) -> Result<crate::
     Ok(p)
 }
 pub(crate) fn admission(db: &Connection, p: &ContainerPolicy, now: &str) -> Result<Admission> {
+    crate::restore::require_fresh(db, "container", p.revision)?;
     let active: i64 = db.query_row("SELECT MAX(revision) FROM container_policies", [], |r| {
         r.get(0)
     })?;
@@ -476,6 +477,7 @@ impl Application {
         crate::challenges::ensure_clear(&tx, case)?;
         ensure_clear(&tx, case)?;
         let p = policy(&tx, cmd.policy_revision)?;
+        crate::restore::require_fresh(&tx, "container", p.revision)?;
         let active: i64 =
             tx.query_row("SELECT MAX(revision) FROM container_policies", [], |r| {
                 r.get(0)
@@ -550,13 +552,16 @@ impl Application {
         backend: &B,
         worker: Option<&str>,
     ) -> Result<bool> {
-        let now = self.now();
         if self.cleanup_container_once(backend, worker).await? {
             return Ok(true);
         }
         let (mut j, p) = {
             let mut db = self.store.connect()?;
             let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+            // Cleanup/lock contention can outlive an earlier clock sample. Read after
+            // acquiring the write reservation so a concurrent supervisor tick cannot
+            // turn that sample into a spurious backward-clock denial.
+            let now = self.now();
             let id = crate::routing::select(
                 &tx,
                 crate::routing::Kind::Container,
@@ -938,7 +943,19 @@ impl Application {
                 return Err(Error::NotFound);
             }
             let p = policy(&tx, j.policy_revision)?;
+            let restored = crate::restore::fenced(&tx, "container_resource", &j.id)?;
+            if restored && !matches!(cmd.action, ManageAction::ReportCleanup) {
+                return Err(Error::Conflict("old restored container handle cannot be adopted or touched; report new scoped operator inspection".into()));
+            }
             if matches!(cmd.action, ManageAction::ReportCleanup) {
+                crate::restore::cleanup_evidence(
+                    &tx,
+                    "container_resource",
+                    &j.id,
+                    case,
+                    &cmd.evidence_refs,
+                    &m.actor,
+                )?;
                 if j.state != "unknown" || !j.quarantined {
                     return Err(Error::Conflict(
                         "only quarantined unknown resources need reported reconciliation".into(),

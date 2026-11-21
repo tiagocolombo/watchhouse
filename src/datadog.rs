@@ -150,6 +150,7 @@ pub(crate) fn update_seconds(
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Status {
+    pub restore_held: bool,
     pub reads: Vec<crate::sentry_refresh::SourceFreshness>,
     pub config: Config,
     pub capabilities: Vec<String>,
@@ -297,13 +298,13 @@ impl Application {
     pub fn datadog_status(&self) -> Result<Vec<Status>> {
         let db = self.store.connect()?;
         let mut q=db.prepare("SELECT profile,operator,recorded_at,source FROM datadog_configs c WHERE revision=(SELECT MAX(revision) FROM datadog_configs d WHERE d.profile=c.profile) ORDER BY profile LIMIT 20")?;
-        q.query_map([],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,String>(3)?)))?.map(|r|{let (profile,installed_by,installed_at,configuration_source)=r?;let config=config(&db,&profile,None)?;let present=|s:&str|std::env::var(s).is_ok_and(|s|!s.is_empty());Ok(Status{reads:config.monitors.keys().map(|id|crate::sentry_refresh::health(&db,&format!("datadog:{}/{id}",config.profile),self.clock.now())).collect::<Result<_>>()?,api_credentials_present:present(&config.api_key_env)&&present(&config.application_key_env),config,installed_by,installed_at,configuration_source,capabilities:vec!["read-only scoped current monitor snapshots; fair periodic reconciliation".into(),"polling intake; no webhook or historical-transition retention".into(),"no error-event equivalence, metric denominator, release or deployment authority".into()]})}).collect()
+        q.query_map([],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,String>(3)?)))?.map(|r|{let (profile,installed_by,installed_at,configuration_source)=r?;let config=config(&db,&profile,None)?;let restore_held=crate::restore::fenced(&db,"datadog",config.revision)?;let present=|s:&str|std::env::var(s).is_ok_and(|s|!s.is_empty());Ok(Status{restore_held,reads:config.monitors.keys().map(|id|crate::sentry_refresh::health(&db,&format!("datadog:{}/{id}",config.profile),self.clock.now())).collect::<Result<_>>()?,api_credentials_present:!restore_held&&present(&config.api_key_env)&&present(&config.application_key_env),config,installed_by,installed_at,configuration_source,capabilities:vec!["read-only scoped current monitor snapshots; fair periodic reconciliation".into(),"polling intake; no webhook or historical-transition retention".into(),"no error-event equivalence, metric denominator, release or deployment authority".into()]})}).collect()
     }
     /// Reserve one due read and rotate its next time before I/O, including during an outage.
     pub fn sync_datadog(&self, api: &dyn Api) -> Result<bool> {
         let mut db = self.store.connect()?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let row:Option<(String,u64,i64,i64)>=tx.query_row("SELECT profile,monitor_id,revision,generation FROM datadog_monitors WHERE next_at<=?1 ORDER BY next_at,profile,monitor_id LIMIT 1",[self.now()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional()?;
+        let row:Option<(String,u64,i64,i64)>=tx.query_row("SELECT profile,monitor_id,revision,generation FROM datadog_monitors d WHERE next_at<=?1 AND NOT EXISTS(SELECT 1 FROM restore_fences f WHERE f.kind='datadog' AND f.identity=CAST(d.revision AS TEXT)) ORDER BY next_at,profile,monitor_id LIMIT 1",[self.now()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional()?;
         let Some((profile, id, revision, generation)) = row else {
             return Ok(false);
         };

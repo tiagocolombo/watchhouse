@@ -159,6 +159,59 @@ impl Mock {
         }))
     }
 }
+
+#[tokio::test]
+async fn restore_before_publication_follows_only_existing_stages_without_any_repeated_write() {
+    let f = Fixture::new().await;
+    let j = f.enqueue("restore-publisher");
+    let backup = f._root.path().join("backup");
+    let b = f
+        .app
+        .create_backup(&backup, "operator", "Before original publication")
+        .unwrap();
+    let remote = Mock::new(&j);
+    remote.0.lock().unwrap().native = true;
+    for _ in 0..4 {
+        f.tick(&remote);
+    }
+    assert_eq!(f.job(&j.id).state, "published");
+    let writes = remote.0.lock().unwrap().writes.len();
+    let output = f._root.path().join("restored");
+    crate::restore::restore(
+        &backup,
+        &output,
+        &b.manifest_digest,
+        "operator",
+        "Read complete original publication only",
+    )
+    .unwrap();
+    let app = Application::new(
+        crate::store::Store::open(output.join("watchhouse.db")).unwrap(),
+        std::sync::Arc::new(crate::domain::SystemClock),
+    );
+    assert!(!app.run_publisher_once(&remote).unwrap());
+    app.reconcile_publication(&j.case_id, &j.id, "operator")
+        .unwrap();
+    for _ in 0..4 {
+        assert!(app.run_publisher_once(&remote).unwrap());
+    }
+    let observed = app
+        .publication_jobs(&j.case_id)
+        .unwrap()
+        .into_iter()
+        .find(|v| v.id == j.id)
+        .unwrap();
+    assert_eq!(observed.state, "published_stale");
+    assert_eq!(observed.pr, Some(7));
+    assert_eq!(remote.0.lock().unwrap().writes.len(), writes);
+    assert!(
+        !app.snapshot(&j.case_id)
+            .unwrap()
+            .recovery
+            .recovery
+            .response_resolved
+    );
+}
 impl Backend for Mock {
     fn native(&self) -> bool {
         self.0.lock().unwrap().native

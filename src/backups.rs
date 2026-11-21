@@ -90,7 +90,7 @@ fn checksum(path: &Path, max: u64) -> Result<(u64, String)> {
     }
     Ok((total, format!("sha256:{:x}", hash.finalize())))
 }
-fn private_directory(path: &Path) -> Result<()> {
+pub(crate) fn private_directory(path: &Path) -> Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::DirBuilderExt;
@@ -101,7 +101,7 @@ fn private_directory(path: &Path) -> Result<()> {
     #[cfg(not(unix))]
     fs::create_dir(path).map_err(io)
 }
-fn create_file(path: &Path) -> Result<File> {
+pub(crate) fn create_file(path: &Path) -> Result<File> {
     let mut b = OpenOptions::new();
     b.write(true).create_new(true);
     #[cfg(unix)]
@@ -132,7 +132,7 @@ fn portable(path: &str) -> bool {
 }
 // Reject linked directories as well as linked final files. Host-administrator replacement
 // during an OS-owned export remains outside the single-operator trust boundary.
-fn contained(root: &Path, relative: &str) -> Result<PathBuf> {
+pub(crate) fn contained(root: &Path, relative: &str) -> Result<PathBuf> {
     if !portable(relative) || !fs::symlink_metadata(root).map_err(io)?.is_dir() {
         return Err(invalid("non-portable path or invalid root"));
     }
@@ -159,7 +159,7 @@ fn migrations(db: &Connection) -> Result<Vec<(i64, String)>> {
         .prepare("SELECT version,digest FROM schema_migrations ORDER BY version")?
         .query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))?
         .collect::<std::result::Result<Vec<_>, _>>()?;
-    if rows.len() != store::MIGRATIONS.len() {
+    if rows.len() < 31 || rows.len() > store::MIGRATIONS.len() {
         return Err(invalid("unsupported migration history"));
     }
     for ((version, sum), (expected, sql)) in rows.iter().zip(store::MIGRATIONS) {
@@ -249,7 +249,8 @@ fn artifacts(db: &Connection) -> Result<Vec<(Artifact, PathBuf)>> {
             directory: format!("artifacts/{id}"),
             files: c.files,
         };
-        result.push((a, c.root));
+        let root = crate::restore::materialization(db, "candidate", &id)?.unwrap_or(c.root);
+        result.push((a, root));
     }
     if result.len() > 10_000 {
         return Err(invalid("too many artifact roots"));
@@ -325,12 +326,7 @@ fn expected_inventory(m: &Manifest) -> Result<BTreeSet<String>> {
     }
     Ok(expected)
 }
-/// Read-only verification, optionally pinned to an independently retained manifest hash.
-pub fn inspect(directory: &Path, expected_digest: Option<&str>) -> Result<Inspection> {
-    let root_meta = fs::symlink_metadata(directory).map_err(io)?;
-    if !root_meta.is_dir() || root_meta.file_type().is_symlink() {
-        return Err(invalid("invalid backup root"));
-    }
+pub(crate) fn manifest_text(directory: &Path) -> Result<String> {
     let mut raw = String::new();
     regular(&directory.join("manifest.json"), MANIFEST_LIMIT)?
         .take(MANIFEST_LIMIT + 1)
@@ -339,6 +335,15 @@ pub fn inspect(directory: &Path, expected_digest: Option<&str>) -> Result<Inspec
     if raw.len() as u64 > MANIFEST_LIMIT {
         return Err(invalid("manifest grew beyond bound"));
     }
+    Ok(raw)
+}
+/// Read-only verification, optionally pinned to an independently retained manifest hash.
+pub fn inspect(directory: &Path, expected_digest: Option<&str>) -> Result<Inspection> {
+    let root_meta = fs::symlink_metadata(directory).map_err(io)?;
+    if !root_meta.is_dir() || root_meta.file_type().is_symlink() {
+        return Err(invalid("invalid backup root"));
+    }
+    let raw = manifest_text(directory)?;
     let digest = store::digest(&raw);
     if expected_digest.is_some_and(|d| d != digest) {
         return Err(invalid("manifest digest mismatch"));
@@ -411,7 +416,7 @@ pub fn inspect(directory: &Path, expected_digest: Option<&str>) -> Result<Inspec
             }
         }
     }
-    Ok(Inspection { id:m.id, manifest_digest:digest, created_at:m.created_at, files:m.entries.len(), bytes:total, artifacts:m.artifacts.len(), verification:"consistent SQLite snapshot, migration history, foreign keys, evidence and complete declared frozen artifacts verified; no live integrations exercised".into(), restore_available:false })
+    Ok(Inspection { id:m.id, manifest_digest:digest, created_at:m.created_at, files:m.entries.len(), bytes:total, artifacts:m.artifacts.len(), verification:"consistent SQLite snapshot, migration history, foreign keys, evidence and complete declared frozen artifacts verified; no live integrations exercised".into(), restore_available:true })
 }
 impl Application {
     /// No HTTP endpoint accepts a filesystem destination or returns private backup bytes.
@@ -427,6 +432,9 @@ impl Application {
             return Err(Error::Invalid("OS operator required".into()));
         }
         private_directory(directory)?;
+        create_file(&directory.join("backup-incomplete"))?
+            .sync_all()
+            .map_err(io)?;
         // VACUUM INTO sees one SQLite read snapshot, including committed live WAL pages.
         // The manifest is written last; interrupted directories are visibly incomplete.
         let db_path = directory.join("watchhouse.db");
@@ -491,6 +499,7 @@ impl Application {
         let mut file = create_file(&directory.join("manifest.json"))?;
         file.write_all(raw.as_bytes()).map_err(io)?;
         file.sync_all().map_err(io)?;
+        fs::remove_file(directory.join("backup-incomplete")).map_err(io)?;
         let checked = inspect(directory, Some(&store::digest(&raw)))?;
         let record = serde_json::json!({"type":"backup_created","backup_id":checked.id,"manifest_digest":checked.manifest_digest,"at":self.now(),"operator":operator,"reason":reason,"files":checked.files,"bytes":checked.bytes,"artifacts":checked.artifacts});
         self.store.connect()?.execute(

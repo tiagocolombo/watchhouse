@@ -178,7 +178,7 @@ fn save(tx: &Transaction<'_>, j: &Job, now: &str) -> Result<()> {
 }
 /// Runs with the ordinary model-independent supervisor. Expiry never permits another write.
 pub(crate) fn supervise(tx: &Transaction<'_>, now: &str) -> Result<usize> {
-    let mut q=tx.prepare("SELECT id FROM publication_jobs WHERE state='unknown' OR (state IN ('reading','writing','ready') AND json_extract(record,'$.deadline')<=?1) ORDER BY rowid LIMIT 100")?;
+    let mut q=tx.prepare("SELECT id FROM publication_jobs WHERE (state='unknown' OR (state IN ('reading','writing','ready') AND json_extract(record,'$.deadline')<=?1)) AND (NOT EXISTS(SELECT 1 FROM restore_fences f WHERE f.kind='publication_job' AND f.identity=publication_jobs.id) OR EXISTS(SELECT 1 FROM restore_read_permits p WHERE p.kind='publication_job' AND p.identity=publication_jobs.id AND p.restore_id=(SELECT id FROM restore_runs ORDER BY rowid DESC LIMIT 1) AND p.expires_at>?1)) ORDER BY rowid LIMIT 100")?;
     let ids = q
         .query_map([now], |r| r.get::<_, String>(0))?
         .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -209,6 +209,7 @@ fn active(db: &Connection, j: &Job, now: &str) -> Result<PublisherPolicy> {
         r.get(0)
     })?;
     let p = policy::policy(db, j.policy_revision)?;
+    crate::restore::require_fresh(db, "publisher", p.revision)?;
     let owner: String = db.query_row("SELECT owner FROM cases WHERE id=?1", [&j.case_id], |r| {
         r.get(0)
     })?;
@@ -361,6 +362,7 @@ impl Application {
                 "publication is not awaiting reconciliation".into(),
             ));
         }
+        crate::restore::permit_read(&tx, "publication_job", id, who, &self.now())?;
         // A dead read may be repeated; a write or blocked job may only prove its effect.
         j.state = if j.state == "reading" {
             "ready"
@@ -393,7 +395,7 @@ impl Application {
         let (mut j, was_reconcile) = {
             let mut db = self.store.connect()?;
             let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-            let id:Option<String>=tx.query_row("SELECT id FROM publication_jobs WHERE state IN ('ready','reconcile') AND json_extract(record,'$.retry_at')<=?1 AND (state='reconcile' OR (NOT EXISTS(SELECT 1 FROM factory_holds h WHERE h.case_id=publication_jobs.case_id AND h.effect IN ('all','publication')) AND NOT EXISTS(SELECT 1 FROM factory_state WHERE high_at>?1))) ORDER BY rowid LIMIT 1",[self.now()],|r|r.get(0)).optional()?;
+            let id:Option<String>=tx.query_row("SELECT id FROM publication_jobs WHERE state IN ('ready','reconcile') AND (NOT EXISTS(SELECT 1 FROM restore_fences f WHERE f.kind='publication_job' AND f.identity=publication_jobs.id) OR EXISTS(SELECT 1 FROM restore_read_permits p WHERE p.kind='publication_job' AND p.identity=publication_jobs.id AND p.restore_id=(SELECT id FROM restore_runs ORDER BY rowid DESC LIMIT 1) AND p.expires_at>?1)) AND json_extract(record,'$.retry_at')<=?1 AND (state='reconcile' OR (NOT EXISTS(SELECT 1 FROM factory_holds h WHERE h.case_id=publication_jobs.case_id AND h.effect IN ('all','publication')) AND NOT EXISTS(SELECT 1 FROM factory_state WHERE high_at>?1))) ORDER BY rowid LIMIT 1",[self.now()],|r|r.get(0)).optional()?;
             let Some(id) = id else { return Ok(false) };
             let mut j = get(&tx, &id)?;
             let reconcile = j.state == "reconcile";
@@ -445,7 +447,13 @@ impl Application {
                 if let Some(pr) = pr {
                     j.pr = Some(pr);
                 }
-                self.advance_publication(&mut j)?;
+                let read_only = was_reconcile
+                    && crate::restore::fenced(
+                        &self.store.connect()?,
+                        "publisher",
+                        j.policy_revision,
+                    )?;
+                self.advance_publication(&mut j, read_only)?;
             }
             Observation::Absent if was_reconcile => self.retry_publication(&mut j, &p, true)?,
             Observation::Absent => {
@@ -482,7 +490,7 @@ impl Application {
                         if j.stage == "pr" {
                             j.pr = value["number"].as_u64();
                         }
-                        self.advance_publication(&mut j)?;
+                        self.advance_publication(&mut j, false)?;
                     }
                     _ => self.finish_publication(
                         &mut j,
@@ -524,7 +532,7 @@ impl Application {
             "Read unavailable or uncertain write not yet visible; bounded inspection only",
         )
     }
-    fn advance_publication(&self, j: &mut Job) -> Result<()> {
+    fn advance_publication(&self, j: &mut Job, read_only: bool) -> Result<()> {
         let next = match j.stage.as_str() {
             "tree" => "commit",
             "commit" => "ref",
@@ -538,8 +546,12 @@ impl Application {
         if next != "done" {
             return self.finish_publication(
                 j,
-                "ready",
-                "Exact reserved effect observed; next stage awaits fresh authorization",
+                if read_only { "reconcile" } else { "ready" },
+                if read_only {
+                    "Restored publication: inspect the next existing stage without write authority"
+                } else {
+                    "Exact reserved effect observed; next stage awaits fresh authorization"
+                },
             );
         }
         let current = self.publication_current(j).is_ok();

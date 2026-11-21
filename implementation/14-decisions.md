@@ -150,3 +150,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 - [ADR 0036 — Capacity and supervisor headroom](adrs/0036-transactional-capacity-and-supervisor-headroom.md): immutable transactional queue/evidence/native reservation limits, exact retry preservation, pinned resource scopes, finite supervisor reserve and typed backpressure. Full-history/disk retention and other M8 hardening remain open.
 
 - [ADR 0037 — Consistent private backups](adrs/0037-consistent-private-backups.md): bounded SQLite WAL snapshot, complete declared frozen files, read-only hash/migration/evidence inspection and OS-owned private destinations. Restore remains explicitly unavailable until old authority and uncertain effects can be isolated.
+
+- [ADR 0038 — Isolated restore](adrs/0038-isolated-restore-and-authority-fences.md): forward migration, immutable artifact relocation, expired fake proofs, permanent old revision/handle fences, no-replay effect reconciliation, explicit restored reminders and durable send pacing. Fresh OS authority and live/physical acceptance remain separate.

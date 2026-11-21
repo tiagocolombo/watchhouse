@@ -175,6 +175,55 @@ fn loss_restart_reconciles_without_replay_or_false_recovery() {
     assert!(!a.snapshot(&id).unwrap().recovery.recovery.response_resolved);
     assert!(a.reconcile_operation(&id, &j.id, &backend).is_err());
 }
+
+#[test]
+fn restore_of_approved_action_reconciles_a_later_original_effect_without_execution_replay() {
+    let (d, a, _t, id) = fixture();
+    a.install_operation_policy(policy(), "operator", "Restore fixture")
+        .unwrap();
+    let j = approved(&a, &id);
+    let backup = d.path().join("backup");
+    let b = a
+        .create_backup(&backup, "operator", "Before original action")
+        .unwrap();
+    let backend = Gateway {
+        writes: Cell::new(0),
+        lost: true,
+        wrong: false,
+    };
+    a.operation_tick(&backend).unwrap();
+    assert_eq!(backend.writes.get(), 1);
+    let output = d.path().join("restored");
+    let r = watchhouse::restore::restore(
+        &backup,
+        &output,
+        &b.manifest_digest,
+        "operator",
+        "Reconcile original action without replay",
+    )
+    .unwrap();
+    assert_eq!(r.uncertain_external_effects, 1);
+    let app = Application::new(
+        watchhouse::store::Store::open(output.join("watchhouse.db")).unwrap(),
+        std::sync::Arc::new(watchhouse::domain::SystemClock),
+    );
+    assert_eq!(
+        app.snapshot(&id).unwrap().operations.jobs[0].state,
+        "unknown"
+    );
+    assert!(!app.operation_tick(&backend).unwrap());
+    let observed = app.reconcile_operation(&id, &j.id, &backend).unwrap();
+    assert_eq!(observed.state, "succeeded_stale");
+    assert!(!observed.native);
+    assert_eq!(backend.writes.get(), 1);
+    assert!(
+        !app.snapshot(&id)
+            .unwrap()
+            .recovery
+            .recovery
+            .response_resolved
+    );
+}
 #[test]
 fn independent_review_policy_pause_and_corrupt_evidence_fence_actions() {
     let (_d, a, _t, id) = fixture();

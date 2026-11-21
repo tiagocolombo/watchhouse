@@ -320,6 +320,7 @@ pub(crate) fn snapshot(db: &Connection, case: &str) -> Result<Snapshot> {
 }
 fn current(db: &Connection, j: &Job, now: &str) -> Result<Policy> {
     let p = policy(db, None)?;
+    crate::restore::require_fresh(db, "operation", p.revision)?;
     if p.revision != j.policy_revision
         || p.paused
         || store::digest(&serde_json::to_string(&p)?) != j.policy_digest
@@ -666,15 +667,21 @@ impl Application {
         id: &str,
         backend: &dyn gateway::Backend,
     ) -> Result<Job> {
-        let db = self.store.connect()?;
-        let j = job(&db, id)?;
+        let mut db = self.store.connect()?;
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let mut j = job(&tx, id)?;
         if j.case_id != case || !["unknown", "reserved"].contains(&j.state.as_str()) {
             return Err(Error::Conflict(
                 "only uncertain owned effects can be reconciled".into(),
             ));
         }
-        // Old immutable policy is used for read-only lookup even when paused/revoked locally.
-        let p = policy(&db, Some(j.policy_revision))?;
+        let p = policy(&tx, Some(j.policy_revision))?;
+        j.native = backend.native();
+        j.fence = store::id("read-fence");
+        j.state = "unknown".into();
+        j.reason = "Read-only gateway reconciliation reserved; no action replay".into();
+        save(&tx, &j, &self.now())?;
+        tx.commit()?;
         let result = backend.lookup(&p, &j);
         self.finish_operation(&j, result, true)
     }
@@ -755,6 +762,7 @@ impl Application {
             }
         }
         let p = policy(&db, None)?;
+        crate::restore::require_fresh(&db, "operation", p.revision)?;
         let source = crate::sentry::snapshot(&db, case)?.ok_or(Error::NotFound)?;
         if p.revision != *policy_revision
             || !p.observation_ids.contains(observation_id)

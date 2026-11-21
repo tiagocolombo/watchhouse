@@ -11,6 +11,20 @@ struct Cli {
 }
 #[derive(Subcommand)]
 enum Command {
+    /// Reconstruct an isolated coordinator; copied external authority stays fenced.
+    Restore {
+        #[arg(long)]
+        backup: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+        #[arg(long)]
+        manifest_digest: String,
+        #[arg(long)]
+        operator: String,
+        #[arg(long)]
+        reason: String,
+    },
+    RestoreStatus,
     /// Consistent private database/artifact snapshot; OS operator plane only.
     Backup {
         #[arg(long)]
@@ -234,6 +248,11 @@ enum Command {
 }
 #[derive(Subcommand)]
 enum CaseCommand {
+    RestoreReminder {
+        id: String,
+        #[arg(long)]
+        file: PathBuf,
+    },
     RetryMerge {
         id: String,
         #[arg(long)]
@@ -658,6 +677,23 @@ fn main() -> anyhow::Result<()> {
 #[tokio::main]
 async fn run() -> anyhow::Result<()> {
     let cli = Cli::parse();
+    if let Command::Restore {
+        backup,
+        output,
+        manifest_digest,
+        operator,
+        reason,
+    } = &cli.command
+    {
+        print(&watchhouse::restore::restore(
+            backup,
+            output,
+            manifest_digest,
+            operator,
+            reason,
+        )?)?;
+        return Ok(());
+    }
     if let Command::BackupInspect {
         directory,
         manifest_digest,
@@ -674,6 +710,8 @@ async fn run() -> anyhow::Result<()> {
     }
     let app = Application::new(Store::open(cli.db)?, Arc::new(SystemClock));
     match cli.command {
+        Command::Restore { .. } => unreachable!("handled without opening original state"),
+        Command::RestoreStatus => print(&app.restore_status()?)?,
         Command::Backup {
             output,
             operator,
@@ -1042,6 +1080,9 @@ async fn run() -> anyhow::Result<()> {
         }
         Command::Case { action } => {
             let output = match action {
+                CaseCommand::RestoreReminder { id, file } => serde_json::to_value(
+                    app.reissue_restored_escalation(&id, read_command(file)?)?,
+                )?,
                 CaseCommand::RetryMerge { id, file } => {
                     serde_json::to_value(app.retry_merge(&id, read_command(file)?)?)?
                 }
