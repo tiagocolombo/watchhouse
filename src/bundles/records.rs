@@ -322,10 +322,10 @@ pub(super) fn capture(
     while let Some(row) = linked.next()? {
         let left: String = row.get(0)?;
         let right: String = row.get(1)?;
-        if let Some(scope) = scope {
-            if !scope.case_allowed(db, &left)? || !scope.case_allowed(db, &right)? {
-                continue;
-            }
+        if let Some(scope) = scope
+            && (!scope.case_allowed(db, &left)? || !scope.case_allowed(db, &right)?)
+        {
+            continue;
         }
         // No automatic neighbor projections or global topology is exported.
         let raw: String = row.get(2)?;

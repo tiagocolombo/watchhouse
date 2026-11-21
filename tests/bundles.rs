@@ -261,3 +261,87 @@ async fn authenticated_downloads_hold_a_bounded_permit_until_body_release() {
         StatusCode::OK
     );
 }
+
+#[test]
+fn browser_limit_rejects_instead_of_truncating_while_directory_streams_all_rows() {
+    let (d, a, id) = setup();
+    let db = Store::open(d.path().join("state.db"))
+        .unwrap()
+        .connect()
+        .unwrap();
+    let body = "invented retained content ".repeat(18000);
+    for revision in 1..=24 {
+        db.execute(
+            "INSERT INTO incident_artifacts VALUES ('large-fixture',?1,?2,?3)",
+            params![revision, id, json!({"revision":revision,"body":body}).to_string()],
+        )
+        .unwrap();
+    }
+    assert!(matches!(
+        a.case_bundle(&id, Options::default(), "operator"),
+        Err(watchhouse::error::Error::Backpressure(_))
+    ));
+    assert!(a.case_exports(&id).unwrap().is_empty());
+    let output = d.path().join("streamed");
+    let exported = a
+        .export_case(
+            &id,
+            &output,
+            Options::default(),
+            "operator",
+            "Stream the full invented large case",
+        )
+        .unwrap();
+    let checked = bundles::inspect(&output, exported.manifest_digest.as_deref()).unwrap();
+    assert_eq!(checked.counts.sections["incident_artifacts"], 24);
+    assert!(checked.bytes > 8 * 1024 * 1024);
+}
+#[test]
+fn restored_location_and_audit_failure_cannot_authorize_or_claim_completion() {
+    let (d, a, id) = setup();
+    let output = d.path().join("bundle");
+    let exported = a
+        .export_case(
+            &id,
+            &output,
+            Options::default(),
+            "operator",
+            "Export registry authority fixture",
+        )
+        .unwrap();
+    let db = Store::open(d.path().join("state.db"))
+        .unwrap()
+        .connect()
+        .unwrap();
+    db.execute("INSERT INTO restore_runs VALUES ('fixture-restore','{}')", [])
+        .unwrap();
+    db.execute(
+        "INSERT INTO restore_fences VALUES ('fixture-restore','case_export',?1,'{}')",
+        [&exported.id],
+    )
+    .unwrap();
+    assert!(a
+        .reconcile_case_export(
+            &exported.id,
+            &output,
+            exported.manifest_digest.as_deref().unwrap(),
+            "operator",
+            "A copied path grants no authority",
+        )
+        .is_err());
+    db.execute_batch("CREATE TRIGGER deny_export_audit BEFORE INSERT ON factory_events BEGIN SELECT RAISE(ABORT,'invented audit failure'); END;")
+        .unwrap();
+    assert!(a.case_bundle(&id, Options::default(), "operator").is_err());
+    assert_eq!(a.case_exports(&id).unwrap().len(), 1);
+    let next = d.path().join("audit-failed");
+    assert!(a
+        .export_case(
+            &id,
+            &next,
+            Options::default(),
+            "operator",
+            "Audit reservation failure must prevent filesystem creation",
+        )
+        .is_err());
+    assert!(!next.exists());
+}

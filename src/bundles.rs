@@ -141,10 +141,10 @@ fn header(
     scope: Option<&crate::access::Session>,
 ) -> Result<Header> {
     let c = store::case(db, case)?;
-    if let Some(scope) = scope {
-        if !scope.case_allowed(db, case)? {
-            return Err(Error::Conflict("case export scope changed".into()));
-        }
+    if let Some(scope) = scope
+        && !scope.case_allowed(db, case)?
+    {
+        return Err(Error::Conflict("case export scope changed".into()));
     }
     let recovery = crate::recovery::state(db, case)?;
     Ok(Header {
