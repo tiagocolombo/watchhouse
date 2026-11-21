@@ -56,7 +56,7 @@ pub(crate) fn select_poll(a: &Application) -> Result<Option<SentryConfig>> {
         [],
         |r| r.get(0),
     )?;
-    let raw:Option<String>=tx.query_row("SELECT c.record FROM source_projects p JOIN source_configs c ON c.revision=p.revision LEFT JOIN source_sync s ON s.revision=p.revision WHERE s.revision IS NULL OR s.next_at<=?1 ORDER BY CASE WHEN p.revision>?2 THEN 0 ELSE 1 END,p.revision LIMIT 1",params![a.now(),cursor],|r|r.get(0)).optional()?;
+    let raw:Option<String>=tx.query_row("SELECT c.record FROM source_projects p JOIN source_configs c ON c.revision=p.revision LEFT JOIN source_sync s ON s.revision=p.revision WHERE (s.revision IS NULL OR s.next_at<=?1) AND NOT EXISTS(SELECT 1 FROM restore_fences f WHERE f.kind='source' AND f.identity=CAST(p.revision AS TEXT)) ORDER BY CASE WHEN p.revision>?2 THEN 0 ELSE 1 END,p.revision LIMIT 1",params![a.now(),cursor],|r|r.get(0)).optional()?;
     let Some(raw) = raw else { return Ok(None) };
     let cfg: SentryConfig = serde_json::from_str(&raw)?;
     cfg.validate()?;
@@ -70,6 +70,7 @@ pub(crate) fn select_poll(a: &Application) -> Result<Option<SentryConfig>> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectStatus {
     pub configuration: SentryConfig,
+    pub restore_held: bool,
     pub installed_by: String,
     pub installed_at: String,
     pub source: String,
@@ -194,17 +195,19 @@ impl Application {
             let (raw, installed_by, installed_at, source) = r?;
             let cfg: SentryConfig = serde_json::from_str(&raw)?;
             cfg.validate()?;
+            let restore_held = crate::restore::fenced(&db, "source", cfg.revision)?;
             Ok(ProjectStatus {
+                restore_held,
                 read_policy_provenance: if cfg.read_policy.is_some() {
                     "explicit-versioned-v1"
                 } else {
                     "frozen-legacy-v1-compatibility"
                 }
                 .into(),
-                api_credential_present: std::env::var(&cfg.api_token_env)
-                    .is_ok_and(|s| !s.trim().is_empty()),
-                webhook_credential_present: std::env::var(&cfg.webhook_secret_env)
-                    .is_ok_and(|s| s.len() >= 32),
+                api_credential_present: !restore_held
+                    && std::env::var(&cfg.api_token_env).is_ok_and(|s| !s.trim().is_empty()),
+                webhook_credential_present: !restore_held
+                    && std::env::var(&cfg.webhook_secret_env).is_ok_and(|s| s.len() >= 32),
                 configuration: cfg,
                 installed_by,
                 installed_at,
@@ -222,6 +225,7 @@ impl Application {
     ) -> Result<String> {
         let cfg =
             config_for(&self.store.connect()?, organization, project)?.ok_or(Error::NotFound)?;
+        crate::restore::require_fresh(&self.store.connect()?, "source", cfg.revision)?;
         let secret = std::env::var(&cfg.webhook_secret_env).map_err(|_| {
             Error::Invalid("project webhook credential missing; activation blocked".into())
         })?;

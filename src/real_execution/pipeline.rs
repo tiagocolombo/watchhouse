@@ -113,7 +113,11 @@ pub(crate) fn get(db: &Connection, id: &str) -> Result<Candidate> {
             |r| r.get(0),
         )
         .optional()?;
-    Ok(serde_json::from_str(&raw.ok_or(Error::NotFound)?)?)
+    let mut c: Candidate = serde_json::from_str(&raw.ok_or(Error::NotFound)?)?;
+    if let Some(path) = crate::restore::materialization(db, "candidate", id)? {
+        c.root = path;
+    }
+    Ok(c)
 }
 fn source_digest(db: &Connection, case: &str) -> Result<Option<String>> {
     Ok(db
@@ -125,6 +129,7 @@ fn source_digest(db: &Connection, case: &str) -> Result<Option<String>> {
         .optional()?)
 }
 pub(crate) fn current(db: &Connection, c: &Candidate, now: &str) -> Result<()> {
+    crate::restore::require_fresh(db, "repair_source", c.source_revision)?;
     if !crate::sentry_projects::context_current(db, &c.case_id)? {
         return Err(Error::Conflict("source project configuration changed; revalidation required before candidate authority".into()));
     }
@@ -340,6 +345,7 @@ impl Application {
             .optional()?;
         let repair: crate::repair::RepairRequest =
             serde_json::from_str(&raw.ok_or(Error::NotFound)?)?;
+        crate::restore::require_fresh(&tx, "repair_source", repair.source_revision)?;
         let source = crate::repair::source(&tx, repair.source_revision)?;
         let p = worker::policy(&tx, cmd.policy_revision)?;
         let governing = worker::trusted_case_policy(&tx, case)?;

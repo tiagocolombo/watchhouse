@@ -370,6 +370,7 @@ impl Application {
     pub fn receive_sentry(&self, raw: &[u8], signature: &str) -> Result<String> {
         let cfg = config(&self.store.connect()?)?
             .ok_or_else(|| Error::Invalid("Sentry intake not configured".into()))?;
+        crate::restore::require_fresh(&self.store.connect()?, "source", cfg.revision)?;
         let secret = std::env::var(&cfg.webhook_secret_env)
             .map_err(|_| Error::Invalid("webhook credential missing; activation blocked".into()))?;
         self.receive_sentry_verified(raw, signature, secret.as_bytes(), &cfg)
@@ -382,6 +383,7 @@ impl Application {
         secret: &[u8],
         cfg: &SentryConfig,
     ) -> Result<String> {
+        crate::restore::require_fresh(&self.store.connect()?, "source", cfg.revision)?;
         if raw.len() > 32768 || secret.len() < 32 || !verify_signature(raw, signature, secret) {
             return Err(Error::Invalid(
                 "invalid source signature or body limit".into(),

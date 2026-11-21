@@ -177,7 +177,7 @@ pub(crate) fn select(
         " AND (j.state!='queued' OR EXISTS(SELECT 1 FROM factory_case_capacity c WHERE c.case_id=j.case_id AND c.available=1))"
     };
     let sql = format!(
-        "SELECT j.id FROM {} j WHERE ({condition}) AND ({binding}) {revisions} {factory} {capacity} AND :now IS NOT NULL ORDER BY {order} LIMIT 1",
+        "SELECT j.id FROM {} j WHERE ({condition}) AND NOT EXISTS(SELECT 1 FROM restore_fences rf WHERE rf.kind=:kind||'_resource' AND rf.identity=j.id) AND NOT EXISTS(SELECT 1 FROM restore_fences pf WHERE pf.kind=:kind AND pf.identity=CAST(j.policy_revision AS TEXT)) AND ({binding}) {revisions} {factory} {capacity} AND :now IS NOT NULL ORDER BY {order} LIMIT 1",
         kind.table()
     );
     Ok(db.query_row(&sql,named_params!{":kind":kind.name(),":worker":id,":platform":std::env::consts::OS,":arch":std::env::consts::ARCH,":now":now},|r|r.get(0)).optional()?)
@@ -310,7 +310,7 @@ mod tests {
         let mut db = Connection::open_in_memory().unwrap();
         db.execute_batch(include_str!("../migrations/029_worker_routing.sql"))
             .unwrap();
-        db.execute_batch("CREATE TABLE model_jobs(id TEXT PRIMARY KEY,policy_revision INTEGER,state TEXT); CREATE TABLE container_jobs(id TEXT PRIMARY KEY,policy_revision INTEGER,state TEXT); CREATE TABLE factory_case_scopes(case_id TEXT,repository TEXT,service TEXT); INSERT INTO factory_case_scopes VALUES ('route-test',NULL,NULL); CREATE TABLE factory_resource_scopes(kind TEXT,job_id TEXT,repository TEXT,service TEXT,recorded_at TEXT,PRIMARY KEY(kind,job_id)); CREATE TABLE factory_case_capacity(case_id TEXT,available INTEGER); INSERT INTO factory_case_capacity VALUES ('route-test',1); CREATE TABLE factory_holds(case_id TEXT,effect TEXT); CREATE TABLE factory_state(high_at TEXT); ALTER TABLE model_jobs ADD COLUMN case_id TEXT DEFAULT 'route-test'; ALTER TABLE container_jobs ADD COLUMN case_id TEXT DEFAULT 'route-test';").unwrap();
+        db.execute_batch("CREATE TABLE model_jobs(id TEXT PRIMARY KEY,policy_revision INTEGER,state TEXT); CREATE TABLE container_jobs(id TEXT PRIMARY KEY,policy_revision INTEGER,state TEXT); CREATE TABLE factory_case_scopes(case_id TEXT,repository TEXT,service TEXT); INSERT INTO factory_case_scopes VALUES ('route-test',NULL,NULL); CREATE TABLE factory_resource_scopes(kind TEXT,job_id TEXT,repository TEXT,service TEXT,recorded_at TEXT,PRIMARY KEY(kind,job_id)); CREATE TABLE factory_case_capacity(case_id TEXT,available INTEGER); INSERT INTO factory_case_capacity VALUES ('route-test',1); CREATE TABLE factory_holds(case_id TEXT,effect TEXT); CREATE TABLE restore_fences(kind TEXT,identity TEXT); CREATE TABLE factory_state(high_at TEXT); ALTER TABLE model_jobs ADD COLUMN case_id TEXT DEFAULT 'route-test'; ALTER TABLE container_jobs ADD COLUMN case_id TEXT DEFAULT 'route-test';").unwrap();
         db.execute_batch("CREATE TABLE factory_limits(revision INTEGER PRIMARY KEY,record TEXT,digest TEXT,operator TEXT,source TEXT,installed_at TEXT);").unwrap();
         let tx = db.transaction().unwrap();
         crate::capacity::bootstrap(&tx).unwrap();

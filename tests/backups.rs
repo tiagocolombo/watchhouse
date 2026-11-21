@@ -44,7 +44,8 @@ fn live_wal_snapshot_keeps_committed_state_receipts_evidence_and_owned_deadlines
     let report = a
         .create_backup(&output, "operator", "Retain synthetic obligations")
         .unwrap();
-    assert!(!report.restore_available);
+    assert!(report.restore_available);
+    assert!(Store::open(output.join("watchhouse.db")).is_err());
     assert!(report.verification.contains("no live integrations"));
     assert_eq!(a.create_case(command).unwrap().id, case.id);
     a.create_case(FakeSource.manual_command("after backup"))
@@ -442,4 +443,246 @@ fn untrusted_manifest_paths_and_case_aliases_cannot_select_external_files() {
     fs::write(path, original).unwrap();
     assert!(backups::inspect(&output, None).is_ok());
     assert!(a.list_cases().unwrap().is_empty());
+}
+
+#[test]
+fn restore_preserves_receipts_and_deadlines_but_old_fake_proofs_cannot_resume() {
+    use watchhouse::{
+        contracts::*,
+        factory::{Action, Command},
+    };
+    let (d, a) = fixture();
+    let create = FakeSource.manual_command("restore lease fixture");
+    let case = a.create_case(create.clone()).unwrap();
+    let claim = a.claim().unwrap().unwrap();
+    let before = a.snapshot(&case.id).unwrap();
+    let backup = d.path().join("backup");
+    let b = a
+        .create_backup(&backup, "operator", "Before restore fixture")
+        .unwrap();
+    let output = d.path().join("restored");
+    let r = watchhouse::restore::restore(
+        &backup,
+        &output,
+        &b.manifest_digest,
+        "operator",
+        "Isolated fixture recovery",
+    )
+    .unwrap();
+    let clock = ManualClock::new(
+        chrono::DateTime::parse_from_rfc3339(&r.restored_at)
+            .unwrap()
+            .with_timezone(&Utc)
+            + chrono::Duration::seconds(1),
+    );
+    let restored = Application::new(
+        Store::open(output.join("watchhouse.db")).unwrap(),
+        Arc::new(clock),
+    );
+    assert_eq!(restored.create_case(create).unwrap().id, case.id);
+    assert_eq!(
+        restored.snapshot(&case.id).unwrap().events.len(),
+        before.events.len()
+    );
+    assert_eq!(
+        restored
+            .snapshot(&case.id)
+            .unwrap()
+            .team
+            .control
+            .as_ref()
+            .unwrap()
+            .overall_deadline,
+        before.team.control.as_ref().unwrap().overall_deadline
+    );
+    let heartbeat = RunCommand {
+        meta: CommandMeta {
+            schema_version: V1,
+            idempotency_key: "stale-after-restore".into(),
+            actor: claim.executor,
+            reason: "Old proof must not renew".into(),
+        },
+        proof: RunProof {
+            run_id: claim.run_id,
+            fence: claim.fence,
+        },
+    };
+    assert!(restored.heartbeat(heartbeat.clone()).is_err());
+    let factory = restored.factory_status().unwrap();
+    restored
+        .control_factory(Command {
+            meta: CommandMeta {
+                schema_version: V1,
+                idempotency_key: "resume-restore".into(),
+                actor: "operator".into(),
+                reason: "Explicitly reviewed fixture".into(),
+            },
+            expected_version: factory.version,
+            action: Action::Resume {
+                pause_id: r.pause_id,
+            },
+        })
+        .unwrap();
+    assert!(restored.heartbeat(heartbeat).is_err());
+    restored.supervise_team().unwrap();
+    assert!(!restored.snapshot(&case.id).unwrap().team.blocks.is_empty());
+    assert_eq!(
+        a.snapshot(&case.id).unwrap().case.version,
+        before.case.version
+    );
+    assert!(
+        watchhouse::restore::restore(
+            &backup,
+            &output,
+            &b.manifest_digest,
+            "operator",
+            "No overwrite"
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn repeated_restore_materializes_frozen_files_without_rewriting_immutable_records() {
+    let (d, a) = fixture();
+    frozen_artifacts(&d, &a);
+    let backup = d.path().join("backup");
+    let b = a
+        .create_backup(&backup, "operator", "First backup")
+        .unwrap();
+    assert!(
+        watchhouse::restore::restore(
+            &backup,
+            &backup.join("not-allowed"),
+            &b.manifest_digest,
+            "operator",
+            "Preserve input backup"
+        )
+        .is_err()
+    );
+    assert!(!backup.join("not-allowed").exists());
+    fs::remove_dir_all(d.path().join("source")).unwrap();
+    fs::remove_dir_all(d.path().join("candidate")).unwrap();
+    let output = d.path().join("restore-one");
+    watchhouse::restore::restore(
+        &backup,
+        &output,
+        &b.manifest_digest,
+        "operator",
+        "First restore",
+    )
+    .unwrap();
+    let restored = Application::new(
+        Store::open(output.join("watchhouse.db")).unwrap(),
+        Arc::new(ManualClock::new(Utc::now())),
+    );
+    let source = restored.repair_source_status().unwrap().unwrap();
+    assert!(source.snapshot_path.starts_with(&output));
+    assert_eq!(
+        fs::read_to_string(source.snapshot_path.join("code.txt")).unwrap(),
+        "base\n"
+    );
+    let db = Store::open(output.join("watchhouse.db"))
+        .unwrap()
+        .connect()
+        .unwrap();
+    let old: String = readonly(&backup.join("watchhouse.db"))
+        .query_row(
+            "SELECT record FROM repair_sources WHERE revision=1",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        old,
+        db.query_row(
+            "SELECT record FROM repair_sources WHERE revision=1",
+            [],
+            |r| r.get::<_, String>(0)
+        )
+        .unwrap()
+    );
+    let second_backup = d.path().join("backup-two");
+    let b2 = restored
+        .create_backup(&second_backup, "operator", "Rebackup relocated artifacts")
+        .unwrap();
+    let second = d.path().join("restore-two");
+    watchhouse::restore::restore(
+        &second_backup,
+        &second,
+        &b2.manifest_digest,
+        "operator",
+        "Repeated recovery",
+    )
+    .unwrap();
+    let again = Application::new(
+        Store::open(second.join("watchhouse.db")).unwrap(),
+        Arc::new(ManualClock::new(Utc::now())),
+    );
+    assert!(
+        again
+            .repair_source_status()
+            .unwrap()
+            .unwrap()
+            .snapshot_path
+            .starts_with(&second)
+    );
+    assert_eq!(
+        fs::read_to_string(second.join("artifacts/candidate-fixture/code.txt")).unwrap(),
+        "fixed\n"
+    );
+    let db = Store::open(second.join("watchhouse.db"))
+        .unwrap()
+        .connect()
+        .unwrap();
+    assert_eq!(
+        db.query_row("SELECT COUNT(*) FROM restore_runs", [], |r| r
+            .get::<_, i64>(0))
+            .unwrap(),
+        2
+    );
+    assert!(db.execute("DELETE FROM restore_fences", []).is_err());
+    assert!(
+        db.execute("UPDATE restore_artifacts SET path='elsewhere'", [])
+            .is_err()
+    );
+}
+
+#[test]
+fn incomplete_restore_denies_coordinator_start_and_corrupt_input_creates_no_destination() {
+    let (d, a) = fixture();
+    let output = d.path().join("interrupted");
+    fs::create_dir(&output).unwrap();
+    fs::write(output.join("restore-incomplete"), "interrupted fixture").unwrap();
+    assert!(Store::open(output.join("watchhouse.db")).is_err());
+    assert!(!output.join("watchhouse.db").exists());
+    let child = std::process::Command::new(env!("CARGO_BIN_EXE_watchhouse"))
+        .args([
+            "--db",
+            output.join("watchhouse.db").to_str().unwrap(),
+            "serve",
+            "--port",
+            "0",
+        ])
+        .output()
+        .unwrap();
+    assert!(!child.status.success());
+    assert!(String::from_utf8_lossy(&child.stderr).contains("restore is incomplete"));
+    let backup = d.path().join("backup");
+    let b = a
+        .create_backup(&backup, "operator", "Corruption fixture")
+        .unwrap();
+    fs::write(backup.join("watchhouse.db"), "changed").unwrap();
+    let absent = d.path().join("not-created");
+    assert!(
+        watchhouse::restore::restore(
+            &backup,
+            &absent,
+            &b.manifest_digest,
+            "operator",
+            "Reject corrupt input"
+        )
+        .is_err()
+    );
+    assert!(!absent.exists());
 }

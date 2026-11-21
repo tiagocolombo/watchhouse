@@ -298,6 +298,7 @@ pub(crate) fn snapshot(db: &Connection, case: &str) -> Result<Vec<Job>> {
         .collect()
 }
 fn active(db: &Connection, p: &ModelPolicy) -> Result<()> {
+    crate::restore::require_fresh(db, "model", p.revision)?;
     let adapter = match p.adapter {
         super::policy::Adapter::Codex => "codex",
         super::policy::Adapter::ClaudeCode => "claude_code",
@@ -424,6 +425,7 @@ pub(crate) fn context_current(db: &Connection, j: &Job, p: &ModelPolicy, now: &s
         ));
     }
     if let Some(revision) = context.source_revision {
+        crate::restore::require_fresh(db, "repair_source", revision)?;
         let s = crate::repair::source(db, revision)?;
         let latest:Option<i64>=db.query_row("SELECT MAX(revision) FROM repair_sources WHERE json_extract(record,'$.config.repository')=?1",[&s.config.repository],|r|r.get(0))?;
         if latest != Some(revision) {
@@ -646,6 +648,7 @@ impl Application {
                     .optional()?;
                 let repair: crate::repair::RepairRequest =
                     serde_json::from_str(&raw.ok_or(Error::NotFound)?)?;
+                crate::restore::require_fresh(&tx, "repair_source", repair.source_revision)?;
                 let source = crate::repair::source(&tx, repair.source_revision)?;
                 if paths.is_empty()
                     || paths.len() > 20
@@ -1264,10 +1267,24 @@ impl Application {
                     "terminal model work cannot be reopened".into(),
                 ));
             }
+            let restored = crate::restore::fenced(&tx, "model_resource", &j.id)?;
+            if restored && !matches!(cmd.action, ManageAction::ReportCleanup) {
+                return Err(Error::Conflict("old restored model handle cannot be adopted or touched; report new scoped operator inspection".into()));
+            }
             if matches!(cmd.action, ManageAction::ReportCleanup) {
                 // Positive operator inspection must also fence any initializer delayed outside
                 // the resource group; a cleanup report must never leave a launchable journal.
-                protocol::revoke(&j.root, &j.id, &j.nonce, &j.profile_digest)?;
+                if !restored {
+                    protocol::revoke(&j.root, &j.id, &j.nonce, &j.profile_digest)?;
+                }
+                crate::restore::cleanup_evidence(
+                    &tx,
+                    "model_resource",
+                    &j.id,
+                    case,
+                    &cmd.evidence_refs,
+                    &m.actor,
+                )?;
                 if j.state != "unknown" || !j.quarantined {
                     return Err(Error::Conflict(
                         "only unknown quarantined resources accept reported cleanup".into(),
@@ -1375,6 +1392,7 @@ pub struct ProfileStatus {
     pub installed_at: String,
     pub source: String,
     pub credential_present: bool,
+    pub restore_held: bool,
     pub native_admission_current: bool,
 }
 impl Application {
@@ -1393,14 +1411,20 @@ impl Application {
             let (raw, installed_by, installed_at, source) = r?;
             let stored: ModelPolicy = serde_json::from_str(&raw)?;
             let p = policy(&db, stored.revision)?;
-            let credential_present = match &p.authority {
-                Authority::Fixture => false,
-                Authority::OpenaiAuthHome { path } => path.join("auth.json").is_file(),
-                Authority::ClaudeApiKeyEnv { token_env } => {
-                    std::env::var(token_env).is_ok_and(|s| !s.is_empty())
+            let restore_held = crate::restore::fenced(&db, "model", p.revision)?;
+            let credential_present = if restore_held {
+                false
+            } else {
+                match &p.authority {
+                    Authority::Fixture => false,
+                    Authority::OpenaiAuthHome { path } => path.join("auth.json").is_file(),
+                    Authority::ClaudeApiKeyEnv { token_env } => {
+                        std::env::var(token_env).is_ok_and(|s| !s.is_empty())
+                    }
                 }
             };
             Ok(ProfileStatus {
+                restore_held,
                 current: active(&db, &p).is_ok(),
                 native_admission_current: admission(&db, &p, &self.now()).is_ok(),
                 policy: p,

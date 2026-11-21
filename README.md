@@ -222,4 +222,4 @@ The [synthetic adapter lifecycle](contracts/v1/adapter-trials/README.md) exercis
 
 ## Consistent private backups
 
-The OS-only [backup contract](contracts/v1/backups/README.md) exports a consistent SQLite WAL snapshot and its complete declared frozen files, then verifies hashes, evidence, migrations and inventory. Metadata appears in factory history; private backup bytes have no HTTP export endpoint. `backup-inspect` activates no credentials or coordinator state. Authority-safe restore remains separate unfinished M8 work.
+The OS-only [backup contract](contracts/v1/backups/README.md) exports a consistent SQLite WAL snapshot and its complete declared frozen files, then verifies hashes, evidence, migrations and inventory. Metadata appears in factory history; private backup bytes have no HTTP export endpoint. `backup-inspect` activates no credentials or coordinator state. The [isolated restore contract](contracts/v1/backups/restore.md) reconstructs records/deadlines while permanently fencing copied authority and old handles. Fresh OS revisions, native qualification and explicit reconciliation/reminder review are required before live activation.

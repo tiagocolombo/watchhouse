@@ -191,11 +191,14 @@ pub(crate) fn source(db: &Connection, revision: i64) -> Result<RepairSource> {
     if store::digest(&raw) != digest {
         return Err(Error::Conflict("repair source integrity failure".into()));
     }
-    let s: RepairSource = serde_json::from_str(&raw)?;
+    let mut s: RepairSource = serde_json::from_str(&raw)?;
     if store::digest(&serde_json::to_string(&s.config)?) != s.config_digest
         || store::digest(&serde_json::to_string(&s.snapshot)?) != s.manifest_digest
     {
         return Err(Error::Conflict("repair manifest integrity failure".into()));
+    }
+    if let Some(path) = crate::restore::materialization(db, "source", revision)? {
+        s.snapshot_path = path;
     }
     Ok(s)
 }
@@ -352,6 +355,7 @@ impl Application {
         }
         crate::challenges::ensure_clear(&tx, id)?;
         crate::qualification::evidence_refs(&tx, id, &cmd.evidence_refs, true)?;
+        crate::restore::require_fresh(&tx, "repair_source", cmd.source_revision)?;
         let s = source(&tx, cmd.source_revision)?;
         if let Some(observation) = crate::sentry::snapshot(&tx, id)?
             && (observation.repository != s.config.repository

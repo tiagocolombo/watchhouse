@@ -51,6 +51,7 @@ pub(crate) const MIGRATIONS: &[(i64, &str)] = &[
     (29, include_str!("../migrations/029_worker_routing.sql")),
     (30, include_str!("../migrations/030_factory_controls.sql")),
     (31, include_str!("../migrations/031_factory_capacity.sql")),
+    (32, include_str!("../migrations/032_restore_isolation.sql")),
 ];
 
 #[derive(Clone)]
@@ -59,6 +60,25 @@ pub struct Store {
 }
 impl Store {
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
+        if path.as_ref().parent().is_some_and(|p| {
+            p.join("restore-incomplete").exists() || p.join("backup-incomplete").exists()
+        }) {
+            return Err(Error::Conflict(
+                "restore is incomplete; coordinator activation denied".into(),
+            ));
+        }
+        if path
+            .as_ref()
+            .file_name()
+            .is_some_and(|n| n == "watchhouse.db")
+            && let Some(parent) = path.as_ref().parent()
+            && parent.join("manifest.json").exists()
+        {
+            return Err(Error::Conflict("backup snapshot is inspection-only; use isolated restore before coordinator activation".into()));
+        }
+        Self::open_for_restore(path)
+    }
+    pub(crate) fn open_for_restore(path: impl AsRef<Path>) -> Result<Self> {
         let store = Self {
             path: path.as_ref().to_path_buf(),
         };

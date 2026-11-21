@@ -46,3 +46,4 @@ pub mod factory;
 
 pub mod backups;
 pub mod capacity;
+pub mod restore;

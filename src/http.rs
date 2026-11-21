@@ -73,6 +73,7 @@ pub fn router(app: Application, token: String, authority: String) -> Router {
         .route("/cases", get(list).post(create))
         .route("/cases/{id}", get(snapshot))
         .route("/cases/{id}/rename", post(rename))
+        .route("/cases/{id}/restore-reminder", post(restore_reminder))
         .route("/cases/{id}/challenges", post(challenge))
         .route("/cases/{id}/gate", post(case_gate))
         .route("/cases/{id}/correlations", post(case_correlation))
@@ -418,6 +419,11 @@ async fn manage_container(
             .map_err(ApiError)?,
     ))
 }
+case_command!(
+    restore_reminder,
+    crate::restore::Reminder,
+    reissue_restored_escalation
+);
 case_command!(challenge, crate::challenges::ChallengeCommand, challenge);
 case_command!(case_gate, crate::challenges::GateCommand, record_gate);
 case_command!(

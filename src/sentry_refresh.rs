@@ -197,7 +197,7 @@ fn persist(
 }
 pub(crate) fn intake(a: &Application, api: &dyn SentryApi) -> Result<usize> {
     let db = a.store.connect()?;
-    let row:Option<(String,String,String,String)>=db.query_row("SELECT d.id,d.record,c.record,d.received_at FROM source_deliveries d JOIN source_configs c ON c.revision=d.revision WHERE d.state IN ('pending','needs_enrichment') AND d.next_at<=?1 ORDER BY d.next_at,d.rowid LIMIT 1",[a.now()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional()?;
+    let row:Option<(String,String,String,String)>=db.query_row("SELECT d.id,d.record,c.record,d.received_at FROM source_deliveries d JOIN source_configs c ON c.revision=d.revision WHERE d.state IN ('pending','needs_enrichment') AND d.next_at<=?1 AND EXISTS(SELECT 1 FROM source_projects p WHERE p.organization=json_extract(c.record,'$.organization') AND p.project_id=json_extract(c.record,'$.project_id') AND NOT EXISTS(SELECT 1 FROM restore_fences f WHERE f.kind='source' AND f.identity=CAST(p.revision AS TEXT))) ORDER BY d.next_at,d.rowid LIMIT 1",[a.now()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional()?;
     let Some((delivery, raw, cfg, received_at)) = row else {
         return Ok(0);
     };
@@ -232,7 +232,7 @@ pub(crate) fn intake(a: &Application, api: &dyn SentryApi) -> Result<usize> {
 }
 pub(crate) fn refresh_known(a: &Application, api: &dyn SentryApi) -> Result<usize> {
     let db = a.store.connect()?;
-    let row:Option<(String,String)>=db.query_row("SELECT c.record,active.record FROM source_cases c JOIN source_configs old ON old.revision=json_extract(c.record,'$.configuration_revision') JOIN source_projects p ON p.organization=json_extract(old.record,'$.organization') AND p.project_id=json_extract(old.record,'$.project_id') JOIN source_configs active ON active.revision=p.revision LEFT JOIN source_read_state s ON s.source_key=c.source_key WHERE c.source_key LIKE 'sentry:%' AND (s.next_at IS NULL OR s.next_at<=?1 OR s.configuration_revision!=active.revision) ORDER BY CASE WHEN s.configuration_revision!=active.revision THEN 0 ELSE 1 END,COALESCE(s.next_at,''),c.rowid LIMIT 1",[a.now()],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
+    let row:Option<(String,String)>=db.query_row("SELECT c.record,active.record FROM source_cases c JOIN source_configs old ON old.revision=json_extract(c.record,'$.configuration_revision') JOIN source_projects p ON p.organization=json_extract(old.record,'$.organization') AND p.project_id=json_extract(old.record,'$.project_id') JOIN source_configs active ON active.revision=p.revision LEFT JOIN source_read_state s ON s.source_key=c.source_key WHERE c.source_key LIKE 'sentry:%' AND NOT EXISTS(SELECT 1 FROM restore_fences f WHERE f.kind='source' AND f.identity=CAST(active.revision AS TEXT)) AND (s.next_at IS NULL OR s.next_at<=?1 OR s.configuration_revision!=active.revision) ORDER BY CASE WHEN s.configuration_revision!=active.revision THEN 0 ELSE 1 END,COALESCE(s.next_at,''),c.rowid LIMIT 1",[a.now()],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
     let Some((raw, profile)) = row else {
         return Ok(0);
     };

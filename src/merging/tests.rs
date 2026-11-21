@@ -171,6 +171,45 @@ async fn eligible_fixture_and_unknown_merge_reconcile_without_replay() {
     );
     assert_eq!(*b.writes.borrow(), 1);
 }
+
+#[tokio::test]
+async fn restore_before_dispatch_reconciles_the_original_later_merge_without_replay() {
+    let (d, a, _t, j) = fixture().await;
+    let backup = d.path().join("backup");
+    let b = a
+        .create_backup(&backup, "operator", "Before original merge dispatch")
+        .unwrap();
+    let mut remote = Mock::new(&j);
+    remote.native = true;
+    remote.lost = true;
+    a.run_merge_once(&remote).unwrap();
+    assert_eq!(*remote.writes.borrow(), 1);
+    let output = d.path().join("restored");
+    let r = crate::restore::restore(
+        &backup,
+        &output,
+        &b.manifest_digest,
+        "operator",
+        "Read original merge effect only",
+    )
+    .unwrap();
+    assert_eq!(r.uncertain_external_effects, 1);
+    let app = Application::new(
+        crate::store::Store::open(output.join("watchhouse.db")).unwrap(),
+        std::sync::Arc::new(crate::domain::SystemClock),
+    );
+    assert!(!app.run_merge_once(&remote).unwrap());
+    let observed = app.reconcile_merge(&j.case_id, &j.id, &remote).unwrap();
+    assert_eq!(observed.state, "merged_stale");
+    assert_eq!(*remote.writes.borrow(), 1);
+    assert!(
+        !app.snapshot(&j.case_id)
+            .unwrap()
+            .recovery
+            .recovery
+            .response_resolved
+    );
+}
 #[tokio::test]
 async fn each_external_gate_denies_before_put() {
     let (_d, a, _t, j) = fixture().await;
