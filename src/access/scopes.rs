@@ -87,6 +87,18 @@ impl Session {
                 return Ok(false);
             }
         }
+        if let Some(cases) = body
+            .pointer("/action/related_cases")
+            .and_then(Value::as_array)
+        {
+            for id in cases {
+                if let Some(id) = id.as_str()
+                    && !self.case_allowed(&db, id)?
+                {
+                    return Ok(false);
+                }
+            }
+        }
         Ok(true)
     }
     pub(crate) fn current_for_case(

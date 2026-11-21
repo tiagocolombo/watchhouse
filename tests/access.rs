@@ -756,6 +756,19 @@ async fn exact_case_grants_filter_before_limits_and_protect_evidence_and_command
         );
     }
     assert_eq!(
+        r.clone()
+            .oneshot(request(
+                "POST",
+                &format!("/cases/{}/operations", own.id),
+                ALICE,
+                json!({"actor":"alice","action":{"type":"problem","related_cases":[foreign.id]}})
+            ))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
         r.oneshot(request(
             "POST",
             "/cases",
