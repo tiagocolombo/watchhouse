@@ -521,3 +521,93 @@ pub(crate) async fn published_fixture() -> (tempfile::TempDir, Application, Manu
     assert_eq!(j.state, "published");
     (f._root, f.app, f.clock, j)
 }
+
+#[tokio::test]
+async fn factory_pause_between_read_and_write_and_stop_after_write_never_replay() {
+    struct Hook<'a> {
+        app: &'a Application,
+        inner: &'a Mock,
+        job: &'a Job,
+        read: bool,
+        called: std::cell::Cell<bool>,
+    }
+    impl Hook<'_> {
+        fn hold(&self) {
+            if self.called.replace(true) {
+                return;
+            }
+            self.app
+                .control_factory(crate::factory::Command {
+                    meta: CommandMeta {
+                        schema_version: V1,
+                        idempotency_key: "publisher-factory-hook".into(),
+                        actor: "operator".into(),
+                        reason: "Synthetic factory publication race".into(),
+                    },
+                    expected_version: 0,
+                    action: crate::factory::Action::Pause {
+                        scope: crate::factory::Scope::Case,
+                        target: Some(self.job.case_id.clone()),
+                        effect: crate::factory::Effect::Publication,
+                        cancel_running: !self.read,
+                    },
+                })
+                .unwrap();
+        }
+    }
+    impl Backend for Hook<'_> {
+        fn get(&self, p: &PublisherPolicy, path: &str) -> super::github::Result<Option<Value>> {
+            let r = self.inner.get(p, path);
+            if self.read {
+                self.hold();
+            }
+            r
+        }
+        fn write(
+            &self,
+            p: &PublisherPolicy,
+            path: &str,
+            body: &Value,
+            update: bool,
+        ) -> super::github::Result<Value> {
+            let r = self.inner.write(p, path, body, update);
+            if !self.read {
+                self.hold();
+            }
+            r
+        }
+    }
+    let f = Fixture::new().await;
+    let j = f.enqueue("publisher-factory-pause");
+    let b = Mock::new(&j);
+    let h = Hook {
+        app: &f.app,
+        inner: &b,
+        job: &j,
+        read: true,
+        called: std::cell::Cell::new(false),
+    };
+    assert!(f.app.run_publisher_once(&h).unwrap());
+    assert!(b.0.lock().unwrap().writes.is_empty());
+    assert_eq!(f.job(&j.id).state, "ready");
+    assert!(!f.app.run_publisher_once(&b).unwrap());
+    let f = Fixture::new().await;
+    let j = f.enqueue("publisher-factory-stop");
+    let b = Mock::new(&j);
+    let h = Hook {
+        app: &f.app,
+        inner: &b,
+        job: &j,
+        read: false,
+        called: std::cell::Cell::new(false),
+    };
+    assert!(f.app.run_publisher_once(&h).is_err());
+    assert_eq!(b.0.lock().unwrap().writes.len(), 1);
+    assert_eq!(f.job(&j.id).state, "unknown");
+    f.app
+        .reconcile_publication(&j.case_id, &j.id, "operator")
+        .unwrap();
+    assert!(f.app.run_publisher_once(&b).unwrap());
+    assert_eq!(b.0.lock().unwrap().writes.len(), 1);
+    assert!(!f.app.run_publisher_once(&b).unwrap());
+}

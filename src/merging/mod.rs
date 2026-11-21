@@ -381,8 +381,8 @@ impl Application {
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let id: Option<String> = tx
             .query_row(
-                "SELECT id FROM merge_jobs WHERE state='ready' ORDER BY rowid LIMIT 1",
-                [],
+                "SELECT id FROM merge_jobs j WHERE state='ready' AND NOT EXISTS(SELECT 1 FROM factory_holds h WHERE h.case_id=j.case_id AND h.effect IN ('all','merge')) AND NOT EXISTS(SELECT 1 FROM factory_state WHERE high_at>?1) ORDER BY j.rowid LIMIT 1",
+                [self.now()],
                 |r| r.get(0),
             )
             .optional()?;
@@ -413,6 +413,13 @@ impl Application {
             return Err(Error::Conflict(
                 "merge reservation changed during final read".into(),
             ));
+        }
+        if !crate::factory::admitted(&tx, &j.case_id, "merge", &self.now())? {
+            actual.state = "ready".into();
+            actual.reason = "Factory paused during final read; no merge mutation dispatched".into();
+            save(&tx, &actual, &self.now())?;
+            tx.commit()?;
+            return Ok(true);
         }
         let eligible = observed
             .as_ref()
@@ -547,6 +554,34 @@ pub(crate) fn supervise(tx: &Transaction<'_>, now: &str) -> Result<usize> {
         }
         .into();
         j.reason = "merge deadline exceeded; uncertain effect must be reconciled".into();
+        save(tx, &j, now)?;
+    }
+    Ok(ids.len())
+}
+
+pub(crate) fn factory_stop(
+    tx: &Transaction<'_>,
+    case: &str,
+    pause: &str,
+    now: &str,
+) -> Result<usize> {
+    let ids: Vec<String> = {
+        let mut q=tx.prepare("SELECT id FROM merge_jobs WHERE case_id=?1 AND state IN ('ready','reserved','unknown')")?;
+        q.query_map([case], |r| r.get(0))?
+            .collect::<std::result::Result<_, _>>()?
+    };
+    for id in &ids {
+        let mut j = get(tx, id)?;
+        j.state = if j.state == "ready" {
+            "blocked"
+        } else {
+            "unknown"
+        }
+        .into();
+        j.fence = store::id("factory-stop-fence");
+        j.reason = format!(
+            "Factory stop {pause}: late effects cannot advance this reservation; read-only reconciliation remains required"
+        );
         save(tx, &j, now)?;
     }
     Ok(ids.len())

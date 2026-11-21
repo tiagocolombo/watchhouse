@@ -593,6 +593,88 @@ async fn native_text_client_drill(adapter: super::policy::Adapter, runtime_env: 
         );
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
+    // Exercise the factory stop against an actually populated native resource, without
+    // waiting for a role result or treating cancellation as a successful qualification.
+    f.clock
+        .advance(Utc::now() - crate::domain::Clock::now(&f.clock));
+    let stopping = f
+        .app
+        .request_model(
+            &f.case,
+            Request {
+                command: command(&f, "native-factory-stop"),
+                policy_revision: 2,
+                action: Action::Qualification,
+                fixture_response: None,
+            },
+        )
+        .unwrap();
+    f.app
+        .run_model_on(&Native, Some("native-model"))
+        .await
+        .unwrap();
+    f.app
+        .run_model_on(&Native, Some("native-model"))
+        .await
+        .unwrap();
+    let resource = f
+        .app
+        .model_job(&f.case, &stopping.id)
+        .unwrap()
+        .resource
+        .unwrap();
+    let wait = tokio::time::Instant::now();
+    while !super::cgroup::populated(&f.p.cgroup_root, &resource).unwrap() {
+        assert!(
+            wait.elapsed() < std::time::Duration::from_secs(3),
+            "factory-stop fixture never entered its cgroup"
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    let stop = f
+        .app
+        .control_factory(crate::factory::Command {
+            meta: CommandMeta {
+                schema_version: V1,
+                idempotency_key: "native-stop-control".into(),
+                actor: "operator".into(),
+                reason: "Native synthetic-resource factory stop drill".into(),
+            },
+            expected_version: 0,
+            action: crate::factory::Action::Pause {
+                scope: crate::factory::Scope::Case,
+                target: Some(f.case.clone()),
+                effect: crate::factory::Effect::Model,
+                cancel_running: true,
+            },
+        })
+        .unwrap();
+    assert_eq!(stop.affected_jobs, 1);
+    assert!(
+        f.app
+            .run_model_on(&Native, Some("native-model"))
+            .await
+            .unwrap()
+    );
+    assert!(!super::cgroup::populated(&f.p.cgroup_root, &resource).unwrap());
+    assert_eq!(
+        f.app.model_job(&f.case, &stopping.id).unwrap().state,
+        "cancelled"
+    );
+    f.app
+        .control_factory(crate::factory::Command {
+            meta: CommandMeta {
+                schema_version: V1,
+                idempotency_key: "native-resume-control".into(),
+                actor: "operator".into(),
+                reason: "Resume admission without restoring the cancelled job".into(),
+            },
+            expected_version: 1,
+            action: crate::factory::Action::Resume {
+                pause_id: stop.pause_id,
+            },
+        })
+        .unwrap();
     // A separate profile keeps the watchdog drill independent of successful client completion.
     f.clock
         .advance(Utc::now() - crate::domain::Clock::now(&f.clock));
@@ -872,4 +954,52 @@ async fn routed_model_work_retains_cleanup_owner_across_pause_and_restart() {
         restarted.worker_routes().unwrap().bindings[0]["worker_id"],
         "model-a"
     );
+}
+
+#[tokio::test]
+async fn factory_stop_survives_resume_and_never_restarts_a_created_client() {
+    let f = fixture();
+    let j = queue(&f, "factory-stop-model");
+    let b = Fake::default();
+    f.app.run_model_once(&b).await.unwrap();
+    let stopped = f
+        .app
+        .control_factory(crate::factory::Command {
+            meta: CommandMeta {
+                schema_version: V1,
+                idempotency_key: "stop-model".into(),
+                actor: "operator".into(),
+                reason: "Synthetic stop before client start".into(),
+            },
+            expected_version: 0,
+            action: crate::factory::Action::Pause {
+                scope: crate::factory::Scope::Case,
+                target: Some(f.case.clone()),
+                effect: crate::factory::Effect::Model,
+                cancel_running: true,
+            },
+        })
+        .unwrap();
+    assert_eq!(stopped.affected_jobs, 1);
+    assert_eq!(f.app.model_job(&f.case, &j.id).unwrap().state, "unknown");
+    f.app
+        .control_factory(crate::factory::Command {
+            meta: CommandMeta {
+                schema_version: V1,
+                idempotency_key: "resume-model".into(),
+                actor: "operator".into(),
+                reason: "Resume admission does not restore old client authority".into(),
+            },
+            expected_version: 1,
+            action: crate::factory::Action::Resume {
+                pause_id: stopped.pause_id,
+            },
+        })
+        .unwrap();
+    assert!(f.app.run_model_once(&b).await.unwrap());
+    assert_eq!(f.app.model_job(&f.case, &j.id).unwrap().state, "cancelled");
+    let s = b.state.lock().unwrap();
+    assert_eq!(s.creates, 1);
+    assert_eq!(s.starts, 0);
+    assert_eq!(s.cancels, 1);
 }

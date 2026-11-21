@@ -144,3 +144,5 @@ These resolve implementation proposals within the owner's authorized scope. They
 - [ADR 0033 — Local worker routing](adrs/0033-local-worker-routing.md): immutable OS routes select exact execution profiles, bind resources before effects, preserve original cleanup ownership, and expose unsupported native platforms without inheriting qualification. Remote trust and native macOS/Windows worker boundaries remain development work.
 
 - [ADR 0034 — Optional Hallmark repair spike](adrs/0034-optional-hallmark-repair-spike.md): pinned actual CLI/source inspection succeeded. Keep bounded knowledge exchange; do not select the full repair daemon as a backend. The optional investigation is complete; required native platforms and M8 are not waived.
+
+- [ADR 0035 — Factory controls and degraded health](adrs/0035-factory-controls-and-degraded-health.md): durable scoped admission holds, explicit active-result stop fences, monotonic clock visibility and independent observation/supervision/cleanup. Resume grants no new authority; remaining M8 hardening stays open.

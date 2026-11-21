@@ -166,8 +166,13 @@ pub(crate) fn select(
     } else {
         "NOT EXISTS(SELECT 1 FROM worker_bindings b WHERE b.kind=:kind AND b.job_id=j.id AND (b.worker_id!=:worker OR b.platform!=:platform OR b.architecture!=:arch))"
     };
+    let factory = if cleanup {
+        String::new()
+    } else {
+        " AND (j.state='running' OR (NOT EXISTS(SELECT 1 FROM factory_holds h WHERE h.case_id=j.case_id AND h.effect IN ('all',:kind)) AND NOT EXISTS(SELECT 1 FROM factory_state WHERE high_at>:now)))".into()
+    };
     let sql = format!(
-        "SELECT j.id FROM {} j WHERE ({condition}) AND ({binding}) {revisions} AND :now IS NOT NULL ORDER BY {order} LIMIT 1",
+        "SELECT j.id FROM {} j WHERE ({condition}) AND ({binding}) {revisions} {factory} AND :now IS NOT NULL ORDER BY {order} LIMIT 1",
         kind.table()
     );
     Ok(db.query_row(&sql,named_params!{":kind":kind.name(),":worker":id,":platform":std::env::consts::OS,":arch":std::env::consts::ARCH,":now":now},|r|r.get(0)).optional()?)
@@ -299,7 +304,7 @@ mod tests {
         let db = Connection::open_in_memory().unwrap();
         db.execute_batch(include_str!("../migrations/029_worker_routing.sql"))
             .unwrap();
-        db.execute_batch("CREATE TABLE model_jobs(id TEXT PRIMARY KEY,policy_revision INTEGER,state TEXT); CREATE TABLE container_jobs(id TEXT PRIMARY KEY,policy_revision INTEGER,state TEXT);").unwrap();
+        db.execute_batch("CREATE TABLE model_jobs(id TEXT PRIMARY KEY,policy_revision INTEGER,state TEXT); CREATE TABLE container_jobs(id TEXT PRIMARY KEY,policy_revision INTEGER,state TEXT); CREATE TABLE factory_holds(case_id TEXT,effect TEXT); CREATE TABLE factory_state(high_at TEXT); ALTER TABLE model_jobs ADD COLUMN case_id TEXT; ALTER TABLE container_jobs ADD COLUMN case_id TEXT;").unwrap();
         db
     }
     fn put(db: &Connection, revision: i64, paused: bool, platform: &str) {
@@ -331,8 +336,11 @@ mod tests {
     #[test]
     fn legacy_work_stays_compatible_but_arbitrary_names_cannot_claim() {
         let mut db = db();
-        db.execute("INSERT INTO model_jobs VALUES ('old',1,'queued')", [])
-            .unwrap();
+        db.execute(
+            "INSERT INTO model_jobs(id,policy_revision,state) VALUES ('old',1,'queued')",
+            [],
+        )
+        .unwrap();
         assert_eq!(choose(&db, None, false).unwrap().as_deref(), Some("old"));
         assert!(choose(&db, Some("worker-a"), false).unwrap().is_none());
         let tx = db.transaction().unwrap();
@@ -346,8 +354,11 @@ mod tests {
     fn platform_and_architecture_never_become_capability_proof() {
         for platform in ["linux", "windows", "macos"] {
             let db = db();
-            db.execute("INSERT INTO model_jobs VALUES ('j',2,'queued')", [])
-                .unwrap();
+            db.execute(
+                "INSERT INTO model_jobs(id,policy_revision,state) VALUES ('j',2,'queued')",
+                [],
+            )
+            .unwrap();
             put(&db, 1, false, platform);
             let selected = choose(&db, Some("worker-a"), false).unwrap();
             assert_eq!(
@@ -375,8 +386,11 @@ mod tests {
     #[test]
     fn cleanup_survives_corrupt_or_paused_routing_without_stealing_bindings() {
         let mut db = db();
-        db.execute("INSERT INTO model_jobs VALUES ('reserved',2,'unknown')", [])
-            .unwrap();
+        db.execute(
+            "INSERT INTO model_jobs(id,policy_revision,state) VALUES ('reserved',2,'unknown')",
+            [],
+        )
+        .unwrap();
         put(&db, 1, true, "linux");
         let tx = db.transaction().unwrap();
         bind(&tx, Kind::Model, "reserved", Some("worker-a"), "now").unwrap();
@@ -398,8 +412,11 @@ mod tests {
     #[test]
     fn paused_route_keeps_original_running_observation_available() {
         let mut db = db();
-        db.execute("INSERT INTO model_jobs VALUES ('running',2,'running')", [])
-            .unwrap();
+        db.execute(
+            "INSERT INTO model_jobs(id,policy_revision,state) VALUES ('running',2,'running')",
+            [],
+        )
+        .unwrap();
         put(&db, 1, true, "linux");
         let tx = db.transaction().unwrap();
         bind(&tx, Kind::Model, "running", Some("worker-a"), "now").unwrap();
@@ -413,10 +430,16 @@ mod tests {
     #[test]
     fn route_binding_is_atomic_and_namespace_isolated() {
         let mut db = db();
-        db.execute("INSERT INTO model_jobs VALUES ('same',1,'queued')", [])
-            .unwrap();
-        db.execute("INSERT INTO container_jobs VALUES ('same',1,'queued')", [])
-            .unwrap();
+        db.execute(
+            "INSERT INTO model_jobs(id,policy_revision,state) VALUES ('same',1,'queued')",
+            [],
+        )
+        .unwrap();
+        db.execute(
+            "INSERT INTO container_jobs(id,policy_revision,state) VALUES ('same',1,'queued')",
+            [],
+        )
+        .unwrap();
         {
             let tx = db.transaction().unwrap();
             bind(&tx, Kind::Model, "same", None, "now").unwrap();
@@ -444,13 +467,16 @@ mod tests {
         let mut db = db();
         for i in 0..150 {
             db.execute(
-                "INSERT INTO model_jobs VALUES (?1,1,'queued')",
+                "INSERT INTO model_jobs(id,policy_revision,state) VALUES (?1,1,'queued')",
                 [format!("foreign-{i}")],
             )
             .unwrap();
         }
-        db.execute("INSERT INTO model_jobs VALUES ('matching',2,'queued')", [])
-            .unwrap();
+        db.execute(
+            "INSERT INTO model_jobs(id,policy_revision,state) VALUES ('matching',2,'queued')",
+            [],
+        )
+        .unwrap();
         put(&db, 1, false, "linux");
         assert_eq!(
             choose(&db, Some("worker-a"), false).unwrap().as_deref(),

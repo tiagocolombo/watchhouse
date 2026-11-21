@@ -11,6 +11,11 @@ struct Cli {
 }
 #[derive(Subcommand)]
 enum Command {
+    FactoryStatus,
+    FactoryControl {
+        #[arg(long)]
+        file: PathBuf,
+    },
     /// Serve the bundled UI and process fake assignments independently of browsers.
     Serve {
         #[arg(long, default_value_t = 8787)]
@@ -625,6 +630,8 @@ async fn run() -> anyhow::Result<()> {
     }
     let app = Application::new(Store::open(cli.db)?, Arc::new(SystemClock));
     match cli.command {
+        Command::FactoryStatus => print(&app.factory_status()?)?,
+        Command::FactoryControl { file } => print(&app.control_factory(read_command(file)?)?)?,
         Command::WorkerRoutes => print(&app.worker_routes()?)?,
         Command::WorkerRouting { file, operator } => {
             let source = std::fs::canonicalize(&file)?;

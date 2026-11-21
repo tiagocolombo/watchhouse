@@ -129,6 +129,7 @@ pub fn router(app: Application, token: String, authority: String) -> Router {
         .route("/sources/datadog", get(datadog_status))
         .route("/model-profiles", get(model_profiles))
         .route("/worker-routes", get(worker_routes))
+        .route("/factory", get(factory_status).post(factory_control))
         .route("/cases/{id}/team/messages", post(team_message))
         .route("/cases/{id}/team/message-ack", post(team_message_ack))
         .route("/cases/{id}/team/handoffs", post(team_handoff))
@@ -721,4 +722,17 @@ async fn worker_routes(State(s): State<HttpState>) -> Result<Json<serde_json::Va
         serde_json::to_value(blocking(move || s.app.worker_routes()).await?)
             .map_err(|e| ApiError(e.into()))?,
     ))
+}
+
+async fn factory_status(State(s): State<HttpState>) -> Result<Json<serde_json::Value>, ApiError> {
+    Ok(Json(
+        serde_json::to_value(blocking(move || s.app.factory_status()).await?)
+            .map_err(|e| ApiError(e.into()))?,
+    ))
+}
+async fn factory_control(
+    State(s): State<HttpState>,
+    Json(cmd): Json<crate::factory::Command>,
+) -> Result<Json<crate::factory::Receipt>, ApiError> {
+    Ok(Json(blocking(move || s.app.control_factory(cmd)).await?))
 }

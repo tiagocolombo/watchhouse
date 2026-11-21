@@ -406,3 +406,60 @@ fn corrupt_review_evidence_blocks_dispatch_and_rollback_keeps_no_proposal() {
     assert_eq!(b.writes.get(), 0);
     assert_eq!(a.snapshot(&id).unwrap().operations.jobs[0].state, "blocked");
 }
+
+#[test]
+fn factory_pause_stops_new_runbook_effects_and_stop_fences_inflight_acknowledgments() {
+    struct Stopping<'a> {
+        app: &'a Application,
+        inner: &'a Gateway,
+    }
+    impl Backend for Stopping<'_> {
+        fn execute(&self, p: &Policy, j: &Job) -> std::result::Result<ActionResult, Failure> {
+            let r = self.inner.execute(p, j);
+            self.app
+                .control_factory(watchhouse::factory::Command {
+                    meta: CommandMeta {
+                        schema_version: V1,
+                        idempotency_key: "stop-runbook-inflight".into(),
+                        actor: "operator".into(),
+                        reason: "Synthetic stop while gateway effect is in flight".into(),
+                    },
+                    expected_version: 0,
+                    action: watchhouse::factory::Action::Pause {
+                        scope: watchhouse::factory::Scope::Case,
+                        target: Some(j.case_id.clone()),
+                        effect: watchhouse::factory::Effect::Operation,
+                        cancel_running: true,
+                    },
+                })
+                .unwrap();
+            r
+        }
+        fn lookup(&self, p: &Policy, j: &Job) -> std::result::Result<ActionResult, Failure> {
+            self.inner.lookup(p, j)
+        }
+        fn observe(
+            &self,
+            p: &Policy,
+            id: &str,
+        ) -> std::result::Result<watchhouse::operations::gateway::Observation, Failure> {
+            self.inner.observe(p, id)
+        }
+    }
+    let (_d, a, _t, id) = fixture();
+    a.install_operation_policy(policy(), "operator", "fixture")
+        .unwrap();
+    let j = approved(&a, &id);
+    let b = Gateway {
+        writes: Cell::new(0),
+        lost: false,
+        wrong: false,
+    };
+    assert!(a.operation_tick(&Stopping { app: &a, inner: &b }).is_err());
+    assert_eq!(b.writes.get(), 1);
+    assert_eq!(a.snapshot(&id).unwrap().operations.jobs[0].state, "unknown");
+    assert!(!a.operation_tick(&b).unwrap());
+    a.reconcile_operation(&id, &j.id, &b).unwrap();
+    assert_eq!(b.writes.get(), 1);
+    assert!(!a.snapshot(&id).unwrap().recovery.recovery.response_resolved);
+}

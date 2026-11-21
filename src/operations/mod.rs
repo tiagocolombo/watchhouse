@@ -630,8 +630,8 @@ impl Application {
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let id: Option<String> = tx
             .query_row(
-                "SELECT id FROM operation_jobs WHERE state='approved' ORDER BY rowid LIMIT 1",
-                [],
+                "SELECT id FROM operation_jobs j WHERE state='approved' AND NOT EXISTS(SELECT 1 FROM factory_holds h WHERE h.case_id=j.case_id AND h.effect IN ('all','operation')) AND NOT EXISTS(SELECT 1 FROM factory_state WHERE high_at>?1) ORDER BY j.rowid LIMIT 1",
+                [self.now()],
                 |r| r.get(0),
             )
             .optional()?;
@@ -856,4 +856,32 @@ pub(crate) fn supervise(tx: &Transaction<'_>, now: &str) -> Result<usize> {
         )?;
     }
     Ok(ids.len() + problems.len())
+}
+
+pub(crate) fn factory_stop(
+    tx: &Transaction<'_>,
+    case: &str,
+    pause: &str,
+    now: &str,
+) -> Result<usize> {
+    let ids: Vec<String> = {
+        let mut q=tx.prepare("SELECT id FROM operation_jobs WHERE case_id=?1 AND state IN ('proposed','approved','reserved','unknown')")?;
+        q.query_map([case], |r| r.get(0))?
+            .collect::<std::result::Result<_, _>>()?
+    };
+    for id in &ids {
+        let mut j = job(tx, id)?;
+        j.state = if matches!(j.state.as_str(), "proposed" | "approved") {
+            "blocked"
+        } else {
+            "unknown"
+        }
+        .into();
+        j.fence = store::id("factory-stop-fence");
+        j.reason = format!(
+            "Factory stop {pause}: admission fenced, not proof of target rollback/stop; reconcile the original gateway operation"
+        );
+        save(tx, &j, now)?;
+    }
+    Ok(ids.len())
 }
