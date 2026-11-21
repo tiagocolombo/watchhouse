@@ -70,7 +70,7 @@ The current branded UI provides token entry, manual intake, newest 200 cases, ca
 
 See [v1 contracts](../contracts/v1/README.md) for payloads. Command validation errors return 400 invalid_command; command-key/version/fence conflicts return 409 conflict, missing records 404 not_found. Unknown internal/persistence errors return 500 internal_error without exposing database detail. Framework rejection of malformed query/body limits may use its native errors.
 
-Only loopback binding is supported. Explicit bearer auth, Host/Origin checks, CSP, and inert text rendering establish the local session boundary; there are no cookies, remote roles, or worker API. The token remains in browser tab sessionStorage and is supplied as an Authorization header, including fetch-based SSE. Snapshots/stream frames are deduplicated by event ID. [ADR 0003](adrs/0003-local-api-and-timeline.md) describes reconnection and current pagination limits. Closing the browser cannot stop the polling fake worker.
+Binding remains loopback-only. Explicit bearer auth, Host/Origin checks, CSP, and inert text rendering establish the local session boundary. Optional configured remote roles now require the explicit trusted HTTPS proxy contract below; there are no cookies. The token remains in browser tab sessionStorage and is supplied as an Authorization header, including fetch-based SSE. Snapshots/stream frames are deduplicated by event ID. [ADR 0003](adrs/0003-local-api-and-timeline.md) describes reconnection and current pagination limits. Closing the browser cannot stop the polling fake worker.
 
 The M1 qualification UI displays current/prior decisions, scope, reason, uncertainty, evidence choices/provenance, recurrence count/threshold, original deadline, trigger time, and accountable pending/due obligations. A disposition is distinct from the unchanged case execution state. Form retries retain the command key and expected version after uncertain network responses; server rejections require a fresh user submission. Bodies remain bounded and all case text is rendered inertly. The qualification snapshot is read within the same transaction as the timeline/cursor. Browser tests cover offline deadline processing and replay without duplicate history.
 
@@ -93,3 +93,7 @@ The browser shows coordination state, current executor/owner, heartbeat/progress
 | GET | /api/v1/team/escalations | Newest 200 local escalation records |
 
 All endpoints retain loopback bearer/Host/Origin boundaries. These local operator simulation APIs do not authenticate independent remote workers. The ordinary snapshot omits fences. See [team contracts](../contracts/v1/team/README.md) for nested command metadata, idempotency, role limits and attribution.
+
+## Implemented configured human access
+
+[Access v1](../contracts/v1/access/README.md) implements global observer/operator/admin identities, `/api/v1/session`, OS-only configuration, strict proxy transport assertions, actor binding, revocation, bounded audit and role-aware controls. It does not authenticate the legacy fake-worker simulator remotely. Scoped service-owner data visibility and independent remote worker access remain required subsequent development. The self-signed localhost TLS browser fixture is not production TLS/account activation.

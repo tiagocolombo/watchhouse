@@ -2,11 +2,11 @@
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Watchhouse · Operations</title><link rel="icon" href="/icon.png"><link rel="stylesheet" href="/style.css"><script type="module" src="/app.js"></script></head>
 <body>
-<header><img src="/logo.png" alt="Watchhouse" width="280"><span class="badge">LOCAL WORKSPACE</span></header>
+<header><img src="/logo.png" alt="Watchhouse" width="280"><span id="workspace-mode" class="badge">LOCAL WORKSPACE</span></header>
 <main>
 <div class="heading"><div><p class="eyebrow">OPERATIONS / CASES</p><h1>Every signal has a next step.</h1><p class="muted">Manual intake, accountable assignments, and a durable record.</p></div><span id="connection" role="status">Connect to workspace</span></div>
-<p id="error" role="alert"></p>
-<section id="login"><h2>Open your workspace</h2><p>Enter the local operator token printed by the coordinator.</p><form id="login-form"><label>Operator token<input id="token" type="password" required autocomplete="off"></label><button>Connect</button></form></section>
+<p id="error" role="alert"></p><p id="session-identity" role="status"></p>
+<section id="login"><h2>Open your workspace</h2><p>Enter your issued access credential, or the local operator token printed by the coordinator.</p><form id="login-form"><label>Operator token<input id="token" type="password" required autocomplete="off"></label><button>Connect</button></form></section>
 <div id="workspace" hidden>
 <section aria-label="Factory controls"><h2>Factory operation</h2><p id="factory-status" role="status"></p><p>Observation, timers, escalation delivery and scoped cleanup continue while execution is paused. Resuming does not clear uncertain effects or reset budgets.</p><div id="factory-pauses"></div>
 <details><summary>Pause or stop execution</summary><form id="factory-control-form">

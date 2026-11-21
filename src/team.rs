@@ -381,7 +381,13 @@ pub(crate) fn escalate(
     if exists {
         return Ok(false);
     }
-    let e=Escalation{schema_version:V1,id:db::id("esc"),case_id:case_id.into(),source_type:kind.into(),source_id:id.into(),owner:"operator".into(),reason:reason.into(),recorded_at:now.into(),state:"open".into(),acknowledged_at:None,next_action:"Operator must review the blocker and arrange an accepted handoff or explicit decision. Delivery and human acknowledgment are tracked separately".into(),resolution:None};
+    let owner = db::case(tx, case_id)?.owner;
+    let owner = if owner.starts_with("fake-") || owner.starts_with("model-") {
+        "operator".to_owned()
+    } else {
+        owner
+    };
+    let e=Escalation{schema_version:V1,id:db::id("esc"),case_id:case_id.into(),source_type:kind.into(),source_id:id.into(),owner,reason:reason.into(),recorded_at:now.into(),state:"open".into(),acknowledged_at:None,next_action:"Operator must review the blocker and arrange an accepted handoff or explicit decision. Delivery and human acknowledgment are tracked separately".into(),resolution:None};
     tx.execute(
         "INSERT INTO escalations VALUES (?1,?2,?3,?4,?5,'open',NULL)",
         params![e.id, case_id, kind, id, serde_json::to_string(&e)?],
